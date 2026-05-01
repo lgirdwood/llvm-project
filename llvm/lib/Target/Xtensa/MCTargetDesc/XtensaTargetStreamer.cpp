@@ -80,6 +80,23 @@ void XtensaTargetAsmStreamer::emitLiteralPosition() {
 }
 
 void XtensaTargetAsmStreamer::startLiteralSection(MCSection *BaseSection) {
+  // When using --text-section-literals with the GNU assembler, literal pool
+  // entries are placed into a section derived from the *current* section
+  // (e.g., .imr.0 -> .imr.0.literal, .text -> merged into .text).
+  // We must always switch to the function's actual section before emitting
+  // .literal_position so that GAS creates the correct literal section.
+  // Without this, literals can cross section boundaries causing l32r
+  // out-of-range errors between different MEMORY regions.
+  if (BaseSection) {
+    StringRef SecName = BaseSection->getName();
+    if (!SecName.empty()) {
+      if (SecName == ".text") {
+        OS << "\t.text\n";
+      } else {
+        OS << "\t.section\t" << SecName << ",\"ax\",@progbits\n";
+      }
+    }
+  }
   emitLiteralPosition();
 }
 
