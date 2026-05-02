@@ -489,7 +489,8 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
       Name.starts_with(".gnu.linkonce.b.") ||
       Name.starts_with(".llvm.linkonce.b.") || Name == ".sbss" ||
       Name.starts_with(".sbss.") || Name.starts_with(".gnu.linkonce.sb.") ||
-      Name.starts_with(".llvm.linkonce.sb."))
+      Name.starts_with(".llvm.linkonce.sb.") || Name == ".noinit" ||
+      Name.starts_with(".noinit."))
     return SectionKind::getBSS();
 
   if (Name == ".tdata" || Name.starts_with(".tdata.") ||
