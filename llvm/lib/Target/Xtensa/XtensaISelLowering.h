@@ -100,6 +100,16 @@ public:
 
   const XtensaSubtarget &getSubtarget() const { return Subtarget; }
 
+  // On Xtensa, all 32-bit constants are loaded via l32r from a literal pool
+  // or movi for small values. Converting a load from a .rodata constant into
+  // an inline immediate avoids creating .rodata entries for struct initializer
+  // templates, which can interfere with memory-scanning firmware tools (e.g.
+  // QEMU mtrace finding a magic constant in .rodata before runtime init).
+  bool shouldConvertConstantLoadToIntImm(const APInt &Imm,
+                                         Type *Ty) const override {
+    return Imm.getBitWidth() <= 32;
+  }
+
   MachineBasicBlock *
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *BB) const override;
