@@ -5,12 +5,15 @@
 
 define i32 @f() {
 ; CHECK-LABEL: f:
-; CHECK:         .cfi_startproc
-; CHECK-NEXT:  # %bb.0: # %entry
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    l32r a8, .LCPI0_0
 ; CHECK-NEXT:    rur a9, threadptr
 ; CHECK-NEXT:    add a8, a9, a8
 ; CHECK-NEXT:    l32i a2, a8, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %tmp1 = load i32, ptr @i

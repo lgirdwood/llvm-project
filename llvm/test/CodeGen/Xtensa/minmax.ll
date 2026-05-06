@@ -9,9 +9,12 @@ declare i32 @llvm.umax.i32(i32, i32)
 
 define i32 @test_smin(i32 %x, i32 %y) {
 ; XTENSA-LABEL: test_smin:
-; XTENSA:         .cfi_startproc
-; XTENSA-NEXT:  # %bb.0: # %entry
+; XTENSA:       # %bb.0: # %entry
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    min a2, a2, a3
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
 entry:
   %res = call i32 @llvm.smin.i32(i32 %x, i32 %y)
@@ -20,9 +23,12 @@ entry:
 
 define i32 @test_umin(i32 %x, i32 %y) {
 ; XTENSA-LABEL: test_umin:
-; XTENSA:         .cfi_startproc
-; XTENSA-NEXT:  # %bb.0: # %entry
+; XTENSA:       # %bb.0: # %entry
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    minu a2, a2, a3
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
 entry:
   %res = call i32 @llvm.umin.i32(i32 %x, i32 %y)
@@ -31,9 +37,12 @@ entry:
 
 define i32 @test_smax(i32 %x, i32 %y) {
 ; XTENSA-LABEL: test_smax:
-; XTENSA:         .cfi_startproc
-; XTENSA-NEXT:  # %bb.0: # %entry
+; XTENSA:       # %bb.0: # %entry
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    max a2, a2, a3
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
 entry:
   %res = call i32 @llvm.smax.i32(i32 %x, i32 %y)
@@ -42,9 +51,12 @@ entry:
 
 define i32 @test_umax(i32 %x, i32 %y) {
 ; XTENSA-LABEL: test_umax:
-; XTENSA:         .cfi_startproc
-; XTENSA-NEXT:  # %bb.0: # %entry
+; XTENSA:       # %bb.0: # %entry
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    maxu a2, a2, a3
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
 entry:
   %res = call i32 @llvm.umax.i32(i32 %x, i32 %y)

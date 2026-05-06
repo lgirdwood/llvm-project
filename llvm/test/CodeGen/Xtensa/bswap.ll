@@ -13,11 +13,15 @@ declare i64 @llvm.bitreverse.i64(i64)
 define i16 @test_bswap_i16(i16 %a) nounwind {
 ; XTENSA-LABEL: test_bswap_i16:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    l32r a8, .LCPI0_0
 ; XTENSA-NEXT:    and a8, a2, a8
 ; XTENSA-NEXT:    srli a8, a8, 8
 ; XTENSA-NEXT:    slli a9, a2, 8
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i16 @llvm.bswap.i16(i16 %a)
   ret i16 %tmp
@@ -26,6 +30,8 @@ define i16 @test_bswap_i16(i16 %a) nounwind {
 define i32 @test_bswap_i32(i32 %a) nounwind {
 ; XTENSA-LABEL: test_bswap_i32:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 8
 ; XTENSA-NEXT:    l32r a9, .LCPI1_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -36,6 +42,8 @@ define i32 @test_bswap_i32(i32 %a) nounwind {
 ; XTENSA-NEXT:    slli a10, a2, 24
 ; XTENSA-NEXT:    or a9, a10, a9
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i32 @llvm.bswap.i32(i32 %a)
   ret i32 %tmp
@@ -44,6 +52,8 @@ define i32 @test_bswap_i32(i32 %a) nounwind {
 define i64 @test_bswap_i64(i64 %a) nounwind {
 ; XTENSA-LABEL: test_bswap_i64:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a3, 8
 ; XTENSA-NEXT:    l32r a9, .LCPI2_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -64,6 +74,8 @@ define i64 @test_bswap_i64(i64 %a) nounwind {
 ; XTENSA-NEXT:    or a9, a11, a9
 ; XTENSA-NEXT:    or a3, a9, a10
 ; XTENSA-NEXT:    or a2, a8, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i64 @llvm.bswap.i64(i64 %a)
   ret i64 %tmp
@@ -72,6 +84,8 @@ define i64 @test_bswap_i64(i64 %a) nounwind {
 define i8 @test_bitreverse_i8(i8 %a) nounwind {
 ; XTENSA-LABEL: test_bitreverse_i8:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    movi a8, 15
 ; XTENSA-NEXT:    and a8, a2, a8
 ; XTENSA-NEXT:    slli a8, a8, 4
@@ -91,6 +105,8 @@ define i8 @test_bitreverse_i8(i8 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a10
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i8 @llvm.bitreverse.i8(i8 %a)
   ret i8 %tmp
@@ -99,6 +115,8 @@ define i8 @test_bitreverse_i8(i8 %a) nounwind {
 define i16 @test_bitreverse_i16(i16 %a) nounwind {
 ; XTENSA-LABEL: test_bitreverse_i16:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    l32r a8, .LCPI4_0
 ; XTENSA-NEXT:    and a8, a2, a8
 ; XTENSA-NEXT:    srli a8, a8, 8
@@ -122,6 +140,8 @@ define i16 @test_bitreverse_i16(i16 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a10
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i16 @llvm.bitreverse.i16(i16 %a)
   ret i16 %tmp
@@ -130,6 +150,8 @@ define i16 @test_bitreverse_i16(i16 %a) nounwind {
 define i32 @test_bitreverse_i32(i32 %a) nounwind {
 ; XTENSA-LABEL: test_bitreverse_i32:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 8
 ; XTENSA-NEXT:    l32r a9, .LCPI5_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -158,6 +180,8 @@ define i32 @test_bitreverse_i32(i32 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a10
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i32 @llvm.bitreverse.i32(i32 %a)
   ret i32 %tmp
@@ -166,6 +190,8 @@ define i32 @test_bitreverse_i32(i32 %a) nounwind {
 define i64 @test_bitreverse_i64(i64 %a) nounwind {
 ; XTENSA-LABEL: test_bitreverse_i64:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a3, 8
 ; XTENSA-NEXT:    l32r a9, .LCPI6_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -219,6 +245,8 @@ define i64 @test_bitreverse_i64(i64 %a) nounwind {
 ; XTENSA-NEXT:    slli a9, a9, 1
 ; XTENSA-NEXT:    or a3, a10, a9
 ; XTENSA-NEXT:    or a2, a8, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i64 @llvm.bitreverse.i64(i64 %a)
   ret i64 %tmp
@@ -227,6 +255,8 @@ define i64 @test_bitreverse_i64(i64 %a) nounwind {
 define i16 @test_bswap_bitreverse_i16(i16 %a) nounwind {
 ; XTENSA-LABEL: test_bswap_bitreverse_i16:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 4
 ; XTENSA-NEXT:    l32r a9, .LCPI7_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -245,6 +275,8 @@ define i16 @test_bswap_bitreverse_i16(i16 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a10
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i16 @llvm.bswap.i16(i16 %a)
   %tmp2 = call i16 @llvm.bitreverse.i16(i16 %tmp)
@@ -254,6 +286,8 @@ define i16 @test_bswap_bitreverse_i16(i16 %a) nounwind {
 define i32 @test_bswap_bitreverse_i32(i32 %a) nounwind {
 ; XTENSA-LABEL: test_bswap_bitreverse_i32:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 4
 ; XTENSA-NEXT:    l32r a9, .LCPI8_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -272,6 +306,8 @@ define i32 @test_bswap_bitreverse_i32(i32 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a10
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i32 @llvm.bswap.i32(i32 %a)
   %tmp2 = call i32 @llvm.bitreverse.i32(i32 %tmp)
@@ -281,6 +317,8 @@ define i32 @test_bswap_bitreverse_i32(i32 %a) nounwind {
 define i64 @test_bswap_bitreverse_i64(i64 %a) nounwind {
 ; XTENSA-LABEL: test_bswap_bitreverse_i64:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 4
 ; XTENSA-NEXT:    l32r a9, .LCPI9_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -314,6 +352,8 @@ define i64 @test_bswap_bitreverse_i64(i64 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a7
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a3, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i64 @llvm.bswap.i64(i64 %a)
   %tmp2 = call i64 @llvm.bitreverse.i64(i64 %tmp)
@@ -323,6 +363,8 @@ define i64 @test_bswap_bitreverse_i64(i64 %a) nounwind {
 define i16 @test_bitreverse_bswap_i16(i16 %a) nounwind {
 ; XTENSA-LABEL: test_bitreverse_bswap_i16:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 4
 ; XTENSA-NEXT:    l32r a9, .LCPI10_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -341,6 +383,8 @@ define i16 @test_bitreverse_bswap_i16(i16 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a10
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i16 @llvm.bitreverse.i16(i16 %a)
   %tmp2 = call i16 @llvm.bswap.i16(i16 %tmp)
@@ -350,6 +394,8 @@ define i16 @test_bitreverse_bswap_i16(i16 %a) nounwind {
 define i32 @test_bitreverse_bswap_i32(i32 %a) nounwind {
 ; XTENSA-LABEL: test_bitreverse_bswap_i32:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 4
 ; XTENSA-NEXT:    l32r a9, .LCPI11_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -368,6 +414,8 @@ define i32 @test_bitreverse_bswap_i32(i32 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a10
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a2, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i32 @llvm.bitreverse.i32(i32 %a)
   %tmp2 = call i32 @llvm.bswap.i32(i32 %tmp)
@@ -377,6 +425,8 @@ define i32 @test_bitreverse_bswap_i32(i32 %a) nounwind {
 define i64 @test_bitreverse_bswap_i64(i64 %a) nounwind {
 ; XTENSA-LABEL: test_bitreverse_bswap_i64:
 ; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    srli a8, a2, 4
 ; XTENSA-NEXT:    l32r a9, .LCPI12_0
 ; XTENSA-NEXT:    and a8, a8, a9
@@ -410,6 +460,8 @@ define i64 @test_bitreverse_bswap_i64(i64 %a) nounwind {
 ; XTENSA-NEXT:    and a8, a8, a7
 ; XTENSA-NEXT:    slli a8, a8, 1
 ; XTENSA-NEXT:    or a3, a9, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %tmp = call i64 @llvm.bitreverse.i64(i64 %a)
   %tmp2 = call i64 @llvm.bswap.i64(i64 %tmp)

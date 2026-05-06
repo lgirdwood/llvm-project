@@ -30,8 +30,8 @@ using namespace llvm;
 #define MIN_FRAME_SIZE (8 * UNITS_PER_WORD)
 
 XtensaFrameLowering::XtensaFrameLowering(const XtensaSubtarget &STI)
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(4), 0,
-                          Align(4)),
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(16), 0,
+                          Align(16)),
       STI(STI), TII(*STI.getInstrInfo()), TRI(STI.getRegisterInfo()) {}
 
 bool XtensaFrameLowering::hasFPImpl(const MachineFunction &MF) const {
