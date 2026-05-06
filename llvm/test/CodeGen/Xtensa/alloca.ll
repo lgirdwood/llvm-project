@@ -15,9 +15,6 @@ define void @test_alloca(i32 %n) {
 ; CHECK-NEXT:    addi a8, a2, 15
 ; CHECK-NEXT:    movi a9, -16
 ; CHECK-NEXT:    and a8, a8, a9
-; CHECK-NEXT:    addi a8, a8, 31
-; CHECK-NEXT:    movi a9, -32
-; CHECK-NEXT:    and a8, a8, a9
 ; CHECK-NEXT:    sub a8, a1, a8
 ; CHECK-NEXT:    movsp a1, a8
 ; CHECK-NEXT:    addi a8, a1, -16
