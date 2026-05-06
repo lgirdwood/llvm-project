@@ -10,21 +10,15 @@ declare void @use_addr(ptr)
 
 define void @test_saverestore(i64 %n) {
 ; CHECK-LABEL: test_saverestore:
-; CHECK:         .cfi_startproc
-; CHECK-NEXT:  # %bb.0:
+; CHECK:       # %bb.0:
 ; CHECK-NEXT:    addi a8, a1, -16
 ; CHECK-NEXT:    or a1, a8, a8
-; CHECK-NEXT:    .cfi_def_cfa_offset 16
-; CHECK-NEXT:    s32i a0, a1, 8 # 4-byte Folded Spill
-; CHECK-NEXT:    s32i a12, a1, 4 # 4-byte Folded Spill
-; CHECK-NEXT:    s32i a15, a1, 0 # 4-byte Folded Spill
-; CHECK-NEXT:    .cfi_offset a0, -4
-; CHECK-NEXT:    .cfi_offset a12, -8
-; CHECK-NEXT:    .cfi_offset a15, -12
+; CHECK-NEXT:    s32i a0, a1, 12 # 4-byte Folded Spill
+; CHECK-NEXT:    s32i a12, a1, 8 # 4-byte Folded Spill
+; CHECK-NEXT:    s32i a15, a1, 4 # 4-byte Folded Spill
 ; CHECK-NEXT:    or a15, a1, a1
-; CHECK-NEXT:    .cfi_def_cfa_register a15
-; CHECK-NEXT:    addi a8, a2, 3
-; CHECK-NEXT:    movi a9, -4
+; CHECK-NEXT:    addi a8, a2, 15
+; CHECK-NEXT:    movi a9, -16
 ; CHECK-NEXT:    and a8, a8, a9
 ; CHECK-NEXT:    addi a8, a8, 31
 ; CHECK-NEXT:    movi a9, -32
@@ -36,21 +30,19 @@ define void @test_saverestore(i64 %n) {
 ; CHECK-NEXT:    callx0 a8
 ; CHECK-NEXT:    or a1, a12, a12
 ; CHECK-NEXT:    or a1, a15, a15
-; CHECK-NEXT:    l32i a15, a1, 0 # 4-byte Folded Reload
-; CHECK-NEXT:    l32i a12, a1, 4 # 4-byte Folded Reload
-; CHECK-NEXT:    l32i a0, a1, 8 # 4-byte Folded Reload
+; CHECK-NEXT:    l32i a15, a1, 4 # 4-byte Folded Reload
+; CHECK-NEXT:    l32i a12, a1, 8 # 4-byte Folded Reload
+; CHECK-NEXT:    l32i a0, a1, 12 # 4-byte Folded Reload
 ; CHECK-NEXT:    addi a8, a1, 16
 ; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 ;
 ; CHECK-WINDOWED-LABEL: test_saverestore:
-; CHECK-WINDOWED:         .cfi_startproc
-; CHECK-WINDOWED-NEXT:  # %bb.0:
-; CHECK-WINDOWED-NEXT:    entry a1, 32
+; CHECK-WINDOWED:       # %bb.0:
+; CHECK-WINDOWED-NEXT:    entry a1, 48
 ; CHECK-WINDOWED-NEXT:    or a7, a1, a1
-; CHECK-WINDOWED-NEXT:    .cfi_def_cfa a7, 32
-; CHECK-WINDOWED-NEXT:    addi a8, a2, 3
-; CHECK-WINDOWED-NEXT:    movi a9, -4
+; CHECK-WINDOWED-NEXT:    addi a8, a2, 15
+; CHECK-WINDOWED-NEXT:    movi a9, -16
 ; CHECK-WINDOWED-NEXT:    and a8, a8, a9
 ; CHECK-WINDOWED-NEXT:    addi a8, a8, 31
 ; CHECK-WINDOWED-NEXT:    movi a9, -32

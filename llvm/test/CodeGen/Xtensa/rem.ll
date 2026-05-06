@@ -9,17 +9,21 @@ define i32 @srem(i32 signext %a0, i32 signext %a1) nounwind readnone {
 ; XTENSA:       # %bb.0: # %entry
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    s32i a0, a1, 0 # 4-byte Folded Spill
+; XTENSA-NEXT:    s32i a0, a1, 12 # 4-byte Folded Spill
 ; XTENSA-NEXT:    l32r a8, .LCPI0_0
 ; XTENSA-NEXT:    callx0 a8
-; XTENSA-NEXT:    l32i a0, a1, 0 # 4-byte Folded Reload
+; XTENSA-NEXT:    l32i a0, a1, 12 # 4-byte Folded Reload
 ; XTENSA-NEXT:    addi a8, a1, 16
 ; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
 ;
 ; XTENSA-DIV-LABEL: srem:
 ; XTENSA-DIV:       # %bb.0: # %entry
+; XTENSA-DIV-NEXT:    addi a8, a1, -16
+; XTENSA-DIV-NEXT:    or a1, a8, a8
 ; XTENSA-DIV-NEXT:    rems a2, a2, a3
+; XTENSA-DIV-NEXT:    addi a8, a1, 16
+; XTENSA-DIV-NEXT:    or a1, a8, a8
 ; XTENSA-DIV-NEXT:    ret
 entry:
   %rem = srem i32 %a0, %a1
@@ -31,17 +35,21 @@ define i32 @urem(i32 signext %a0, i32 signext %a1) nounwind readnone {
 ; XTENSA:       # %bb.0: # %entry
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    s32i a0, a1, 0 # 4-byte Folded Spill
+; XTENSA-NEXT:    s32i a0, a1, 12 # 4-byte Folded Spill
 ; XTENSA-NEXT:    l32r a8, .LCPI1_0
 ; XTENSA-NEXT:    callx0 a8
-; XTENSA-NEXT:    l32i a0, a1, 0 # 4-byte Folded Reload
+; XTENSA-NEXT:    l32i a0, a1, 12 # 4-byte Folded Reload
 ; XTENSA-NEXT:    addi a8, a1, 16
 ; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
 ;
 ; XTENSA-DIV-LABEL: urem:
 ; XTENSA-DIV:       # %bb.0: # %entry
+; XTENSA-DIV-NEXT:    addi a8, a1, -16
+; XTENSA-DIV-NEXT:    or a1, a8, a8
 ; XTENSA-DIV-NEXT:    remu a2, a2, a3
+; XTENSA-DIV-NEXT:    addi a8, a1, 16
+; XTENSA-DIV-NEXT:    or a1, a8, a8
 ; XTENSA-DIV-NEXT:    ret
 entry:
   %rem = urem i32 %a0, %a1

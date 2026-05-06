@@ -3,9 +3,14 @@
 
 define signext i8 @test_load_i8(ptr %p){
 ; CHECK-LABEL: test_load_i8:
-; CHECK:         l8ui a8, a2, 0
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l8ui a8, a2, 0
 ; CHECK-NEXT:    slli a8, a8, 24
 ; CHECK-NEXT:    srai a2, a8, 24
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %1 = load i8, ptr %p, align 1
   ret i8 %1
