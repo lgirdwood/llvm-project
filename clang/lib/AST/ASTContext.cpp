@@ -10393,8 +10393,11 @@ CreateXtensaABIBuiltinVaListDecl(const ASTContext *Context) {
   CanQualType VaListTagType = Context->getCanonicalTagType(VaListTagDecl);
 
   // } __va_list_tag;
+  QualType VaListTagArrayType =
+      Context->getConstantArrayType(VaListTagType, llvm::APInt(32, 1), nullptr,
+                                    ArraySizeModifier::Normal, 0);
   TypedefDecl *VaListTagTypedefDecl =
-      Context->buildImplicitTypedef(VaListTagType, "__builtin_va_list");
+      Context->buildImplicitTypedef(VaListTagArrayType, "__builtin_va_list");
 
   return VaListTagTypedefDecl;
 }

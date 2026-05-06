@@ -20,9 +20,6 @@ define void @test_saverestore(i64 %n) {
 ; CHECK-NEXT:    addi a8, a2, 15
 ; CHECK-NEXT:    movi a9, -16
 ; CHECK-NEXT:    and a8, a8, a9
-; CHECK-NEXT:    addi a8, a8, 31
-; CHECK-NEXT:    movi a9, -32
-; CHECK-NEXT:    and a8, a8, a9
 ; CHECK-NEXT:    or a12, a1, a1
 ; CHECK-NEXT:    sub a1, a1, a8
 ; CHECK-NEXT:    or a2, a1, a1
@@ -43,9 +40,6 @@ define void @test_saverestore(i64 %n) {
 ; CHECK-WINDOWED-NEXT:    or a7, a1, a1
 ; CHECK-WINDOWED-NEXT:    addi a8, a2, 15
 ; CHECK-WINDOWED-NEXT:    movi a9, -16
-; CHECK-WINDOWED-NEXT:    and a8, a8, a9
-; CHECK-WINDOWED-NEXT:    addi a8, a8, 31
-; CHECK-WINDOWED-NEXT:    movi a9, -32
 ; CHECK-WINDOWED-NEXT:    and a8, a8, a9
 ; CHECK-WINDOWED-NEXT:    or a6, a1, a1
 ; CHECK-WINDOWED-NEXT:    sub a8, a1, a8

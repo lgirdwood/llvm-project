@@ -47,7 +47,13 @@ def SDT_XtensaRUR                : SDTypeProfile<1, 1, [SDTCisVT<0, i32>, SDTCis
 def Xtensa_call: SDNode<"XtensaISD::CALL", SDT_XtensaCall,
                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
 
+def Xtensa_callw4: SDNode<"XtensaISD::CALLW4", SDT_XtensaCall,
+                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
+
 def Xtensa_callw8: SDNode<"XtensaISD::CALLW8", SDT_XtensaCall,
+                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
+
+def Xtensa_callw12: SDNode<"XtensaISD::CALLW12", SDT_XtensaCall,
                         [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue, SDNPVariadic]>;
 
 def Xtensa_ret: SDNode<"XtensaISD::RET", SDTNone,

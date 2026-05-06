@@ -1191,11 +1191,11 @@ SDValue XtensaTargetLowering::LowerDYNAMIC_STACKALLOC(SDValue Op,
   EVT VT = Size->getValueType(0);
   SDLoc DL(Op);
 
-  // Round up Size to 32
+  // Round up Size to 16
   SDValue SizeTmp =
-      DAG.getNode(ISD::ADD, DL, VT, Size, DAG.getConstant(31, DL, MVT::i32));
+      DAG.getNode(ISD::ADD, DL, VT, Size, DAG.getConstant(15, DL, MVT::i32));
   SDValue SizeRoundUp = DAG.getNode(ISD::AND, DL, VT, SizeTmp,
-                                    DAG.getSignedConstant(~31, DL, MVT::i32));
+                                    DAG.getSignedConstant(~15, DL, MVT::i32));
 
   MCRegister SPReg = Xtensa::SP;
   SDValue SP = DAG.getCopyFromReg(Chain, DL, SPReg, VT);
@@ -1261,7 +1261,8 @@ SDValue XtensaTargetLowering::LowerVASTART(SDValue Op,
       DAG.getObjectPtrOffset(DL, Addr, TypeSize::getFixed(NextOffset));
 
   // Store pointer to arguments given on registers (va_reg)
-  SDValue StoreRegPtr = DAG.getStore(StoreStackPtr, DL, FrameIndex, NextPtr,
+  SDValue RegPtr = DAG.getNode(ISD::SUB, DL, PtrVT, FrameIndex, VAIndex);
+  SDValue StoreRegPtr = DAG.getStore(StoreStackPtr, DL, RegPtr, NextPtr,
                                      MachinePointerInfo(SV, NextOffset));
   NextOffset += FrameOffset;
   NextPtr = DAG.getObjectPtrOffset(DL, Addr, TypeSize::getFixed(NextOffset));
@@ -1336,31 +1337,21 @@ SDValue XtensaTargetLowering::LowerVAARG(SDValue Op, SelectionDAG &DAG) const {
   VAIndex = DAG.getNode(ISD::ADD, DL, PtrVT, OrigIndex,
                         DAG.getConstant(VASizeInBytes, DL, MVT::i32));
 
-  SDValue CC = DAG.getSetCC(DL, MVT::i32, OrigIndex,
-                            DAG.getConstant(6 * 4, DL, MVT::i32), ISD::SETLE);
-
-  SDValue StkIndex =
-      DAG.getNode(ISD::ADD, DL, PtrVT, VAIndex,
-                  DAG.getConstant(32 + VASizeInBytes, DL, MVT::i32));
-
-  CC = DAG.getSetCC(DL, MVT::i32, VAIndex, DAG.getConstant(6 * 4, DL, MVT::i32),
+  SDValue CC = DAG.getSetCC(DL, MVT::i32, VAIndex, DAG.getConstant(6 * 4, DL, MVT::i32),
                     ISD::SETLE);
 
   SDValue Array = DAG.getNode(ISD::SELECT, DL, MVT::i32, CC, VAReg, VAStack);
 
-  VAIndex = DAG.getNode(ISD::SELECT, DL, MVT::i32, CC, VAIndex, StkIndex);
+  SDValue MaxIndex = DAG.getNode(ISD::SMAX, DL, MVT::i32, OrigIndex, DAG.getConstant(32, DL, MVT::i32));
+  SDValue AddrOffset = DAG.getNode(ISD::SELECT, DL, MVT::i32, CC, OrigIndex, MaxIndex);
+  
+  SDValue NewVAIndex = DAG.getNode(ISD::ADD, DL, MVT::i32, AddrOffset, DAG.getConstant(VASizeInBytes, DL, MVT::i32));
 
-  CC = DAG.getSetCC(DL, MVT::i32, VAIndex, DAG.getConstant(6 * 4, DL, MVT::i32),
-                    ISD::SETLE);
-
-  SDValue VAIndexStore = DAG.getStore(InChain, DL, VAIndex, VarArgIndexPtr,
+  SDValue VAIndexStore = DAG.getStore(InChain, DL, NewVAIndex, VarArgIndexPtr,
                                       MachinePointerInfo(SV));
   InChain = VAIndexStore;
 
-  SDValue Addr = DAG.getNode(ISD::SUB, DL, PtrVT, VAIndex,
-                             DAG.getConstant(VASizeInBytes, DL, MVT::i32));
-
-  Addr = DAG.getNode(ISD::ADD, DL, PtrVT, Array, Addr);
+  SDValue Addr = DAG.getNode(ISD::ADD, DL, PtrVT, Array, AddrOffset);
 
   return DAG.getLoad(VT, DL, InChain, Addr, MachinePointerInfo());
 }
