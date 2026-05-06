@@ -30,3 +30,17 @@ def : Proc<"esp32s2", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA,
                        FeatureDiv32, FeatureDataCache, FeatureDebug, FeatureException, FeatureHighPriInterrupts, FeatureHighPriInterruptsLevel7,
                        FeatureCoprocessor, FeatureInterrupt, FeatureRelocatableVector,	FeatureTimers3, FeaturePRID, FeatureRegionProtection,
                        FeatureMiscSR, FeatureMINMAX, FeatureCLAMPS, FeatureESP32S2Ops]>;
+
+def : Proc<"intel_ace30_ptl", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+                               FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I, 
+                               FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts, 
+                               FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache, 
+                               FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX, 
+                               FeatureCLAMPS]>;
+
+def : Proc<"intel_ace40", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+                           FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I, 
+                           FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts, 
+                           FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache, 
+                           FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX, 
+                           FeatureCLAMPS]>;
