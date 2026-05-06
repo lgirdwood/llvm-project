@@ -742,14 +742,27 @@ let isCall = 1, Defs = [A0] in {
   }
 }
 
-// Windowed call patterns. Currently rotation
-// window by 8 is implemented.
+// Windowed call patterns.
+def : Pat<(Xtensa_callw4 (i32 tglobaladdr:$dst)),
+          (CALL4 tglobaladdr:$dst)>;
+def : Pat<(Xtensa_callw4 (i32 texternalsym:$dst)),
+          (CALL4 texternalsym:$dst)>;
+def : Pat<(Xtensa_callw4 AR:$dst),
+          (CALLX4 AR:$dst)>;
+
 def : Pat<(Xtensa_callw8 (i32 tglobaladdr:$dst)),
           (CALL8 tglobaladdr:$dst)>;
 def : Pat<(Xtensa_callw8 (i32 texternalsym:$dst)),
           (CALL8 texternalsym:$dst)>;
 def : Pat<(Xtensa_callw8 AR:$dst),
           (CALLX8 AR:$dst)>;
+
+def : Pat<(Xtensa_callw12 (i32 tglobaladdr:$dst)),
+          (CALL12 tglobaladdr:$dst)>;
+def : Pat<(Xtensa_callw12 (i32 texternalsym:$dst)),
+          (CALL12 texternalsym:$dst)>;
+def : Pat<(Xtensa_callw12 AR:$dst),
+          (CALLX12 AR:$dst)>;
 
 def MOVSP : RRR_Inst<0x00, 0x00, 0x00, (outs AR:$t), (ins AR:$s),
                     "movsp\t$t, $s", []>, Requires<[HasWindowed]> {

@@ -12,9 +12,6 @@ define ptr @test_simple_alloca(i32 %numelts) {
 ; CHECK-NEXT:    addi a8, a2, 15
 ; CHECK-NEXT:    movi a9, -16
 ; CHECK-NEXT:    and a8, a8, a9
-; CHECK-NEXT:    addi a8, a8, 31
-; CHECK-NEXT:    movi a9, -32
-; CHECK-NEXT:    and a8, a8, a9
 ; CHECK-NEXT:    sub a1, a1, a8
 ; CHECK-NEXT:    or a2, a1, a1
 ; CHECK-NEXT:    or a1, a15, a15
