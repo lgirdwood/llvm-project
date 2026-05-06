@@ -5,7 +5,10 @@
 
 define void @test_blockaddress() {
 ; CHECK-LABEL: test_blockaddress:
-; CHECK:         l32r a8, .LCPI0_0
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI0_0
 ; CHECK-NEXT:    l32r a9, .LCPI0_1
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s32i a9, a8, 0
@@ -14,6 +17,8 @@ define void @test_blockaddress() {
 ; CHECK-NEXT:    jx a8
 ; CHECK-NEXT:  .Ltmp0: # Block address taken
 ; CHECK-NEXT:  .LBB0_1: # %block
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   store volatile ptr blockaddress(@test_blockaddress, %block), ptr @addr
 

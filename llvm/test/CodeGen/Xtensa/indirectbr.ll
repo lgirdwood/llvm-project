@@ -4,9 +4,14 @@
 
 define i32 @indirectbr(i8* %target) nounwind {
 ; XTENSA-LABEL: indirectbr:
-; XTENSA:         jx a2
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    jx a2
 ; XTENSA-NEXT:  .LBB0_1: # %test_label
 ; XTENSA-NEXT:    movi a2, 0
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   indirectbr i8* %target, [label %test_label]
 test_label:
@@ -17,11 +22,16 @@ ret:
 
 define i32 @indirectbr_with_offset(i8* %a) nounwind {
 ; XTENSA-LABEL: indirectbr_with_offset:
-; XTENSA:         movi a8, 1380
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 1380
 ; XTENSA-NEXT:    add a8, a2, a8
 ; XTENSA-NEXT:    jx a8
 ; XTENSA-NEXT:  .LBB1_1: # %test_label
 ; XTENSA-NEXT:    movi a2, 0
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %target = getelementptr inbounds i8, i8* %a, i32 1380
   indirectbr i8* %target, [label %test_label]

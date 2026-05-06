@@ -759,7 +759,7 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
   Glue = Chain.getValue(1);
 
   // Mark the end of the call, which is glued to the call itself.
-  Chain = DAG.getCALLSEQ_END(Chain, DAG.getConstant(NumBytes, DL, PtrVT, true),
+  Chain = DAG.getCALLSEQ_END(Chain, DAG.getConstant(NextStackOffset, DL, PtrVT, true),
                              DAG.getConstant(0, DL, PtrVT, true), Glue, DL);
   Glue = Chain.getValue(1);
 

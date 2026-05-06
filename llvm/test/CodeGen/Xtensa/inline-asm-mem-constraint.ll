@@ -3,9 +3,14 @@
 
 define i32 @m_offset_0(ptr %p) nounwind {
 ; XTENSA-LABEL: m_offset_0:
-; XTENSA:         #APP
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    #APP
 ; XTENSA-NEXT:    l32i a2, a2, 0
 ; XTENSA-NEXT:    #NO_APP
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %1 = call i32 asm "l32i $0, $1", "=r,*m"(ptr elementtype(i32) %p)
   ret i32 %1
@@ -13,9 +18,14 @@ define i32 @m_offset_0(ptr %p) nounwind {
 
 define i32 @m_offset_1020(ptr %p) nounwind {
 ; XTENSA-LABEL: m_offset_1020:
-; XTENSA:         #APP
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    #APP
 ; XTENSA-NEXT:    l32i a2, a2, 1020
 ; XTENSA-NEXT:    #NO_APP
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %1 = getelementptr inbounds i8, ptr %p, i32 1020
   %2 = call i32 asm "l32i $0, $1", "=r,*m"(ptr elementtype(i32) %1)
@@ -24,10 +34,15 @@ define i32 @m_offset_1020(ptr %p) nounwind {
 
 define i8 @m_i8_offset_7(ptr %p) nounwind {
 ; XTENSA-LABEL: m_i8_offset_7:
-; XTENSA:         addi a8, a2, 7
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    addi a8, a2, 7
 ; XTENSA-NEXT:    #APP
 ; XTENSA-NEXT:    l8ui a2, a8, 0
 ; XTENSA-NEXT:    #NO_APP
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %1 = getelementptr inbounds i8, ptr %p, i32 7
   %2 = call i8 asm "l8ui $0, $1", "=r,*m"(ptr elementtype(i8) %1)
@@ -36,9 +51,14 @@ define i8 @m_i8_offset_7(ptr %p) nounwind {
 
 define i16 @m_i16_offset_10(ptr %p) nounwind {
 ; XTENSA-LABEL: m_i16_offset_10:
-; XTENSA:         #APP
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    #APP
 ; XTENSA-NEXT:    l16si a2, a2, 20
 ; XTENSA-NEXT:    #NO_APP
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %1 = getelementptr inbounds i16, ptr %p, i32 10
   %2 = call i16 asm "l16si $0, $1", "=r,*m"(ptr elementtype(i16) %1)

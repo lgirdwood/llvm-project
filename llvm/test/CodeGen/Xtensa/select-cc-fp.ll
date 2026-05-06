@@ -5,6 +5,8 @@
 define float @brcc_oeq(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_oeq:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    oeq.s b0, f9, f8
@@ -13,13 +15,15 @@ define float @brcc_oeq(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI0_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB0_3
 ; CHECK-NEXT:  .LBB0_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI0_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB0_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp oeq float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -37,6 +41,8 @@ exit:
 define float @brcc_ogt(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_ogt:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ule.s b0, f9, f8
@@ -45,13 +51,15 @@ define float @brcc_ogt(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI1_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB1_3
 ; CHECK-NEXT:  .LBB1_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI1_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB1_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp ogt float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -69,6 +77,8 @@ exit:
 define float @brcc_oge(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_oge:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ult.s b0, f9, f8
@@ -77,13 +87,15 @@ define float @brcc_oge(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI2_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB2_3
 ; CHECK-NEXT:  .LBB2_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI2_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB2_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp oge float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -101,6 +113,8 @@ exit:
 define float @brcc_olt(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_olt:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    olt.s b0, f9, f8
@@ -109,13 +123,15 @@ define float @brcc_olt(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI3_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB3_3
 ; CHECK-NEXT:  .LBB3_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI3_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB3_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp olt float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -133,6 +149,8 @@ exit:
 define float @brcc_ole(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_ole:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ole.s b0, f9, f8
@@ -141,13 +159,15 @@ define float @brcc_ole(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI4_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB4_3
 ; CHECK-NEXT:  .LBB4_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI4_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB4_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp ole float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -165,6 +185,8 @@ exit:
 define float @brcc_one(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_one:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ueq.s b0, f9, f8
@@ -173,13 +195,15 @@ define float @brcc_one(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI5_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB5_3
 ; CHECK-NEXT:  .LBB5_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI5_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB5_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp one float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -197,6 +221,8 @@ exit:
 define float @brcc_ord(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_ord:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    un.s b0, f9, f8
@@ -205,13 +231,15 @@ define float @brcc_ord(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI6_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB6_3
 ; CHECK-NEXT:  .LBB6_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI6_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB6_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp ord float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -229,6 +257,8 @@ exit:
 define float @brcc_ueq(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_ueq:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ueq.s b0, f9, f8
@@ -237,13 +267,15 @@ define float @brcc_ueq(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI7_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB7_3
 ; CHECK-NEXT:  .LBB7_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI7_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB7_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp ueq float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -261,6 +293,8 @@ exit:
 define float @brcc_ugt(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_ugt:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ole.s b0, f9, f8
@@ -269,13 +303,15 @@ define float @brcc_ugt(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI8_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB8_3
 ; CHECK-NEXT:  .LBB8_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI8_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB8_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp ugt float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -293,6 +329,8 @@ exit:
 define float @brcc_uge(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_uge:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    olt.s b0, f9, f8
@@ -301,13 +339,15 @@ define float @brcc_uge(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI9_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB9_3
 ; CHECK-NEXT:  .LBB9_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI9_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB9_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp uge float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -325,6 +365,8 @@ exit:
 define float @brcc_ult(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_ult:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ult.s b0, f9, f8
@@ -333,13 +375,15 @@ define float @brcc_ult(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI10_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB10_3
 ; CHECK-NEXT:  .LBB10_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI10_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB10_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp ult float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -357,6 +401,8 @@ exit:
 define float @brcc_ule(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_ule:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    ule.s b0, f9, f8
@@ -365,13 +411,15 @@ define float @brcc_ule(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI11_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB11_3
 ; CHECK-NEXT:  .LBB11_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI11_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB11_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp ule float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -389,6 +437,8 @@ exit:
 define float @brcc_une(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_une:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    oeq.s b0, f9, f8
@@ -397,13 +447,15 @@ define float @brcc_une(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI12_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB12_3
 ; CHECK-NEXT:  .LBB12_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI12_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB12_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp une float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -421,6 +473,8 @@ exit:
 define float @brcc_uno(float %a, float %b) nounwind {
 ; CHECK-LABEL: brcc_uno:
 ; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    wfr f8, a3
 ; CHECK-NEXT:    wfr f9, a2
 ; CHECK-NEXT:    un.s b0, f9, f8
@@ -429,13 +483,15 @@ define float @brcc_uno(float %a, float %b) nounwind {
 ; CHECK-NEXT:    l32r a8, .LCPI13_1
 ; CHECK-NEXT:    wfr f8, a8
 ; CHECK-NEXT:    add.s f8, f9, f8
-; CHECK-NEXT:    rfr a2, f8
-; CHECK-NEXT:    ret
+; CHECK-NEXT:    j .LBB13_3
 ; CHECK-NEXT:  .LBB13_2: # %t2
 ; CHECK-NEXT:    l32r a8, .LCPI13_0
 ; CHECK-NEXT:    wfr f9, a8
 ; CHECK-NEXT:    add.s f8, f8, f9
+; CHECK-NEXT:  .LBB13_3: # %exit
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %wb = fcmp uno float %a, %b
   br i1 %wb, label %t1, label %t2
@@ -452,8 +508,9 @@ exit:
 
 define float @copysign_f32(float %a, float %b) {
 ; CHECK-LABEL: copysign_f32:
-; CHECK:         .cfi_startproc
-; CHECK-NEXT:  # %bb.0: # %entry
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    l32r a8, .LCPI14_0
 ; CHECK-NEXT:    and a8, a3, a8
 ; CHECK-NEXT:    l32r a9, .LCPI14_1
@@ -465,6 +522,8 @@ define float @copysign_f32(float %a, float %b) {
 ; CHECK-NEXT:    neg.s f8, f8
 ; CHECK-NEXT:  .LBB14_2: # %entry
 ; CHECK-NEXT:    rfr a2, f8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %c = call float @llvm.copysign.f32(float %a, float %b)

@@ -6,7 +6,7 @@ declare i32 @external_function(i32)
 define i32 @test_call_external(i32 %a) nounwind {
 ; CHECK-LABEL: test_call_external:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    entry a1, 32
+; CHECK-NEXT:    entry a1, 48
 ; CHECK-NEXT:    or a10, a2, a2
 ; CHECK-NEXT:    l32r a8, .LCPI0_0
 ; CHECK-NEXT:    callx8 a8
@@ -19,7 +19,7 @@ define i32 @test_call_external(i32 %a) nounwind {
 define i32 @defined_function(i32 %a) nounwind {
 ; CHECK-LABEL: defined_function:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    entry a1, 32
+; CHECK-NEXT:    entry a1, 48
 ; CHECK-NEXT:    addi a2, a2, 1
 ; CHECK-NEXT:    retw
   %1 = add i32 %a, 1
@@ -29,7 +29,7 @@ define i32 @defined_function(i32 %a) nounwind {
 define i32 @test_call_defined(i32 %a) nounwind {
 ; CHECK-LABEL: test_call_defined:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    entry a1, 32
+; CHECK-NEXT:    entry a1, 48
 ; CHECK-NEXT:    or a10, a2, a2
 ; CHECK-NEXT:    l32r a8, .LCPI2_0
 ; CHECK-NEXT:    callx8 a8
@@ -42,7 +42,7 @@ define i32 @test_call_defined(i32 %a) nounwind {
 define i32 @test_call_indirect(ptr %a, i32 %b) nounwind {
 ; CHECK-LABEL: test_call_indirect:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    entry a1, 32
+; CHECK-NEXT:    entry a1, 48
 ; CHECK-NEXT:    or a10, a3, a3
 ; CHECK-NEXT:    callx8 a2
 ; CHECK-NEXT:    or a2, a10, a10

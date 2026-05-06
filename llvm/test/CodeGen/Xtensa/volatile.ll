@@ -19,7 +19,10 @@
 
 define void @test() {
 ; CHECK-LABEL: test:
-; CHECK:         l32r a8, .LCPI0_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI0_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l8ui a8, a8, 0
 ; CHECK-NEXT:    l32r a9, .LCPI0_1
@@ -37,6 +40,8 @@ define void @test() {
 ; CHECK-NEXT:    l32r a9, .LCPI0_5
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s32i a8, a9, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 
 entry:
@@ -52,12 +57,17 @@ entry:
 
 define void @test_i8() {
 ; CHECK-LABEL: test_i8:
-; CHECK:         l32r a8, .LCPI1_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI1_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l8ui a8, a8, 0
 ; CHECK-NEXT:    l32r a9, .LCPI1_1
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s8i a8, a9, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %a = load volatile i8, ptr @x_i8, align 4
@@ -67,12 +77,17 @@ entry:
 
 define void @test_i16() {
 ; CHECK-LABEL: test_i16:
-; CHECK:         l32r a8, .LCPI2_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI2_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l16ui a8, a8, 0
 ; CHECK-NEXT:    l32r a9, .LCPI2_1
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s16i a8, a9, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %a = load volatile i16, ptr @x_i16, align 4
@@ -82,12 +97,17 @@ entry:
 
 define void @test_i32() {
 ; CHECK-LABEL: test_i32:
-; CHECK:         l32r a8, .LCPI3_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI3_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l32i a8, a8, 0
 ; CHECK-NEXT:    l32r a9, .LCPI3_1
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s32i a8, a9, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %a = load volatile i32, ptr @x_i32, align 4
@@ -97,7 +117,10 @@ entry:
 
 define void @test_i64() {
 ; CHECK-LABEL: test_i64:
-; CHECK:         l32r a8, .LCPI4_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI4_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l32i a9, a8, 0
 ; CHECK-NEXT:    memw
@@ -107,6 +130,8 @@ define void @test_i64() {
 ; CHECK-NEXT:    s32i a8, a10, 4
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s32i a9, a10, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %a = load volatile i64, ptr @x_i64, align 4
@@ -116,12 +141,17 @@ entry:
 
 define void @test_float() {
 ; CHECK-LABEL: test_float:
-; CHECK:         l32r a8, .LCPI5_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI5_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l32i a8, a8, 0
 ; CHECK-NEXT:    l32r a9, .LCPI5_1
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s32i a8, a9, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %a = load volatile float, ptr @x_float, align 4
@@ -131,7 +161,10 @@ entry:
 
 define void @test_double() {
 ; CHECK-LABEL: test_double:
-; CHECK:         l32r a8, .LCPI6_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI6_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l32i a9, a8, 0
 ; CHECK-NEXT:    memw
@@ -141,6 +174,8 @@ define void @test_double() {
 ; CHECK-NEXT:    s32i a8, a10, 4
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s32i a9, a10, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %a = load volatile double, ptr @x_double, align 4
@@ -150,7 +185,10 @@ entry:
 
 define void @test_vec() {
 ; CHECK-LABEL: test_vec:
-; CHECK:         l32r a8, .LCPI7_0
+; CHECK:       # %bb.0: # %entry
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    l32r a8, .LCPI7_0
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    l32i a9, a8, 0
 ; CHECK-NEXT:    memw
@@ -168,6 +206,8 @@ define void @test_vec() {
 ; CHECK-NEXT:    s32i a10, a7, 4
 ; CHECK-NEXT:    memw
 ; CHECK-NEXT:    s32i a9, a7, 0
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
 entry:
   %a = load volatile <4 x i32>, ptr @x_vec, align 4

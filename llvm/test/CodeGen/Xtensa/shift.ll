@@ -4,8 +4,13 @@
 
 define i32 @lshl(i32 %x, i32 %y) nounwind {
 ; CHECK-LABEL: lshl:
-; CHECK:         ssl a3
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    ssl a3
 ; CHECK-NEXT:    sll a2, a2
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = shl i32 %x, %y
   ret i32 %c
@@ -13,7 +18,12 @@ define i32 @lshl(i32 %x, i32 %y) nounwind {
 
 define i32 @lshl_imm_1(i32 %x) nounwind {
 ; CHECK-LABEL: lshl_imm_1:
-; CHECK:         slli a2, a2, 1
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    slli a2, a2, 1
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = shl i32 %x, 1
   ret i32 %c
@@ -21,7 +31,12 @@ define i32 @lshl_imm_1(i32 %x) nounwind {
 
 define i32 @lshl_imm_10(i32 %x) nounwind {
 ; CHECK-LABEL: lshl_imm_10:
-; CHECK:         slli a2, a2, 10
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    slli a2, a2, 10
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = shl i32 %x, 10
   ret i32 %c
@@ -29,7 +44,12 @@ define i32 @lshl_imm_10(i32 %x) nounwind {
 
 define i32 @lshl_imm_31(i32 %x) nounwind {
 ; CHECK-LABEL: lshl_imm_31:
-; CHECK:         slli a2, a2, 31
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    slli a2, a2, 31
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = shl i32 %x, 31
   ret i32 %c
@@ -37,8 +57,13 @@ define i32 @lshl_imm_31(i32 %x) nounwind {
 
 define i32 @lshr(i32 %x, i32 %y) nounwind {
 ; CHECK-LABEL: lshr:
-; CHECK:         ssr a3
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    ssr a3
 ; CHECK-NEXT:    srl a2, a2
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = lshr i32 %x, %y
   ret i32 %c
@@ -46,7 +71,12 @@ define i32 @lshr(i32 %x, i32 %y) nounwind {
 
 define i32 @lshr_imm_1(i32 %x) nounwind {
 ; CHECK-LABEL: lshr_imm_1:
-; CHECK:         srli a2, a2, 1
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    srli a2, a2, 1
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = lshr i32 %x, 1
   ret i32 %c
@@ -54,7 +84,12 @@ define i32 @lshr_imm_1(i32 %x) nounwind {
 
 define i32 @lshr_imm_15(i32 %x) nounwind {
 ; CHECK-LABEL: lshr_imm_15:
-; CHECK:         srli a2, a2, 15
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    srli a2, a2, 15
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = lshr i32 %x, 15
   ret i32 %c
@@ -62,7 +97,12 @@ define i32 @lshr_imm_15(i32 %x) nounwind {
 
 define i32 @lshr_imm_20(i32 %x) nounwind {
 ; CHECK-LABEL: lshr_imm_20:
-; CHECK:         extui a2, a2, 20, 12
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    extui a2, a2, 20, 12
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = lshr i32 %x, 20
   ret i32 %c
@@ -70,8 +110,13 @@ define i32 @lshr_imm_20(i32 %x) nounwind {
 
 define i32 @ashr(i32 %x, i32 %y) nounwind {
 ; CHECK-LABEL: ashr:
-; CHECK:         ssr a3
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    ssr a3
 ; CHECK-NEXT:    sra a2, a2
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = ashr i32 %x, %y
   ret i32 %c
@@ -79,7 +124,12 @@ define i32 @ashr(i32 %x, i32 %y) nounwind {
 
 define i32 @ashr_imm_1(i32 %x) nounwind {
 ; CHECK-LABEL: ashr_imm_1:
-; CHECK:         srai a2, a2, 1
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    srai a2, a2, 1
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = ashr i32 %x, 1
   ret i32 %c
@@ -87,7 +137,12 @@ define i32 @ashr_imm_1(i32 %x) nounwind {
 
 define i32 @ashr_imm_10(i32 %x) nounwind {
 ; CHECK-LABEL: ashr_imm_10:
-; CHECK:         srai a2, a2, 10
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    srai a2, a2, 10
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = ashr i32 %x, 10
   ret i32 %c
@@ -95,7 +150,12 @@ define i32 @ashr_imm_10(i32 %x) nounwind {
 
 define i32 @ashr_imm_31(i32 %x) nounwind {
 ; CHECK-LABEL: ashr_imm_31:
-; CHECK:         srai a2, a2, 31
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    srai a2, a2, 31
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = ashr i32 %x, 31
   ret i32 %c
@@ -103,7 +163,10 @@ define i32 @ashr_imm_31(i32 %x) nounwind {
 
 define i64 @lshl_64(i64 %x, i64 %y) nounwind {
 ; CHECK-LABEL: lshl_64:
-; CHECK:         ssl a4
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    ssl a4
 ; CHECK-NEXT:    src a3, a3, a2
 ; CHECK-NEXT:    addi a8, a4, -32
 ; CHECK-NEXT:    ssl a8
@@ -119,6 +182,8 @@ define i64 @lshl_64(i64 %x, i64 %y) nounwind {
 ; CHECK-NEXT:  # %bb.3:
 ; CHECK-NEXT:    or a2, a9, a9
 ; CHECK-NEXT:  .LBB12_4:
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = shl i64 %x, %y
   ret i64 %c
@@ -126,7 +191,10 @@ define i64 @lshl_64(i64 %x, i64 %y) nounwind {
 
 define i64 @lshr_64(i64 %x, i64 %y) nounwind {
 ; CHECK-LABEL: lshr_64:
-; CHECK:         ssr a4
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    ssr a4
 ; CHECK-NEXT:    src a2, a3, a2
 ; CHECK-NEXT:    addi a8, a4, -32
 ; CHECK-NEXT:    ssr a8
@@ -142,6 +210,8 @@ define i64 @lshr_64(i64 %x, i64 %y) nounwind {
 ; CHECK-NEXT:  # %bb.3:
 ; CHECK-NEXT:    or a3, a9, a9
 ; CHECK-NEXT:  .LBB13_4:
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = lshr i64 %x, %y
   ret i64 %c
@@ -149,7 +219,10 @@ define i64 @lshr_64(i64 %x, i64 %y) nounwind {
 
 define i64 @ashr_64(i64 %x, i64 %y) nounwind {
 ; CHECK-LABEL: ashr_64:
-; CHECK:         ssr a4
+; CHECK:       # %bb.0:
+; CHECK-NEXT:    addi a8, a1, -16
+; CHECK-NEXT:    or a1, a8, a8
+; CHECK-NEXT:    ssr a4
 ; CHECK-NEXT:    src a2, a3, a2
 ; CHECK-NEXT:    addi a9, a4, -32
 ; CHECK-NEXT:    ssr a9
@@ -166,6 +239,8 @@ define i64 @ashr_64(i64 %x, i64 %y) nounwind {
 ; CHECK-NEXT:    srai a8, a3, 31
 ; CHECK-NEXT:  .LBB14_4:
 ; CHECK-NEXT:    or a3, a8, a8
+; CHECK-NEXT:    addi a8, a1, 16
+; CHECK-NEXT:    or a1, a8, a8
 ; CHECK-NEXT:    ret
   %c = ashr i64 %x, %y
   ret i64 %c
