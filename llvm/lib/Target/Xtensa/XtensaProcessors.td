@@ -25,3 +25,17 @@ def : Proc<"esp32", [FeatureDensity, FeatureSingleFloat, FeatureLoop, FeatureMAC
 def : Proc<"esp8266", [FeatureDensity, FeatureNSA, FeatureMul16, FeatureMul32, FeatureExtendedL32R, FeatureDebug, FeatureException,
                        FeatureHighPriInterrupts, FeatureHighPriInterruptsLevel3, FeatureInterrupt, FeatureRelocatableVector, FeatureTimers1,
 					   FeatureRegionProtection, FeaturePRID]>;
+
+def : Proc<"intel_ace30_ptl", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+                               FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I, 
+                               FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts, 
+                               FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache, 
+                               FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX, 
+                               FeatureCLAMPS]>;
+
+def : Proc<"intel_ace40", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+                           FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I, 
+                           FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts, 
+                           FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache, 
+                           FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX, 
+                           FeatureCLAMPS]>;
