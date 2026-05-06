@@ -4,13 +4,18 @@
 
 define i32 @rotl_32(i32 %x, i32 %y) nounwind {
 ; XTENSA-LABEL: rotl_32:
-; XTENSA:         ssl a3
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ssl a3
 ; XTENSA-NEXT:    sll a8, a2
 ; XTENSA-NEXT:    movi a9, 32
 ; XTENSA-NEXT:    sub a9, a9, a3
 ; XTENSA-NEXT:    ssr a9
 ; XTENSA-NEXT:    srl a9, a2
 ; XTENSA-NEXT:    or a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i32 32, %y
   %b = shl i32 %x, %y
@@ -21,13 +26,18 @@ define i32 @rotl_32(i32 %x, i32 %y) nounwind {
 
 define i32 @rotr_32(i32 %x, i32 %y) nounwind {
 ; XTENSA-LABEL: rotr_32:
-; XTENSA:         ssr a3
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ssr a3
 ; XTENSA-NEXT:    srl a8, a2
 ; XTENSA-NEXT:    movi a9, 32
 ; XTENSA-NEXT:    sub a9, a9, a3
 ; XTENSA-NEXT:    ssl a9
 ; XTENSA-NEXT:    sll a9, a2
 ; XTENSA-NEXT:    or a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i32 32, %y
   %b = lshr i32 %x, %y
@@ -38,7 +48,10 @@ define i32 @rotr_32(i32 %x, i32 %y) nounwind {
 
 define i64 @rotl_64(i64 %x, i64 %y) nounwind {
 ; XTENSA-LABEL: rotl_64:
-; XTENSA:         movi a8, 64
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 64
 ; XTENSA-NEXT:    sub a8, a8, a4
 ; XTENSA-NEXT:    ssr a8
 ; XTENSA-NEXT:    src a11, a3, a2
@@ -74,6 +87,8 @@ define i64 @rotl_64(i64 %x, i64 %y) nounwind {
 ; XTENSA-NEXT:    or a8, a10, a10
 ; XTENSA-NEXT:  .LBB2_8:
 ; XTENSA-NEXT:    or a3, a6, a8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i64 64, %y
   %b = shl i64 %x, %y
@@ -84,7 +99,10 @@ define i64 @rotl_64(i64 %x, i64 %y) nounwind {
 
 define i64 @rotr_64(i64 %x, i64 %y) nounwind {
 ; XTENSA-LABEL: rotr_64:
-; XTENSA:         ssr a4
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ssr a4
 ; XTENSA-NEXT:    src a10, a3, a2
 ; XTENSA-NEXT:    addi a8, a4, -32
 ; XTENSA-NEXT:    ssr a8
@@ -120,6 +138,8 @@ define i64 @rotr_64(i64 %x, i64 %y) nounwind {
 ; XTENSA-NEXT:    or a10, a9, a9
 ; XTENSA-NEXT:  .LBB3_8:
 ; XTENSA-NEXT:    or a3, a10, a11
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i64 64, %y
   %b = lshr i64 %x, %y
@@ -130,7 +150,10 @@ define i64 @rotr_64(i64 %x, i64 %y) nounwind {
 
 define i32 @rotl_32_mask(i32 %x, i32 %y) nounwind {
 ; XTENSA-LABEL: rotl_32_mask:
-; XTENSA:         ssl a3
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ssl a3
 ; XTENSA-NEXT:    sll a8, a2
 ; XTENSA-NEXT:    neg a9, a3
 ; XTENSA-NEXT:    movi a10, 31
@@ -138,6 +161,8 @@ define i32 @rotl_32_mask(i32 %x, i32 %y) nounwind {
 ; XTENSA-NEXT:    ssr a9
 ; XTENSA-NEXT:    srl a9, a2
 ; XTENSA-NEXT:    or a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i32 0, %y
   %and = and i32 %z, 31
@@ -149,7 +174,10 @@ define i32 @rotl_32_mask(i32 %x, i32 %y) nounwind {
 
 define i32 @rotl_32_mask_and_63_and_31(i32 %x, i32 %y) nounwind {
 ; XTENSA-LABEL: rotl_32_mask_and_63_and_31:
-; XTENSA:         movi a8, 63
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 63
 ; XTENSA-NEXT:    and a8, a3, a8
 ; XTENSA-NEXT:    ssl a8
 ; XTENSA-NEXT:    sll a8, a2
@@ -159,6 +187,8 @@ define i32 @rotl_32_mask_and_63_and_31(i32 %x, i32 %y) nounwind {
 ; XTENSA-NEXT:    ssr a9
 ; XTENSA-NEXT:    srl a9, a2
 ; XTENSA-NEXT:    or a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %a = and i32 %y, 63
   %b = shl i32 %x, %a
@@ -171,7 +201,10 @@ define i32 @rotl_32_mask_and_63_and_31(i32 %x, i32 %y) nounwind {
 
 define i32 @rotr_32_mask(i32 %x, i32 %y) nounwind {
 ; XTENSA-LABEL: rotr_32_mask:
-; XTENSA:         ssr a3
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ssr a3
 ; XTENSA-NEXT:    srl a8, a2
 ; XTENSA-NEXT:    neg a9, a3
 ; XTENSA-NEXT:    movi a10, 31
@@ -179,6 +212,8 @@ define i32 @rotr_32_mask(i32 %x, i32 %y) nounwind {
 ; XTENSA-NEXT:    ssl a9
 ; XTENSA-NEXT:    sll a9, a2
 ; XTENSA-NEXT:    or a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i32 0, %y
   %and = and i32 %z, 31
@@ -190,7 +225,10 @@ define i32 @rotr_32_mask(i32 %x, i32 %y) nounwind {
 
 define i32 @rotr_32_mask_and_63_and_31(i32 %x, i32 %y) nounwind {
 ; XTENSA-LABEL: rotr_32_mask_and_63_and_31:
-; XTENSA:         movi a8, 63
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 63
 ; XTENSA-NEXT:    and a8, a3, a8
 ; XTENSA-NEXT:    ssr a8
 ; XTENSA-NEXT:    srl a8, a2
@@ -200,6 +238,8 @@ define i32 @rotr_32_mask_and_63_and_31(i32 %x, i32 %y) nounwind {
 ; XTENSA-NEXT:    ssl a9
 ; XTENSA-NEXT:    sll a9, a2
 ; XTENSA-NEXT:    or a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %a = and i32 %y, 63
   %b = lshr i32 %x, %a
@@ -212,7 +252,10 @@ define i32 @rotr_32_mask_and_63_and_31(i32 %x, i32 %y) nounwind {
 
 define i64 @rotl_64_mask(i64 %x, i64 %y) nounwind {
 ; XTENSA-LABEL: rotl_64_mask:
-; XTENSA:         ssl a4
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ssl a4
 ; XTENSA-NEXT:    src a10, a3, a2
 ; XTENSA-NEXT:    addi a8, a4, -32
 ; XTENSA-NEXT:    ssl a8
@@ -248,6 +291,8 @@ define i64 @rotl_64_mask(i64 %x, i64 %y) nounwind {
 ; XTENSA-NEXT:    or a10, a9, a9
 ; XTENSA-NEXT:  .LBB8_8:
 ; XTENSA-NEXT:    or a2, a10, a7
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i64 0, %y
   %and = and i64 %z, 63
@@ -259,7 +304,10 @@ define i64 @rotl_64_mask(i64 %x, i64 %y) nounwind {
 
 define i64 @rotl_64_mask_and_127_and_63(i64 %x, i64 %y) nounwind {
 ; XTENSA-LABEL: rotl_64_mask_and_127_and_63:
-; XTENSA:         movi a8, 127
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 127
 ; XTENSA-NEXT:    and a8, a4, a8
 ; XTENSA-NEXT:    ssl a8
 ; XTENSA-NEXT:    src a11, a3, a2
@@ -297,6 +345,8 @@ define i64 @rotl_64_mask_and_127_and_63(i64 %x, i64 %y) nounwind {
 ; XTENSA-NEXT:    or a8, a10, a10
 ; XTENSA-NEXT:  .LBB9_8:
 ; XTENSA-NEXT:    or a2, a8, a6
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %a = and i64 %y, 127
   %b = shl i64 %x, %a
@@ -309,7 +359,10 @@ define i64 @rotl_64_mask_and_127_and_63(i64 %x, i64 %y) nounwind {
 
 define i64 @rotr_64_mask(i64 %x, i64 %y) nounwind {
 ; XTENSA-LABEL: rotr_64_mask:
-; XTENSA:         ssr a4
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ssr a4
 ; XTENSA-NEXT:    src a10, a3, a2
 ; XTENSA-NEXT:    addi a8, a4, -32
 ; XTENSA-NEXT:    ssr a8
@@ -345,6 +398,8 @@ define i64 @rotr_64_mask(i64 %x, i64 %y) nounwind {
 ; XTENSA-NEXT:    or a10, a9, a9
 ; XTENSA-NEXT:  .LBB10_8:
 ; XTENSA-NEXT:    or a3, a10, a7
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %z = sub i64 0, %y
   %and = and i64 %z, 63
@@ -356,7 +411,10 @@ define i64 @rotr_64_mask(i64 %x, i64 %y) nounwind {
 
 define i64 @rotr_64_mask_and_127_and_63(i64 %x, i64 %y) nounwind {
 ; XTENSA-LABEL: rotr_64_mask_and_127_and_63:
-; XTENSA:         movi a8, 127
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 127
 ; XTENSA-NEXT:    and a8, a4, a8
 ; XTENSA-NEXT:    ssr a8
 ; XTENSA-NEXT:    src a11, a3, a2
@@ -394,6 +452,8 @@ define i64 @rotr_64_mask_and_127_and_63(i64 %x, i64 %y) nounwind {
 ; XTENSA-NEXT:    or a8, a10, a10
 ; XTENSA-NEXT:  .LBB11_8:
 ; XTENSA-NEXT:    or a3, a8, a6
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %a = and i64 %y, 127
   %b = lshr i64 %x, %a
@@ -406,7 +466,10 @@ define i64 @rotr_64_mask_and_127_and_63(i64 %x, i64 %y) nounwind {
 
 define signext i32 @rotl_32_mask_shared(i32 signext %a, i32 signext %b, i32 signext %amt) nounwind {
 ; XTENSA-LABEL: rotl_32_mask_shared:
-; XTENSA:         movi a8, 31
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 31
 ; XTENSA-NEXT:    and a9, a4, a8
 ; XTENSA-NEXT:    ssl a9
 ; XTENSA-NEXT:    sll a10, a2
@@ -418,6 +481,8 @@ define signext i32 @rotl_32_mask_shared(i32 signext %a, i32 signext %b, i32 sign
 ; XTENSA-NEXT:    ssl a9
 ; XTENSA-NEXT:    sll a9, a3
 ; XTENSA-NEXT:    add a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %maskedamt = and i32 %amt, 31
   %1 = tail call i32 @llvm.fshl.i32(i32 %a, i32 %a, i32 %maskedamt)
@@ -429,7 +494,10 @@ declare i32 @llvm.fshl.i32(i32, i32, i32)
 
 define signext i32 @rotr_32_mask_shared(i32 signext %a, i32 signext %b, i32 signext %amt) nounwind {
 ; XTENSA-LABEL: rotr_32_mask_shared:
-; XTENSA:         movi a8, 31
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 31
 ; XTENSA-NEXT:    and a9, a4, a8
 ; XTENSA-NEXT:    ssr a9
 ; XTENSA-NEXT:    srl a10, a2
@@ -441,6 +509,8 @@ define signext i32 @rotr_32_mask_shared(i32 signext %a, i32 signext %b, i32 sign
 ; XTENSA-NEXT:    ssl a9
 ; XTENSA-NEXT:    sll a9, a3
 ; XTENSA-NEXT:    add a2, a8, a9
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %maskedamt = and i32 %amt, 31
   %1 = tail call i32 @llvm.fshr.i32(i32 %a, i32 %a, i32 %maskedamt)
@@ -452,7 +522,10 @@ declare i32 @llvm.fshr.i32(i32, i32, i32)
 
 define signext i32 @rotl_32_mask_multiple(i32 signext %a, i32 signext %b, i32 signext %amt) nounwind {
 ; XTENSA-LABEL: rotl_32_mask_multiple:
-; XTENSA:         movi a8, 31
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 31
 ; XTENSA-NEXT:    and a9, a4, a8
 ; XTENSA-NEXT:    ssl a9
 ; XTENSA-NEXT:    sll a10, a3
@@ -467,6 +540,8 @@ define signext i32 @rotl_32_mask_multiple(i32 signext %a, i32 signext %b, i32 si
 ; XTENSA-NEXT:    srl a8, a2
 ; XTENSA-NEXT:    or a8, a9, a8
 ; XTENSA-NEXT:    add a2, a8, a10
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %maskedamt = and i32 %amt, 31
   %1 = tail call i32 @llvm.fshl.i32(i32 %a, i32 %a, i32 %maskedamt)
@@ -477,7 +552,10 @@ define signext i32 @rotl_32_mask_multiple(i32 signext %a, i32 signext %b, i32 si
 
 define signext i32 @rotr_32_mask_multiple(i32 signext %a, i32 signext %b, i32 signext %amt) nounwind {
 ; XTENSA-LABEL: rotr_32_mask_multiple:
-; XTENSA:         movi a8, 31
+; XTENSA:       # %bb.0:
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    movi a8, 31
 ; XTENSA-NEXT:    and a9, a4, a8
 ; XTENSA-NEXT:    ssr a9
 ; XTENSA-NEXT:    srl a10, a3
@@ -492,6 +570,8 @@ define signext i32 @rotr_32_mask_multiple(i32 signext %a, i32 signext %b, i32 si
 ; XTENSA-NEXT:    sll a8, a2
 ; XTENSA-NEXT:    or a8, a9, a8
 ; XTENSA-NEXT:    add a2, a8, a10
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
   %maskedamt = and i32 %amt, 31
   %1 = tail call i32 @llvm.fshr.i32(i32 %a, i32 %a, i32 %maskedamt)
