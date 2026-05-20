@@ -131,6 +131,8 @@ static Value *EmitTargetArchBuiltinExpr(CodeGenFunction *CGF,
     [[fallthrough]];
   case llvm::Triple::spirv:
     return CGF->EmitSPIRVBuiltinExpr(BuiltinID, E);
+  case llvm::Triple::xtensa:
+    return CGF->EmitXtensaBuiltinExpr(BuiltinID, E, ReturnValue);
   default:
     return nullptr;
   }

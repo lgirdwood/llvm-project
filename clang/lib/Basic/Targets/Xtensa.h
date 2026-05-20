@@ -56,9 +56,7 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
 
-  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override {
-    return {};
-  }
+  llvm::SmallVector<Builtin::InfosShard> getTargetBuiltins() const override;
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::XtensaABIBuiltinVaList;
@@ -72,7 +70,15 @@ public:
         "a0", "sp", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10",
         "a11", "a12", "a13", "a14", "a15",
         // Special register name
-        "sar"};
+        "sar",
+        // Audio Engine Registers
+        "aed0", "aed1", "aed2", "aed3", "aed4", "aed5", "aed6", "aed7",
+        "aed8", "aed9", "aed10", "aed11", "aed12", "aed13", "aed14", "aed15",
+        "ae0", "ae1", "ae2", "ae3", "ae4", "ae5", "ae6", "ae7",
+        "ae8", "ae9", "ae10", "ae11", "ae12", "ae13", "ae14", "ae15",
+        // Boolean registers
+        "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7",
+        "b8", "b9", "b10", "b11", "b12", "b13", "b14", "b15"};
     return llvm::ArrayRef(GCCRegNames);
   }
 
@@ -86,6 +92,8 @@ public:
     default:
       return false;
     case 'a':
+    case 'b': // Boolean register
+    case 'd': // AE data register
       Info.setAllowsRegister();
       return true;
     }
@@ -97,7 +105,40 @@ public:
   }
 
   bool isValidCPUName(StringRef Name) const override {
-    return llvm::StringSwitch<bool>(Name).Case("generic", true).Default(false);
+    return llvm::StringSwitch<bool>(Name)
+        .Case("generic", true)
+        // Cadence/Tensilica reference cores
+        .Case("dc233c", true)
+        .Case("sample_controller", true)
+        .Case("sample_controller32", true)
+        // Espressif ESP32 family
+        .Case("esp32", true)
+        .Case("espressif_esp32s2", true)
+        .Case("espressif_esp32s3", true)
+        .Case("esp8266", true)
+        // Intel Audio DSP
+        .Case("intel_tgl_adsp", true)
+        .Case("intel_ace15_mtpm", true)
+        .Case("intel_ace30_ptl", true)
+        .Case("intel_ace40", true)
+        // AMD Audio Co-Processor
+        .Case("amd_acp_6_0_adsp", true)
+        .Case("amd_acp_7_0_adsp", true)
+        .Case("amd_acp_7_3_adsp", true)
+        // MediaTek Audio DSP
+        .Case("mtk_mt818x_adsp", true)
+        .Case("mtk_mt8195_adsp", true)
+        .Case("mtk_mt8196_adsp", true)
+        .Case("mtk_mt8365_adsp", true)
+        // NXP Audio DSP
+        .Case("nxp_imx_adsp", true)
+        .Case("nxp_imx8m_adsp", true)
+        .Case("nxp_imx8ulp_adsp", true)
+        .Case("nxp_rt500_adsp", true)
+        .Case("nxp_rt600_adsp", true)
+        .Case("nxp_rt700_hifi1", true)
+        .Case("nxp_rt700_hifi4", true)
+        .Default(false);
   }
 
   bool setCPU(const std::string &Name) override {
