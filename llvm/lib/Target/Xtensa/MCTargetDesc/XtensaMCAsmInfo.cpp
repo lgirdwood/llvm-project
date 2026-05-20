@@ -30,7 +30,9 @@ XtensaMCAsmInfo::XtensaMCAsmInfo(const Triple &TT,
   GlobalDirective = "\t.global\t";
   UsesELFSectionDirectiveForBSS = true;
   SupportsDebugInformation = true;
-  ExceptionsType = ExceptionHandling::DwarfCFI;
+  // Don't emit .cfi_* directives — the Xtensa GCC assembler doesn't
+  // support them, and they cause errors with -fno-integrated-as.
+  ExceptionsType = ExceptionHandling::None;
   AlignmentIsInBytes = false;
 }
 

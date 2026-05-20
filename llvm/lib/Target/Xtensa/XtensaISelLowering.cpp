@@ -25,6 +25,7 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/IntrinsicsXtensa.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -67,6 +68,55 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
     addRegisterClass(MVT::v1i1, &Xtensa::BRRegClass);
   }
 
+  if (Subtarget.hasHIFI3() || Subtarget.hasHIFI4() || Subtarget.hasHIFI5()) {
+    // Register v2i32 and v4i16 for AEDR so that HiFi intrinsics using these
+    // types are legal. The Clang codegen bitcasts i64 builtins to/from these.
+    addRegisterClass(MVT::v2i32, &Xtensa::AEDRRegClass);
+    addRegisterClass(MVT::v4i16, &Xtensa::AEDRRegClass);
+
+    // Expand all operations on vector types except those with explicit patterns
+    // (bitcast, extractelt, intrinsics). The AEDR register class is used only
+    // for HiFi intrinsics, not general vector arithmetic.
+    for (auto VT : {MVT::v2i32, MVT::v4i16}) {
+      setOperationAction(ISD::ADD, VT, Expand);
+      setOperationAction(ISD::SUB, VT, Expand);
+      setOperationAction(ISD::MUL, VT, Expand);
+      setOperationAction(ISD::AND, VT, Expand);
+      setOperationAction(ISD::OR, VT, Expand);
+      setOperationAction(ISD::XOR, VT, Expand);
+      setOperationAction(ISD::SHL, VT, Expand);
+      setOperationAction(ISD::SRA, VT, Expand);
+      setOperationAction(ISD::SRL, VT, Expand);
+      setOperationAction(ISD::VECTOR_SHUFFLE, VT, Expand);
+      setOperationAction(ISD::INSERT_VECTOR_ELT, VT, Expand);
+      setOperationAction(ISD::CONCAT_VECTORS, VT, Expand);
+      setOperationAction(ISD::SIGN_EXTEND, VT, Expand);
+      setOperationAction(ISD::ZERO_EXTEND, VT, Expand);
+      setOperationAction(ISD::ANY_EXTEND, VT, Expand);
+      setOperationAction(ISD::SELECT, VT, Expand);
+      setOperationAction(ISD::SELECT_CC, VT, Expand);
+      setOperationAction(ISD::SETCC, VT, Expand);
+      setOperationAction(ISD::TRUNCATE, VT, Expand);
+      // BITCAST between v2i32/v4i16 and i64 must be Legal; otherwise the
+      // type legalizer attempts to scalarize the vector (via BUILD_VECTOR /
+      // EXTRACT_VECTOR_ELT) which are also Expand, creating an infinite loop.
+      setOperationAction(ISD::BITCAST, VT, Legal);
+      // BUILD_VECTOR and EXTRACT_VECTOR_ELT set to Custom so we can lower
+      // them to reg-pair operations when needed, rather than looping.
+      setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
+      setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Custom);
+      // Load/Store of these vector types is legal since they fit in AEDR regs
+      setOperationAction(ISD::LOAD, VT, Legal);
+      setOperationAction(ISD::STORE, VT, Legal);
+      setTruncStoreAction(VT, MVT::v2i16, Expand);
+      setTruncStoreAction(VT, MVT::v4i8, Expand);
+      setTruncStoreAction(VT, MVT::v2i8, Expand);
+      setLoadExtAction(ISD::EXTLOAD, VT, MVT::v2i16, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i16, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i16, Expand);
+    }
+  }
+
   // Set up special registers.
   setStackPointerRegisterToSaveRestore(Xtensa::SP);
 
@@ -78,6 +128,12 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::Constant, MVT::i64, Expand);
   setOperationAction(ISD::ConstantFP, MVT::f32, Expand);
   setOperationAction(ISD::ConstantFP, MVT::f64, Expand);
+
+  if (Subtarget.hasHIFI3()) {
+    setOperationAction(ISD::SHL, MVT::i64, Expand);
+    setOperationAction(ISD::SRL, MVT::i64, Expand);
+    setOperationAction(ISD::SRA, MVT::i64, Expand);
+  }
 
   setBooleanContents(ZeroOrOneBooleanContent);
 
@@ -276,7 +332,10 @@ TargetLowering::ConstraintType
 XtensaTargetLowering::getConstraintType(StringRef Constraint) const {
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
+    case 'a':
     case 'r':
+    case 'b':
+    case 'd':
       return C_RegisterClass;
     default:
       break;
@@ -306,6 +365,14 @@ XtensaTargetLowering::getSingleConstraintMatchWeight(
     if (Ty->isIntegerTy())
       Weight = CW_Register;
     break;
+  case 'b':
+    if (Ty->isIntegerTy(8) || Ty->isIntegerTy(1))
+      Weight = CW_Register;
+    break;
+  case 'd':
+    if (Ty->isVectorTy())
+      Weight = CW_Register;
+    break;
   }
   return Weight;
 }
@@ -318,8 +385,13 @@ XtensaTargetLowering::getRegForInlineAsmConstraint(
     switch (Constraint[0]) {
     default:
       break;
+    case 'a': // Xtensa address register (GCC compat)
     case 'r': // General-purpose register
       return std::make_pair(0U, &Xtensa::ARRegClass);
+    case 'b': // Boolean register
+      return std::make_pair(0U, &Xtensa::BRRegClass);
+    case 'd': // AE data register
+      return std::make_pair(0U, &Xtensa::AEDRRegClass);
     }
   }
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
@@ -398,7 +470,7 @@ static bool CC_Xtensa_Custom(unsigned ValNo, MVT ValVT, MVT LocVT,
       while ((Register = State.AllocateReg(IntRegs)))
         ;
     LocVT = MVT::i32;
-  } else if (ValVT == MVT::f64) {
+  } else if (ValVT == MVT::f64 || ValVT == MVT::i64 || ValVT == MVT::v2i32 || ValVT == MVT::v4i16 || ValVT == MVT::v8i8) {
     // Allocate int register and shadow next int register.
     Register = State.AllocateReg(IntRegs);
     if (Register == Xtensa::A3 || Register == Xtensa::A5 ||
@@ -427,7 +499,40 @@ MVT XtensaTargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context,
   if (VT.isFloatingPoint())
     return MVT::i32;
 
+  if (VT == MVT::v2i32 || VT == MVT::v4i16 || VT == MVT::v8i8)
+    return MVT::i32;
+
+  if (VT == MVT::i64)
+    return MVT::i32;
+
   return TargetLowering::getRegisterTypeForCallingConv(Context, CC, VT);
+}
+
+unsigned XtensaTargetLowering::getNumRegistersForCallingConv(LLVMContext &Context,
+                                                             CallingConv::ID CC,
+                                                             EVT VT) const {
+  if (VT.isFloatingPoint())
+    return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT);
+
+  if (VT == MVT::v2i32 || VT == MVT::v4i16 || VT == MVT::v8i8 || VT == MVT::i64)
+    return 2;
+
+  return TargetLowering::getNumRegistersForCallingConv(Context, CC, VT);
+}
+
+unsigned XtensaTargetLowering::getVectorTypeBreakdownForCallingConv(
+    LLVMContext &Context, CallingConv::ID CC, EVT VT, EVT &IntermediateVT,
+    unsigned &NumIntermediates, MVT &RegisterVT) const {
+  
+  if (VT == MVT::v2i32 || VT == MVT::v4i16 || VT == MVT::v8i8) {
+    IntermediateVT = MVT::i32;
+    RegisterVT = MVT::i32;
+    NumIntermediates = 2;
+    return 2;
+  }
+
+  return TargetLowering::getVectorTypeBreakdownForCallingConv(
+      Context, CC, VT, IntermediateVT, NumIntermediates, RegisterVT);
 }
 
 CCAssignFn *XtensaTargetLowering::CCAssignFnForCall(CallingConv::ID CC,
@@ -1497,6 +1602,58 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
     return LowerShiftRightParts(Op, DAG, true);
   case ISD::SRL_PARTS:
     return LowerShiftRightParts(Op, DAG, false);
+  case ISD::BUILD_VECTOR: {
+    SDLoc DL(Op);
+    EVT VT = Op.getValueType();
+
+    if (VT == MVT::v2i32) {
+      SDValue Op0 = Op.getOperand(0);
+      SDValue Op1 = Op.getOperand(1);
+
+      // Check for all-zero vector
+      bool AllZero = true;
+      for (unsigned i = 0, e = Op.getNumOperands(); i != e; ++i) {
+        if (!isNullConstant(Op.getOperand(i)) && !Op.getOperand(i).isUndef()) {
+          AllZero = false;
+          break;
+        }
+      }
+      if (AllZero) {
+        return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, MVT::v2i32,
+                           DAG.getTargetConstant(Intrinsic::xtensa_ae_zero32, DL, MVT::i32));
+      }
+
+      // General case: use ae_movda32x2(hi, lo)
+      // Op0 = element 0 (low), Op1 = element 1 (high)
+      if (Op0.isUndef()) Op0 = DAG.getConstant(0, DL, MVT::i32);
+      if (Op1.isUndef()) Op1 = DAG.getConstant(0, DL, MVT::i32);
+      return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, MVT::v2i32,
+                         DAG.getTargetConstant(Intrinsic::xtensa_ae_movda32x2, DL, MVT::i32),
+                         Op1, Op0);
+    }
+
+    // v4i16: return UNDEF for now (extend later if needed)
+    return DAG.getUNDEF(VT);
+  }
+  case ISD::EXTRACT_VECTOR_ELT: {
+    // Lower v2i32 extract to ae_movad32_l (index 0) or ae_movad32_h (index 1)
+    SDLoc DL(Op);
+    SDValue Vec = Op.getOperand(0);
+    SDValue Idx = Op.getOperand(1);
+    EVT VecVT = Vec.getValueType();
+
+    if (VecVT == MVT::v2i32) {
+      if (auto *CI = dyn_cast<ConstantSDNode>(Idx)) {
+        unsigned EltIdx = CI->getZExtValue();
+        unsigned IID = (EltIdx == 0) ? Intrinsic::xtensa_ae_movad32_l
+                                     : Intrinsic::xtensa_ae_movad32_h;
+        return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, MVT::i32,
+                           DAG.getTargetConstant(IID, DL, MVT::i32), Vec);
+      }
+    }
+    // Non-constant index or unsupported vector type: return undef
+    return DAG.getUNDEF(Op.getValueType());
+  }
   default:
     report_fatal_error("Unexpected node to lower");
   }
