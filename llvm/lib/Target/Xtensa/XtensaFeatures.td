@@ -163,3 +163,23 @@ def FeatureDFPAccel : SubtargetFeature<"dfpaccel", "HasDFPAccel", "true",
                                        "Enable Xtensa Double Precision FP acceleration">;
 def HasDFPAccel : Predicate<"Subtarget->hasDFPAccel()">,
                   AssemblerPredicate<(all_of FeatureDFPAccel)>;
+
+def FeatureHIFI3 : SubtargetFeature<"hifi3", "HasHIFI3", "true",
+                                    "Enable Xtensa HiFi 3 Audio Engine instructions">;
+def HasHIFI3 : Predicate<"Subtarget->hasHIFI3()">,
+               AssemblerPredicate<(all_of FeatureHIFI3)>;
+
+def FeatureHIFI4 : SubtargetFeature<"hifi4", "HasHIFI4", "true",
+                                    "Enable Xtensa HiFi 4 Audio Engine instructions", [FeatureHIFI3]>;
+def HasHIFI4 : Predicate<"Subtarget->hasHIFI4()">,
+               AssemblerPredicate<(all_of FeatureHIFI4)>;
+
+def FeatureHIFI5 : SubtargetFeature<"hifi5", "HasHIFI5", "true",
+                                    "Enable Xtensa HiFi 5 Audio Engine instructions", [FeatureHIFI4]>;
+def HasHIFI5 : Predicate<"Subtarget->hasHIFI5()">,
+               AssemblerPredicate<(all_of FeatureHIFI5)>;
+
+def FeatureFLIX : SubtargetFeature<"flix", "HasFLIX", "true",
+                                   "Enable Xtensa FLIX VLIW instruction bundling", [FeatureHIFI3]>;
+def HasFLIX : Predicate<"Subtarget->hasFLIX()">,
+              AssemblerPredicate<(all_of FeatureFLIX)>;
