@@ -126,6 +126,13 @@ void XtensaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
+  if (Xtensa::AEDRRegClass.contains(DestReg, SrcReg)) {
+    BuildMI(MBB, MBBI, DL, get(Xtensa::AE_OR_HIFI3), DestReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  }
+
   if (STI.hasSingleFloat() && Xtensa::FPRRegClass.contains(SrcReg) &&
       Xtensa::FPRRegClass.contains(DestReg))
     Opcode = Xtensa::MOV_S;
@@ -177,6 +184,9 @@ void XtensaInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
   } else if (RC == &Xtensa::FPRRegClass) {
     LoadOpcode = Xtensa::LSI;
     StoreOpcode = Xtensa::SSI;
+  } else if (RC == &Xtensa::AEDRRegClass) {
+    LoadOpcode = Xtensa::AE_L64_I_HIFI3;
+    StoreOpcode = Xtensa::AE_S64_I_HIFI3;
   } else {
     llvm_unreachable("Unsupported regclass to load or store");
   }
