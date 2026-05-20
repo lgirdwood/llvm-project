@@ -463,6 +463,16 @@ namespace clang {
     };
   }
 
+  /// Xtensa builtins
+  namespace Xtensa {
+    enum {
+        LastTIBuiltin = clang::Builtin::FirstTSBuiltin-1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsXtensa.def"
+        LastTSBuiltin
+    };
+  }
+
   /// WebAssembly builtins
   namespace WebAssembly {
     enum {
@@ -478,7 +488,7 @@ namespace clang {
        PPC::LastTSBuiltin, NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin,
        X86::LastTSBuiltin, VE::LastTSBuiltin, RISCV::LastTSBuiltin,
        Hexagon::LastTSBuiltin, Mips::LastTSBuiltin, XCore::LastTSBuiltin,
-       SystemZ::LastTSBuiltin, WebAssembly::LastTSBuiltin});
+       SystemZ::LastTSBuiltin, WebAssembly::LastTSBuiltin, Xtensa::LastTSBuiltin});
 
 } // end namespace clang.
 
