@@ -15,6 +15,7 @@
 include "XtensaInstrFormats.td"
 include "XtensaOperands.td"
 include "XtensaOperators.td"
+include "XtensaHIFIInstrInfo.td"
 
 //===----------------------------------------------------------------------===//
 // Arithmetic & Logical instructions
