@@ -72,11 +72,47 @@ def uimm4 : Immediate<i32, [{ return Imm >= 0 && Imm <= 15; }], "Uimm4_AsmOperan
   let DecoderMethod = "decodeUimm4Operand";
 }
 
+// uimm4_x8 predicate - Immediate in the range [0,120] mapped as 4 bits
+def Uimm4_x8_AsmOperand : ImmAsmOperand<"Uimm4_x8">;
+def uimm4_x8 : Immediate<i32, [{ return Imm >= 0 && Imm <= 120 && (Imm % 8 == 0); }], "Uimm4_x8_AsmOperand"> {
+  let EncoderMethod = "getUimm4_x8OpValue";
+  let DecoderMethod = "decodeUimm4_x8Operand";
+}
+
 // uimm5 predicate - Immediate in the range [0,31]
 def Uimm5_AsmOperand : ImmAsmOperand<"Uimm5">;
 def uimm5 : Immediate<i32, [{ return Imm >= 0 && Imm <= 31; }], "Uimm5_AsmOperand"> {
   let EncoderMethod = "getUimm5OpValue";
   let DecoderMethod = "decodeUimm5Operand";
+}
+
+// uimm6 predicate - Immediate in the range [0,63]
+def Uimm6_AsmOperand : ImmAsmOperand<"Uimm6">;
+def uimm6 : Immediate<i32, [{ return Imm >= 0 && Imm <= 63; }], "Uimm6_AsmOperand"> {
+  let EncoderMethod = "getUimm6OpValue";
+  let DecoderMethod = "decodeUimm6Operand";
+}
+
+// Custom offsets for AE DSP operations
+def Imm8_x4_add8_AsmOperand : ImmAsmOperand<"Imm8_x4_add8">;
+def imm8_x4_add8 : Immediate<i32, [{ return Imm >= 0 && Imm <= 56 && (Imm % 8 == 0); }], "Imm8_x4_add8_AsmOperand"> {
+  let PrintMethod = "printImm8_x4_add8_AsmOperand";
+  let EncoderMethod = "getImm8_x4_add8OpValue";
+  let DecoderMethod = "decodeImm8_x4_add8Operand";
+}
+
+def Imm8n_7_x2_AsmOperand : ImmAsmOperand<"Imm8n_7_x2">;
+def imm8n_7_x2 : Immediate<i32, [{ return Imm >= -16 && Imm <= 14 && (Imm % 2 == 0); }], "Imm8n_7_x2_AsmOperand"> {
+  let PrintMethod = "printImm8n_7_x2_AsmOperand";
+  let EncoderMethod = "getImm8n_7_x2OpValue";
+  let DecoderMethod = "decodeImm8n_7_x2Operand";
+}
+
+def Imm8n_7_x4_AsmOperand : ImmAsmOperand<"Imm8n_7_x4">;
+def imm8n_7_x4 : Immediate<i32, [{ return Imm >= -32 && Imm <= 28 && (Imm % 4 == 0); }], "Imm8n_7_x4_AsmOperand"> {
+  let PrintMethod = "printImm8n_7_x4_AsmOperand";
+  let EncoderMethod = "getImm8n_7_x4OpValue";
+  let DecoderMethod = "decodeImm8n_7_x4Operand";
 }
 
 // imm1_16 predicate - Immediate in the range [1,16]
@@ -206,6 +242,7 @@ def mem32n : mem<offset4m32> {
 def addr_ish1 : ComplexPattern<iPTR, 2, "selectMemRegAddrISH1", [frameindex]>;
 def addr_ish2 : ComplexPattern<iPTR, 2, "selectMemRegAddrISH2", [frameindex]>;
 def addr_ish4 : ComplexPattern<iPTR, 2, "selectMemRegAddrISH4", [frameindex]>;
+def addr_ish8 : ComplexPattern<iPTR, 2, "selectMemRegAddrISH8", [frameindex]>;
 
 //===----------------------------------------------------------------------===//
 // Symbolic address operands
