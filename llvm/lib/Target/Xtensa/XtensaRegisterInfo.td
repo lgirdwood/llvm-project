@@ -233,12 +233,34 @@ def SR :  RegisterClass<"Xtensa", [i32], 32, (add
   CCOMPARE1, CCOMPARE2, MISC0, MISC1, MISC2, MISC3)>;
 
 //===----------------------------------------------------------------------===//
+// HiFi Audio Engine registers
+//===----------------------------------------------------------------------===//
+
+class AEDRReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n> {
+  let HWEncoding{3-0} = num;
+  let AltNames = alt;
+}
+
+foreach i = 0-15 in {
+  def AED#i : AEDRReg<i, "aed"#i>;
+}
+
+def AEDR : RegisterClass<"Xtensa", [v2i32, v4i16, v8i8, i64, f64], 64, (add
+  AED0, AED1, AED2, AED3, AED4, AED5, AED6, AED7,
+  AED8, AED9, AED10, AED11, AED12, AED13, AED14, AED15)>;
+
+//===----------------------------------------------------------------------===//
 // USER registers
 //===----------------------------------------------------------------------===//
 class URReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
   let HWEncoding{7-0} = num;
   let AltNames = alt;
 }
+
+def AE_VALIGN : URReg<238, "ae_valign", ["AE_VALIGN"]>;
+
+// Alignment register class
+def VALIGN : RegisterClass<"Xtensa", [i64], 64, (add AE_VALIGN)>;
 
 // Thread Pointer register
 def THREADPTR : URReg<231, "threadptr", ["THREADPTR"]>;
@@ -251,8 +273,14 @@ def F64R_LO : URReg<234, "f64r_lo", ["F64R_LO"]>;
 def F64R_HI : URReg<235, "f64r_hi", ["F64R_HI"]>;
 def F64S : URReg<236, "f64s", ["F64S"]>;
 
+def AE_CBEGIN0 : URReg<246, "ae_cbegin0", ["AE_CBEGIN0"]>;
+def AE_CEND0   : URReg<247, "ae_cend0", ["AE_CEND0"]>;
+def AE_CBEGIN1 : URReg<248, "ae_cbegin1", ["AE_CBEGIN1"]>;
+def AE_CEND1   : URReg<249, "ae_cend1", ["AE_CEND1"]>;
+
 def UR :  RegisterClass<"Xtensa", [i32], 32, (add
-  THREADPTR, FCR, FSR, F64R_LO, F64R_HI, F64S)>;
+  THREADPTR, FCR, FSR, F64R_LO, F64R_HI, F64S,
+  AE_CBEGIN0, AE_CEND0, AE_CBEGIN1, AE_CEND1)>;
 
 //===----------------------------------------------------------------------===//
 // Floating-Point registers
