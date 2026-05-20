@@ -19,6 +19,29 @@
 using namespace clang;
 using namespace clang::targets;
 
+static constexpr int NumBuiltins = clang::Xtensa::LastTSBuiltin - Builtin::FirstTSBuiltin;
+
+static constexpr llvm::StringTable BuiltinStrings =
+    CLANG_BUILTIN_STR_TABLE_START
+#define BUILTIN CLANG_BUILTIN_STR_TABLE
+#define TARGET_BUILTIN CLANG_TARGET_BUILTIN_STR_TABLE
+#define TARGET_HEADER_BUILTIN CLANG_TARGET_HEADER_BUILTIN_STR_TABLE
+#include "clang/Basic/BuiltinsXtensa.def"
+    ;
+
+static constexpr auto BuiltinInfos = Builtin::MakeInfos<NumBuiltins>({
+#define BUILTIN CLANG_BUILTIN_ENTRY
+#define LANGBUILTIN CLANG_LANGBUILTIN_ENTRY
+#define LIBBUILTIN CLANG_LIBBUILTIN_ENTRY
+#define TARGET_BUILTIN CLANG_TARGET_BUILTIN_ENTRY
+#define TARGET_HEADER_BUILTIN CLANG_TARGET_HEADER_BUILTIN_ENTRY
+#include "clang/Basic/BuiltinsXtensa.def"
+});
+
+llvm::SmallVector<Builtin::InfosShard> XtensaTargetInfo::getTargetBuiltins() const {
+  return {{&BuiltinStrings, BuiltinInfos}};
+}
+
 void XtensaTargetInfo::getTargetDefines(const LangOptions &Opts,
                                         MacroBuilder &Builder) const {
   Builder.defineMacro("__xtensa__");

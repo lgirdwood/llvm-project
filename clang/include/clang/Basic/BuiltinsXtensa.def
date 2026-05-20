@@ -1,0 +1,381 @@
+//===--- BuiltinsXtensa.def - Xtensa Builtin function database ----*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file defines the Xtensa-specific builtin function database.  Users of
+// this file must define the BUILTIN macro to make use of this information.
+//
+//===----------------------------------------------------------------------===//
+
+// The format of this database matches clang/Basic/Builtins.def.
+
+#if defined(BUILTIN) && !defined(TARGET_BUILTIN)
+#   define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BUILTIN(ID, TYPE, ATTRS)
+#endif
+
+// HiFi Audio Engine Loads
+TARGET_BUILTIN(__builtin_xtensa_ae_l32_i, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16_i, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32_x, "LLivC*i", "n", "")
+
+// HiFi Audio Engine Stores
+TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x2m_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_x, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_x, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32_h_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16_0_x, "vLLiv*i", "n", "")
+
+// Post-increment Loads
+TARGET_BUILTIN(__builtin_xtensa_ae_l32_ip, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16_ip, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x4_ip, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x4_x, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x4_xp, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16_xp, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32_xp, "LLiv**i", "n", "")
+
+// Post-increment Stores
+TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_ip, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_ip, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa16x4_ip, "vLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa32x2_ip, "vLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16_0_ip, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_ip, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16_0_xp, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_xp, "vLLiv**i", "n", "")
+
+// Alignment & State Loads
+TARGET_BUILTIN(__builtin_xtensa_ae_la64_pp, "vv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la128_pp, "vv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la32x2_ip, "LLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la16x4_ip, "LLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la24x2_ip, "LLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la24_ip, "LLiLLiv**", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_la16x4pos_pc, "vvC*", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la32x2pos_pc, "vvC*", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa64pos_fp, "vvC*", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa128pos_fp, "vvC*", "n", "")
+
+// Circular Base Loads
+TARGET_BUILTIN(__builtin_xtensa_ae_l16_xc, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32_xc, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32_xc1, "LLiv**i", "n", "")
+
+// New HiFi3 Loads
+TARGET_BUILTIN(__builtin_xtensa_ae_l16m_x,      "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16m_xu,     "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32f24_xc,   "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32m_x,      "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2f24_ip, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2f24_xc, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2_i,     "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2_ip,    "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2_xc,    "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2_xc1,   "LLiv**i", "n", "")
+
+// Circular Base Stores
+TARGET_BUILTIN(__builtin_xtensa_ae_s16_0_xc, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16_0_xc1, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_xc, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_xc1, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_xc, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_xc1, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa16x4_ic, "vLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa32x2_ic, "vLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa24x2_ip, "vLLiLLiv**", "n", "")
+
+// MAC and Arithmetic Operations
+TARGET_BUILTIN(__builtin_xtensa_ae_mul32_ll, "LLiLLiLLi", "n", "")
+
+
+// New MAC Intrinsics Batch 1
+TARGET_BUILTIN(__builtin_xtensa_ae_mul32_hh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaaaafq32x16, "LLiLLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaaf2d32ra_hh_ll, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaafd24_hh_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaafd32ra_hh_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaafp24s_hh_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32r_hh, "LLiLLiLLiLLi", "n", "")
+
+// New MAC Intrinsics Batch 2
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaafd32x16_h3_l2, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaafd32x16_h1_l0, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32s_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32s_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32s_ll, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32s_lh, "LLiLLiLLi", "n", "")
+
+// New MAC Intrinsics Batch 3
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32r_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32r_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32s_hh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32ra_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32ra_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf32ra_hh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32s_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32s_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32s_hh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32r_hh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32r_ll, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32s_hh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32r_lh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32ra_ll, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32ra_lh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32ra_hh, "LLiLLiLLi", "n", "")
+
+// New MAC Intrinsics Batch 4 (16x16 symmetric)
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf16ss_00, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf16ss_11, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf16ss_22, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulaf16ss_33, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf16ss_00, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf16ss_11, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf16ss_22, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf16ss_33, "LLiLLiLLi", "n", "")
+
+
+
+// Pseudo multi-return FIR MACs mapped via pointers
+TARGET_BUILTIN(__builtin_xtensa_ae_mulafd32x16x2_fir_hh, "vLLi*LLi*LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulafd32x16x2_fir_hl, "vLLi*LLi*LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulafd32x16x2_fir_lh, "vLLi*LLi*LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulafd32x16x2_fir_ll, "vLLi*LLi*LLiLLiLLi", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp16x4ras, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp16x4s, "LLiLLiLLi", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp32x16x2ras_h, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp32x16x2ras_l, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp32x16x2rs_h, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp32x16x2rs_l, "LLiLLiLLi", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp32x2rs, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp24x2r, "LLiLLiLLi", "n", "")
+
+// Pseudo multi-return MUL16X4
+TARGET_BUILTIN(__builtin_xtensa_ae_mul16x4, "vLLi*LLi*LLiLLi", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_srai32, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slai32, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slai32s, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_srai64, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slai64s, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slaa64s, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_srai32r, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add16s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add24s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add32, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add32s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add32_hl_lh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add64, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_add64s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sub16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sub16s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sub24s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sub32, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sub32s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sub64, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_zero16, "LLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_zero24, "LLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_zero32, "LLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_zerop48, "LLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_zero64, "LLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_zeroq56, "LLi", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_cbegin0, "i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cbegin1, "i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cend0, "i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cend1, "i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_setcbegin0, "vi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_setcbegin1, "vi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_setcend0, "vi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_setcend1, "vi", "n", "")
+// Boolean comparisons (return packed boolean result as i32)
+TARGET_BUILTIN(__builtin_xtensa_ae_eq16, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_lt16, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_le16, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_eq32, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_lt32, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_le32, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_eq64, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_lt64, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_le64, "iLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sel32_hh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sel32_hl, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sel32_lh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sel32_ll, "LLiLLiLLi", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_selp24_hh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_selp24_lh, "LLiLLiLLi", "n", "")
+
+// Rounding & Selects
+TARGET_BUILTIN(__builtin_xtensa_ae_pksr32, "LLiLLiLLiIi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round16x4f32sasym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round16x4f32ssym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round24x2f48sasym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round24x2f48ssym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round32x2f48sasym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round32x2f48ssym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round32x2f64sasym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round32x2f64ssym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round32f48sasym, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_round32f48ssym, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_roundsp16q48x2asym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_roundsp16q48x2sym, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_roundsp16f24asym, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_roundsp16f24sym, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_roundsq32f48asym, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_roundsq32f48sym, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sat16x4, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sat24s, "LLiLLi", "n", "")
+
+TARGET_BUILTIN(__builtin_xtensa_ae_mul16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mula2q32x16_fir_h, "vLLi*LLiLLi", "n", "")
+
+// Min / Max Operations
+TARGET_BUILTIN(__builtin_xtensa_ae_max16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_min16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_max32, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_min32, "LLiLLiLLi", "n", "")
+
+// Absolute Values & Negations
+TARGET_BUILTIN(__builtin_xtensa_ae_abs16s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abs32s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_maxabs32s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_neg16s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_neg32s, "LLiLLi", "n", "")
+
+// Bitwise Logic Operations
+TARGET_BUILTIN(__builtin_xtensa_ae_and16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_or16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_xor16, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_and64, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_or64, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_xor64, "LLiLLiLLi", "n", "")
+
+// Conversions and Moves
+TARGET_BUILTIN(__builtin_xtensa_ae_cvt16x4, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cvt32x2f16_10, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cvt32x2f16_32, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cvt48a32, "LLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cvtp24a16x2_ll, "LLiii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_cvtq48a32s, "LLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movad16_0, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movad16_1, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movad16_2, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movad16_3, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movad32_h, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movad32_l, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movda32, "LLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movda32x2, "LLiii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movf16x4_fromint64, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movf24x2_fromint32x2, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movint16x4_fromint32x2, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movint24x2_fromf24x2, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movint24x2_fromf32x2, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movint32_fromint16, "ii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movint32_fromint24x2, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_movint32_fromint64, "iLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sext32x2d16_10, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sext32x2d16_32, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_trunc16x4f32, "LLiLLiLLi", "n", "")
+
+// Shifts
+TARGET_BUILTIN(__builtin_xtensa_ae_slaa16s, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slaa32, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slaa32s, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slaa64, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slai16s, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slai24s, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_slai64, "LLiLLiIUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sraa16rs, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sraa32, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sraa32rs, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sraa32s, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sraa64, "LLiLLii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sraaq56, "LLiLLii", "n", "")
+// Miscellaneous
+TARGET_BUILTIN(__builtin_xtensa_ae_nsaz32_l, "iLLi", "n", "")
+// New MAC and multiply intrinsics  
+TARGET_BUILTIN(__builtin_xtensa_ae_mulafp32x2rs, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulafp32x16x2rs_h, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulafp32x16x2rs_l, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfc24ra, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulfp16x4rs, "LLiLLiLLi", "n", "")
+
+// Multiply family completions (ACE30 overlay)
+TARGET_BUILTIN(__builtin_xtensa_ae_mul32_lh, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mula32_hh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mula32_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mula32_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_muls32_hh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_muls32_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_muls32_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32r_hh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32r_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32r_ll, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32ra_hh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32ra_lh, "LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulsf32ra_ll, "LLiLLiLLiLLi", "n", "")
+
+// Missing HiFi3 intrinsics (from xt-clang reference analysis)
+
+// Select 16-bit with immediate index (0-7)
+TARGET_BUILTIN(__builtin_xtensa_ae_sel16i, "LLiLLiLLiIUi", "n", "")
+
+// 64-bit load/store with immediate offset
+TARGET_BUILTIN(__builtin_xtensa_ae_l64_i, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s64_i, "vLLiv*i", "n", "")
+
+// Initialize store alignment register
+TARGET_BUILTIN(__builtin_xtensa_ae_zalign64, "LLi", "n", "")
+
+// Simultaneous saturating add and subtract (2 results via pointers)
+TARGET_BUILTIN(__builtin_xtensa_ae_addandsub32s, "vLLi*LLi*LLiLLi", "n", "")
+
+// Load 16x2 with register post-increment
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x2m_xu, "LLiv**i", "n", "")
+
+// Move AR to AE_DR (16-bit replicate)
+TARGET_BUILTIN(__builtin_xtensa_ae_movda16, "LLii", "n", "")
+
+// Store 32x2 in f24 format
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2f24_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2f24_ip, "vLLiv**i", "n", "")
+
+// Scalar AR operations
+TARGET_BUILTIN(__builtin_xtensa_ae_clamps16, "ii", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sext16, "UiUi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_zext16, "ii", "n", "")
+
+// Move AE bool2 to AR
+TARGET_BUILTIN(__builtin_xtensa_ae_movab2, "ii", "n", "")
+
+// HiFi5 128-bit Loads (dual-output via pointers + ptr update)
+TARGET_BUILTIN(__builtin_xtensa_ae_la32x2x2_ip, "vLLi*LLi*LLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la16x4x2_ip, "vLLi*LLi*LLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2x2_xc, "vLLi*LLi*v**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l32x2x2_xc1, "vLLi*LLi*v**i", "n", "")
+
+// HiFi5 128-bit Stores (dual-input + ptr update)
+TARGET_BUILTIN(__builtin_xtensa_ae_sa32x2x2_ip, "vLLiLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa16x4x2_ip, "vLLiLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s32x2x2_xc1, "vLLiLLiv**i", "n", "")
+
+// HiFi5 MACs (dual-output via pointers)
+TARGET_BUILTIN(__builtin_xtensa_ae_mula2q32x16_fir_h5, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf32x2r_hh_ll, "vLLi*LLi*LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf2p32x16x4rs, "vLLi*LLi*LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mulf2p32x4rs, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+
+#undef BUILTIN
+#undef TARGET_BUILTIN
