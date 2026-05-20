@@ -29,6 +29,7 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/CodeGen/MachineInstrBundle.h"
 
 using namespace llvm;
 
@@ -43,10 +44,74 @@ getModifierSpecifier(XtensaCP::XtensaCPModifier Modifier) {
   report_fatal_error("Invalid XtensaCPModifier!");
 }
 
+// Map a HiFi AE_ZERO* pseudo opcode to the equivalent encoded
+// `ae_subNs` opcode. Returns 0 if the pseudo is not one we know how
+// to expand here.
+//
+// The td file declares pseudos AE_ZERO16/24/32_Pseudo_HIFI3 and
+// AE_ZEROP48/Q56/64_Pseudo_HIFI3 with AsmStrings of the form
+// "ae_subNs $r, $r, $r". Those pseudos have no encoding of their own,
+// so without expansion the MC code emitter aborts with
+// "Unsupported instruction" the first time a v2i32 zero vector
+// reaches isel (e.g. from compiler_builtins).
+//
+// Only the variants with an encoded AE_SUBxx_HIFI3 instruction in
+// XtensaHIFIInstrInfo.td are handled here. AE_ZERO16/24 currently map
+// to ae_sub16s/sub24s which are not (yet) defined as encoded
+// instructions; those would need new td entries.
+static unsigned getHIFIZeroPseudoExpansion(unsigned Opc) {
+  switch (Opc) {
+  case Xtensa::AE_ZERO32_Pseudo_HIFI3:
+    return Xtensa::AE_SUB32S_HIFI3;
+  case Xtensa::AE_ZERO64_Pseudo_HIFI3:
+  case Xtensa::AE_ZEROP48_Pseudo_HIFI3:
+  case Xtensa::AE_ZEROQ56_Pseudo_HIFI3:
+    return Xtensa::AE_SUB64_HIFI3;
+  default:
+    return 0;
+  }
+}
+
 void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
   unsigned Opc = MI->getOpcode();
 
   switch (Opc) {
+  case TargetOpcode::BUNDLE: {
+    // Emit FLIX bundle using { op1; op2 } syntax for the external assembler
+    OutStreamer->emitRawText(" {");
+    const MachineBasicBlock *MBB = MI->getParent();
+    MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
+    for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
+      if (MII->isDebugInstr() || MII->isImplicitDef())
+        continue;
+      unsigned BundledOpc = MII->getOpcode();
+      if (unsigned RealOpc = getHIFIZeroPseudoExpansion(BundledOpc)) {
+        unsigned Dst = MII->getOperand(0).getReg();
+        EmitToStreamer(*OutStreamer, MCInstBuilder(RealOpc)
+                                         .addReg(Dst)
+                                         .addReg(Dst)
+                                         .addReg(Dst));
+        continue;
+      }
+      MCInst LoweredMI;
+      lowerToMCInst(&*MII, LoweredMI);
+      EmitToStreamer(*OutStreamer, LoweredMI);
+    }
+    OutStreamer->emitRawText(" }");
+    return;
+  }
+  case Xtensa::AE_ZERO32_Pseudo_HIFI3:
+  case Xtensa::AE_ZERO64_Pseudo_HIFI3:
+  case Xtensa::AE_ZEROP48_Pseudo_HIFI3:
+  case Xtensa::AE_ZEROQ56_Pseudo_HIFI3: {
+    unsigned RealOpc = getHIFIZeroPseudoExpansion(Opc);
+    unsigned Dst = MI->getOperand(0).getReg();
+    EmitToStreamer(*OutStreamer, MCInstBuilder(RealOpc)
+                                     .addReg(Dst)
+                                     .addReg(Dst)
+                                     .addReg(Dst));
+    return;
+  }
   case Xtensa::BR_JT:
     EmitToStreamer(
         *OutStreamer,
@@ -155,6 +220,20 @@ void XtensaAsmPrinter::emitConstantPool() {
       static_cast<XtensaTargetStreamer *>(OutStreamer->getTargetStreamer());
   MCSection *CS = getObjFileLowering().SectionForGlobal(&F, TM);
   TS->startLiteralSection(CS);
+
+  // The ELF streamer's startLiteralSection() only registers an aligned
+  // .literal section as metadata; it does not switch to it, and the
+  // following emitMachineConstantPoolEntry() calls run with
+  // SwitchLiteralSection=false. As a result, the literal pool entries
+  // are emitted into the function's own .text.<func> subsection,
+  // packed against the last instruction at whatever offset the code
+  // happens to end at. Because each l32r relocation requires a
+  // 4-byte-aligned literal target in the final image, an unaligned
+  // pool start (e.g., function size of 14 bytes -> pool at +0xe)
+  // makes BFD reject the link with
+  //   "dangerous relocation: l32r: misaligned literal target".
+  // Insert an explicit 4-byte alignment before the pool to fix that.
+  OutStreamer->emitValueToAlignment(Align(4));
 
   int CPIdx = 0;
   for (const MachineConstantPoolEntry &CPE : CP) {

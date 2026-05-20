@@ -199,12 +199,32 @@ public:
   }
 
   bool isUimm4() const { return isImm(0, 15); }
+  bool isUimm4_x8() const {
+    return isImm(0, 120) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
+  }
 
   bool isUimm5() const { return isImm(0, 31); }
+  bool isUimm6() const { return isImm(0, 63); }
 
   bool isImm8n_7() const { return isImm(-8, 7); }
 
   bool isShimm1_31() const { return isImm(1, 31); }
+
+  bool isImm8_x4_add8() const {
+    return isImm(-64, 56) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
+  }
+
+  bool isImm8n_7_x2() const {
+    return isImm(-16, 14) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 2) == 0);
+  }
+
+  bool isImm8n_7_x4() const {
+    return isImm(-32, 28) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 4) == 0);
+  }
 
   bool isImm16_31() const { return isImm(16, 31); }
 
@@ -522,6 +542,9 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidUimm5:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 31]");
+  case Match_InvalidUimm6:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 63]");
   case Match_InvalidOffset8m8:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 255]");
