@@ -15,6 +15,9 @@
 #include "XtensaTargetMachine.h"
 #include "TargetInfo/XtensaTargetInfo.h"
 #include "XtensaMachineFunctionInfo.h"
+#include "XtensaPacketizer.h"
+#include "XtensaSubtarget.h"
+#include "XtensaTargetTransformInfo.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
@@ -30,6 +33,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTarget() {
   RegisterTargetMachine<XtensaTargetMachine> A(getTheXtensaTarget());
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeXtensaAsmPrinterPass(PR);
+  initializeXtensaPacketizerPass(PR);
 }
 
 static Reloc::Model getEffectiveRelocModel(bool JIT,
@@ -80,6 +84,11 @@ XtensaTargetMachine::getSubtargetImpl(const Function &F) const {
   return I.get();
 }
 
+TargetTransformInfo
+XtensaTargetMachine::getTargetTransformInfo(const Function &F) const {
+  return TargetTransformInfo(std::make_unique<XtensaTTIImpl>(this, F));
+}
+
 MachineFunctionInfo *XtensaTargetMachine::createMachineFunctionInfo(
     BumpPtrAllocator &Allocator, const Function &F,
     const TargetSubtargetInfo *STI) const {
@@ -114,7 +123,10 @@ void XtensaPassConfig::addIRPasses() {
   TargetPassConfig::addIRPasses();
 }
 
-void XtensaPassConfig::addPreEmitPass() { addPass(&BranchRelaxationPassID); }
+void XtensaPassConfig::addPreEmitPass() {
+  addPass(createXtensaPacketizerPass());
+  addPass(&BranchRelaxationPassID);
+}
 
 TargetPassConfig *XtensaTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new XtensaPassConfig(*this, PM);
