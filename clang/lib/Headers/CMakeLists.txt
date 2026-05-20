@@ -163,6 +163,10 @@ set(webassembly_files
   wasm_simd128.h
   )
 
+set(xtensa_files
+  xtensahifiintrin.h
+  )
+
 set(x86_files
 # Intrinsics
   adcintrin.h
@@ -338,6 +342,7 @@ set(files
   ${gpu_files}
   ${webassembly_files}
   ${windows_only_files}
+  ${xtensa_files}
   ${utility_files}
   )
 
@@ -407,6 +412,13 @@ set(zos_wrapper_files
   zos_wrappers/builtins.h
 )
 
+set(xtensa_wrapper_files
+  xtensa/tie/xt_hifi2.h
+  xtensa/tie/xt_hifi3.h
+  xtensa/tie/xt_hifi4.h
+  xtensa/tie/xt_hifi5.h
+)
+
 include(GetClangResourceDir)
 get_clang_resource_dir(output_dir PREFIX ${LLVM_LIBRARY_OUTPUT_INTDIR}/.. SUBDIR include)
 set(out_files)
@@ -457,7 +469,7 @@ endfunction(clang_generate_header)
 foreach( f ${files} ${cuda_wrapper_files} ${cuda_wrapper_bits_files}
            ${cuda_wrapper_utility_files} ${ppc_wrapper_files} ${openmp_wrapper_files}
            ${zos_wrapper_files} ${hlsl_files} ${llvm_libc_wrapper_files}
-           ${llvm_offload_wrapper_files})
+           ${llvm_offload_wrapper_files} ${xtensa_wrapper_files})
   copy_header_to_output_dir(${CMAKE_CURRENT_SOURCE_DIR} ${f})
 endforeach( f )
 
@@ -562,6 +574,7 @@ add_dependencies("clang-resource-headers"
                  "systemz-resource-headers"
                  "ve-resource-headers"
                  "webassembly-resource-headers"
+                 "xtensa-resource-headers"
                  "x86-resource-headers"
                  "opencl-resource-headers"
                  "openmp-resource-headers"
@@ -587,6 +600,7 @@ add_header_target("riscv-resource-headers" "${riscv_files};${riscv_generated_fil
 add_header_target("systemz-resource-headers" "${systemz_files};${zos_wrapper_files}")
 add_header_target("ve-resource-headers" "${ve_files}")
 add_header_target("webassembly-resource-headers" "${webassembly_files}")
+add_header_target("xtensa-resource-headers" "${xtensa_files};${xtensa_wrapper_files}")
 add_header_target("x86-resource-headers" "${x86_files}")
 add_header_target("gpu-resource-headers" "${gpu_files}")
 
@@ -780,6 +794,18 @@ install(
   DESTINATION ${header_install_dir}
   EXCLUDE_FROM_ALL
   COMPONENT webassembly-resource-headers)
+
+install(
+  FILES ${xtensa_files}
+  DESTINATION ${header_install_dir}
+  EXCLUDE_FROM_ALL
+  COMPONENT xtensa-resource-headers)
+
+install(
+  FILES ${xtensa_wrapper_files}
+  DESTINATION ${header_install_dir}/xtensa/tie
+  EXCLUDE_FROM_ALL
+  COMPONENT xtensa-resource-headers)
 
 install(
   FILES ${x86_files}
