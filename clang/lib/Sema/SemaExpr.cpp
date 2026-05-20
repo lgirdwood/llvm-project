@@ -15034,6 +15034,14 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
       // Use a special diagnostic for loads from property references.
       if (isa<PseudoObjectExpr>(op)) {
         AddressOfError = AO_Property_Expansion;
+      } else if (Context.getTargetInfo().getTriple().getArch() ==
+                 llvm::Triple::xtensa) {
+        // Xtensa/HiFi extension: allow taking address of rvalue pointer casts.
+        // Cadence's proprietary compiler supports &((ae_int32 *)ptr) for
+        // post-increment load/store intrinsic macros. Materialize the rvalue
+        // as a temporary to make the address valid.
+        OrigOp = op = CreateMaterializeTemporaryExpr(
+            op->getType(), OrigOp.get(), true);
       } else {
         Diag(OpLoc, diag::err_typecheck_invalid_lvalue_addrof)
           << op->getType() << op->getSourceRange();
