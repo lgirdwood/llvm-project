@@ -75,6 +75,23 @@ static DecodeStatus DecodeARRegisterClass(MCInst &Inst, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
+const MCPhysReg AEDRDecoderTable[] = {
+    Xtensa::AED0,  Xtensa::AED1,  Xtensa::AED2,  Xtensa::AED3,
+    Xtensa::AED4,  Xtensa::AED5,  Xtensa::AED6,  Xtensa::AED7,
+    Xtensa::AED8,  Xtensa::AED9,  Xtensa::AED10, Xtensa::AED11,
+    Xtensa::AED12, Xtensa::AED13, Xtensa::AED14, Xtensa::AED15};
+
+static DecodeStatus DecodeAEDRRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                            uint64_t Address,
+                                            const void *Decoder) {
+  if (RegNo >= std::size(AEDRDecoderTable))
+    return MCDisassembler::Fail;
+
+  MCPhysReg Reg = AEDRDecoderTable[RegNo];
+  Inst.addOperand(MCOperand::createReg(Reg));
+  return MCDisassembler::Success;
+}
+
 static DecodeStatus DecodeMRRegisterClass(MCInst &Inst, uint64_t RegNo,
                                           uint64_t Address,
                                           const void *Decoder) {
@@ -227,6 +244,13 @@ static DecodeStatus DecodeBRRegisterClass(MCInst &Inst, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus DecodeVALIGNRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                           uint64_t Address,
+                                           const void *Decoder) {
+  Inst.addOperand(MCOperand::createReg(Xtensa::AE_VALIGN));
+  return MCDisassembler::Success;
+}
+
 static bool tryAddingSymbolicOperand(int64_t Value, bool isBranch,
                                      uint64_t Address, uint64_t Offset,
                                      uint64_t InstSize, MCInst &MI,
@@ -320,9 +344,23 @@ static DecodeStatus decodeUimm4Operand(MCInst &Inst, uint64_t Imm,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus decodeUimm4_x8Operand(MCInst &Inst, uint64_t Imm,
+                                          int64_t Address, const void *Decoder) {
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm * 8));
+  return MCDisassembler::Success;
+}
+
 static DecodeStatus decodeUimm5Operand(MCInst &Inst, uint64_t Imm,
                                        int64_t Address, const void *Decoder) {
   assert(isUInt<5>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeUimm6Operand(MCInst &Inst, uint64_t Imm,
+                                       int64_t Address, const void *Decoder) {
+  assert(isUInt<6>(Imm) && "Invalid immediate");
   Inst.addOperand(MCOperand::createImm(Imm));
   return MCDisassembler::Success;
 }
@@ -412,6 +450,30 @@ static DecodeStatus decodeImm7_22Operand(MCInst &Inst, uint64_t Imm,
                                          int64_t Address, const void *Decoder) {
   assert(isUInt<4>(Imm) && "Invalid immediate");
   Inst.addOperand(MCOperand::createImm(Imm + 7));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeImm8_x4_add8Operand(MCInst &Inst, uint64_t Imm,
+                                              int64_t Address,
+                                              const void *Decoder) {
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(((int64_t)Imm - 8) * 8));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeImm8n_7_x2Operand(MCInst &Inst, uint64_t Imm,
+                                          int64_t Address, const void *Decoder) {
+  int64_t SignedImm = SignExtend64<4>(Imm);
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(SignedImm * 2));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeImm8n_7_x4Operand(MCInst &Inst, uint64_t Imm,
+                                          int64_t Address, const void *Decoder) {
+  int64_t SignedImm = SignExtend64<4>(Imm);
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(SignedImm * 4));
   return MCDisassembler::Success;
 }
 

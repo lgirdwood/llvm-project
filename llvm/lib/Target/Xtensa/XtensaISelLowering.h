@@ -33,6 +33,11 @@ public:
 
   MVT getRegisterTypeForCallingConv(LLVMContext &Context, CallingConv::ID CC,
                                     EVT VT) const override;
+  unsigned getNumRegistersForCallingConv(LLVMContext &Context, CallingConv::ID CC,
+                                         EVT VT) const override;
+  unsigned getVectorTypeBreakdownForCallingConv(
+      LLVMContext &Context, CallingConv::ID CC, EVT VT, EVT &IntermediateVT,
+      unsigned &NumIntermediates, MVT &RegisterVT) const override;
 
   EVT getSetCCResultType(const DataLayout &, LLVMContext &,
                          EVT VT) const override {
@@ -42,6 +47,7 @@ public:
   }
 
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+
 
   bool isFPImmLegal(const APFloat &Imm, EVT VT,
                     bool ForCodeSize) const override;

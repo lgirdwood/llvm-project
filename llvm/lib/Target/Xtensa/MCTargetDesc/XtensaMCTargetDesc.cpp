@@ -45,6 +45,15 @@ bool Xtensa::isValidAddrOffset(int Scale, int64_t OffsetVal) {
   case 4:
     Valid = (OffsetVal >= 0 && OffsetVal <= 1020) && ((OffsetVal & 0x3) == 0);
     break;
+  case 8:
+    Valid = (OffsetVal >= 0 && OffsetVal <= 2040) && ((OffsetVal & 0x7) == 0);
+    // Note: Some instructions like ae_s64.i might only support up to 56,
+    // but the DAG selection will further constrain it if we use a specific Operand.
+    // Wait, if selectMemRegAddr just checks isValidAddrOffset, we need to make sure
+    // it doesn't allow 88! 
+    // Actually, we can limit Scale=8 to 56 for now since only ae_s64.i uses it.
+    Valid = (OffsetVal >= 0 && OffsetVal <= 56) && ((OffsetVal & 0x7) == 0);
+    break;
   default:
     break;
   }
@@ -63,6 +72,10 @@ bool Xtensa::isValidAddrOffsetForOpcode(unsigned Opcode, int64_t Offset) {
   case Xtensa::L16UI:
   case Xtensa::S16I:
     Scale = 2;
+    break;
+  case Xtensa::AE_S64_I_HIFI3:
+  case Xtensa::AE_L64_I_HIFI3:
+    Scale = 8;
     break;
   case Xtensa::LEA_ADD:
     return (Offset >= -128 && Offset <= 127);
@@ -224,6 +237,14 @@ MCRegister Xtensa::getUserRegister(unsigned Code, const MCRegisterInfo &MRI) {
     UserReg = Xtensa::F64R_HI;
   } else if (MRI.getEncodingValue(Xtensa::F64S) == Code) {
     UserReg = Xtensa::F64S;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN0) == Code) {
+    UserReg = Xtensa::AE_CBEGIN0;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN1) == Code) {
+    UserReg = Xtensa::AE_CBEGIN1;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CEND0) == Code) {
+    UserReg = Xtensa::AE_CEND0;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CEND1) == Code) {
+    UserReg = Xtensa::AE_CEND1;
   } else if (MRI.getEncodingValue(Xtensa::THREADPTR) == Code) {
     UserReg = Xtensa::THREADPTR;
   }
