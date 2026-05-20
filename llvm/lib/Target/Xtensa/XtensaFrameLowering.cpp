@@ -366,10 +366,11 @@ void XtensaFrameLowering::processFunctionBeforeFrameFinalized(
   MachineFrameInfo &MFI = MF.getFrameInfo();
   uint64_t MaxSPOffset = MFI.estimateStackSize(MF);
   auto *XtensaFI = MF.getInfo<XtensaMachineFunctionInfo>();
-  unsigned ScavSlotsNum = 0;
+  // Always need at least one scavenging slot for eliminateFrameIndex
+  unsigned ScavSlotsNum = 1;
 
   if (!isInt<12>(MaxSPOffset))
-    ScavSlotsNum = 1;
+    ScavSlotsNum = std::max(ScavSlotsNum, 2u);
 
   // Far branches over 18-bit offset require a spill slot for scratch register.
   bool IsLargeFunction = !isInt<18>(MF.estimateFunctionSizeInBytes());
