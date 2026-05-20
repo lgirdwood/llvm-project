@@ -32,12 +32,48 @@ class XtensaInst24<dag outs, dag ins, string asmstr, list<dag> pattern,
   field bits<24> Inst;
 }
 
+// Base class for Xtensa 64 bit Format (FLIX bundles)
+class XtensaInst64<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : XtensaInst<8, outs, ins, asmstr, pattern, itin> {
+  field bits<64> Inst;
+}
+
 // Base class for Xtensa 16 bit Format
 class XtensaInst16<dag outs, dag ins, string asmstr, list<dag> pattern,
                    InstrItinClass itin = NoItinerary>
   : XtensaInst<2, outs, ins, asmstr, pattern, itin> {
   field bits<16> Inst;
   let Predicates = [HasDensity];
+}
+
+class RRR_TFC_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> r_val, bits<4> t_val,
+                   dag outs, dag ins, string asmstr, list<dag> pattern>
+  : XtensaInst24<outs, ins, asmstr, pattern> {
+  bits<4> s;
+  bits<4> u = 0;
+
+  let Inst{23-20} = op2;
+  let Inst{19-16} = op1;
+  let Inst{15-12} = r_val;
+  let Inst{11-8}  = s;
+  let Inst{7-4}   = t_val;
+  let Inst{3-0}   = op0;
+}
+
+class RRR_TC_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> t_val,
+                  dag outs, dag ins, string asmstr, list<dag> pattern>
+  : XtensaInst24<outs, ins, asmstr, pattern> {
+  bits<4> r;
+  bits<4> s;
+  bits<4> u = 0;
+
+  let Inst{23-20} = op2;
+  let Inst{19-16} = op1;
+  let Inst{15-12} = r;
+  let Inst{11-8}  = s;
+  let Inst{7-4}   = t_val;
+  let Inst{3-0}   = op0;
 }
 
 class RRR_Inst<bits<4> op0, bits<4> op1, bits<4> op2, dag outs, dag ins,
@@ -52,6 +88,22 @@ class RRR_Inst<bits<4> op0, bits<4> op1, bits<4> op2, dag outs, dag ins,
   let Inst{15-12} = r;
   let Inst{11-8} = s;
   let Inst{7-4} = t;
+  let Inst{3-0} = op0;
+}
+
+// AE Memory Instruction Format
+class RRR_AE_Inst<bits<4> op0, bits<4> op1, bits<4> op_7_4, dag outs, dag ins,
+               string asmstr, list<dag> pattern, InstrItinClass itin = NoItinerary>
+  : XtensaInst24<outs, ins, asmstr, pattern, itin> {
+  bits<4> r;
+  bits<4> s;
+  bits<4> t;
+
+  let Inst{23-20} = t;
+  let Inst{19-16} = op1;
+  let Inst{15-12} = r;
+  let Inst{11-8} = s;
+  let Inst{7-4} = op_7_4;
   let Inst{3-0} = op0;
 }
 
