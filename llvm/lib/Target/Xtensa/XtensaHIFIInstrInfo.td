@@ -177,11 +177,17 @@ let Predicates = [HasHIFI3] in {
                                         [(set AR:$s_out, (int_xtensa_ae_s32_l_ip AEDR:$r, AR:$s, imm8n_7_x4:$t))]> {
       let Constraints = "$s = $s_out"; let DecoderNamespace = "XtensaHIFI4"; let Predicates = [HasHIFI4]; let mayStore = 1;
     }
-    // Fallback pseudo for AE_S32_L_IP when the immediate doesn't match
-    // the constrained range (happens after constant folding at -O2).
+    // Fallback pseudo for AE_S32_L_IP when the immediate is outside [-32,28]
+    // (step 4). The pattern uses unconstrained `imm` so it can catch any
+    // constant not already matched by AE_S32_L_IP_HIFI4's imm8n_7_x4 predicate.
+    // XtensaISelLowering::PerformDAGCombine rewrites INTRINSIC_W_CHAIN nodes
+    // for this intrinsic with out-of-range immediates to ae_s32_l_xp before
+    // ISel, so in practice only values in [-32,28]/4 reach ISel and are
+    // caught by AE_S32_L_IP_HIFI4 first.  This pseudo exists as a safety net
+    // to prevent a hard "Cannot select" crash if a constant slips through.
     def AE_S32_L_IP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$r, AR:$s, i32imm:$t),
                                         "ae_s32.l.ip\t$r, $s, $t",
-                                        [(set AR:$s_out, (int_xtensa_ae_s32_l_ip AEDR:$r, AR:$s, (i32 timm:$t)))]> {
+                                        [(set AR:$s_out, (int_xtensa_ae_s32_l_ip AEDR:$r, AR:$s, (i32 imm:$t)))]> {
       let Constraints = "$s = $s_out"; let Predicates = [HasHIFI3]; let mayStore = 1;
     }
     
