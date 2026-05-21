@@ -90,8 +90,8 @@ def : Proc<"intel_tgl_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, F
                                FeatureDataCache, FeatureRelocatableVector, FeatureTimers3, FeaturePRID,
                                FeatureMINMAX, FeatureCLAMPS, FeatureHIFI3]>;
 
-// intel_ace15_mtpm - ACE 1.5 Meteor Lake Audio DSP (HiFi4)
-def : Proc<"intel_ace15_mtpm", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+// intel_ace15_adsp - ACE 1.5 Audio DSP (HiFi4)
+def : Proc<"intel_ace15_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                 FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
                                 FeatureSingleFloat,
                                 FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
@@ -99,16 +99,16 @@ def : Proc<"intel_ace15_mtpm", [FeatureDensity, FeatureWindowed, FeatureBoolean,
                                 FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
                                 FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
 
-// intel_ace30_ptl - ACE 3.0 Panther Lake Audio DSP (HiFi4)
-def : Proc<"intel_ace30_ptl", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+// intel_ace30_adsp - ACE 3.0 Audio DSP (HiFi4)
+def : Proc<"intel_ace30_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX,
                                FeatureCLAMPS, FeatureHIFI4]>;
 
-// intel_ace40 - ACE 4.0 Nova Lake Audio DSP (HiFi5)
-def : Proc<"intel_ace40", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+// intel_ace40_adsp - ACE 4.0 Audio DSP (HiFi5)
+def : Proc<"intel_ace40_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                            FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
                            FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                            FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
