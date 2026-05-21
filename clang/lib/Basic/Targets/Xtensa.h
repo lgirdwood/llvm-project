@@ -118,9 +118,9 @@ public:
         .Case("esp8266", true)
         // Intel Audio DSP
         .Case("intel_tgl_adsp", true)
-        .Case("intel_ace15_mtpm", true)
-        .Case("intel_ace30_ptl", true)
-        .Case("intel_ace40", true)
+        .Case("intel_ace15_adsp", true)
+        .Case("intel_ace30_adsp", true)
+        .Case("intel_ace40_adsp", true)
         // AMD Audio Co-Processor
         .Case("amd_acp_6_0_adsp", true)
         .Case("amd_acp_7_0_adsp", true)
