@@ -155,6 +155,8 @@ private:
 
   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
 
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
+
   SDValue getAddrPCRel(SDValue Op, SelectionDAG &DAG) const;
 
   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;

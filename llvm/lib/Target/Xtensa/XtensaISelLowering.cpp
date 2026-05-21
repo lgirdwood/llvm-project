@@ -73,7 +73,6 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
     // types are legal. The Clang codegen bitcasts i64 builtins to/from these.
     addRegisterClass(MVT::v2i32, &Xtensa::AEDRRegClass);
     addRegisterClass(MVT::v4i16, &Xtensa::AEDRRegClass);
-
     // Expand all operations on vector types except those with explicit patterns
     // (bitcast, extractelt, intrinsics). The AEDR register class is used only
     // for HiFi intrinsics, not general vector arithmetic.
@@ -115,6 +114,8 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
       setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::v2i16, Expand);
       setLoadExtAction(ISD::SEXTLOAD, VT, MVT::v2i16, Expand);
     }
+    // Combine ae_s32_l_ip with out-of-range immediates to ae_s32_l_xp.
+    setTargetDAGCombine(ISD::INTRINSIC_W_CHAIN);
   }
 
   // Set up special registers.
@@ -1557,6 +1558,59 @@ bool XtensaTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
     return true;
 
   return false;
+}
+
+// PerformDAGCombine: rewrite ae_s32_l_ip with an out-of-range immediate to
+// ae_s32_l_xp (register-offset variant).  ae_s32_l_ip encodes the offset in
+// a 4-bit field as n*4 - 32, giving the range [-32, 28] in steps of 4.
+// Any immediate outside that window causes a "Cannot select" crash because
+// neither AE_S32_L_IP_HIFI4 (imm8n_7_x4 predicate) nor AE_S32_L_IP_PSEUDO
+// (imm predicate) can map it to a legal encoding.  We materialise the
+// constant in an AR register and call ae_s32_l_xp instead.
+SDValue XtensaTargetLowering::PerformDAGCombine(SDNode *N,
+                                                DAGCombinerInfo &DCI) const {
+  if (N->getOpcode() != ISD::INTRINSIC_W_CHAIN)
+    return SDValue();
+
+  unsigned IntNo = N->getConstantOperandVal(1);
+  if (IntNo != Intrinsic::xtensa_ae_s32_l_ip)
+    return SDValue();
+
+  // Operand layout for INTRINSIC_W_CHAIN:
+  //   0 = chain, 1 = intrinsic ID, 2 = val (v2i32), 3 = ptr, 4 = imm (i32)
+  SDValue Imm = N->getOperand(4);
+  auto *C = dyn_cast<ConstantSDNode>(Imm);
+  if (!C)
+    return SDValue(); // Non-constant offset — leave for ISel to handle
+
+  int64_t ImmVal = C->getSExtValue();
+  // imm8n_7_x4 range: [-32, 28], step 4.  Values in this range are handled
+  // by the AE_S32_L_IP_HIFI4 pattern; leave them alone.
+  if (ImmVal >= -32 && ImmVal <= 28 && (ImmVal % 4 == 0))
+    return SDValue();
+
+  // Out-of-range: rewrite to ae_s32_l_xp with a materialised register offset.
+  SelectionDAG &DAG = DCI.DAG;
+  SDLoc DL(N);
+  SDValue Chain = N->getOperand(0);
+  SDValue Val   = N->getOperand(2);
+  SDValue Ptr   = N->getOperand(3);
+  SDValue ImmReg = DAG.getConstant(ImmVal, DL, MVT::i32);
+
+  // Build the ae_s32_l_xp node (same result types: [ptr, chain]).
+  // IMPORTANT: the intrinsic ID must be a TargetConstant (not a plain
+  // Constant) to match how SelectionDAGBuilder encodes INTRINSIC_W_CHAIN.
+  SDValue NewNode = DAG.getNode(ISD::INTRINSIC_W_CHAIN, DL, N->getVTList(),
+                                {Chain,
+                                 DAG.getTargetConstant(
+                                     Intrinsic::xtensa_ae_s32_l_xp,
+                                     DL, MVT::i32),
+                                 Val, Ptr, ImmReg});
+
+  // The DAGCombiner calls ReplaceAllUsesWith(N, NewNode) when we return a node
+  // different from N — this replaces BOTH the pointer result (value 0) and the
+  // chain result (value 1), so all consumers of the old node are updated.
+  return NewNode;
 }
 
 SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
