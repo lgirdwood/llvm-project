@@ -91,9 +91,11 @@ def : Proc<"intel_tgl_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, F
                                FeatureMINMAX, FeatureCLAMPS, FeatureHIFI3]>;
 
 // intel_ace15_adsp - ACE 1.5 Audio DSP (HiFi4)
+// Note: FeatureSingleFloat intentionally omitted - the Zephyr SDK GNU
+// assembler for this core does not recognize FP opcodes (ssi/lsi) or
+// FP registers (f0..f15), so emitting them breaks the assembly step.
 def : Proc<"intel_ace15_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                 FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
-                                FeatureSingleFloat,
                                 FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                 FeatureHighPriInterruptsLevel4, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                 FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
