@@ -84,7 +84,7 @@ typedef unsigned char xtbool4;
   ({ __builtin_xtensa_ae_la64_pp((void **)&(ptr)); AE_ZALIGN64(); })
 #define AE_LA128_PP(ptr) \
   ({ __builtin_xtensa_ae_la128_pp((void **)&(ptr)); \
-     (ae_valignx2){{0}, {0}}; })
+     (ae_valignx2){0, 0}; })
 #define AE_LA32X2_IP(val, align, ptr) \
     (val) = (__builtin_xtensa_ae_la32x2_ip((align), (void **)&(ptr)))
 #define AE_LA32X2_IC(val, align, ptr) \
@@ -531,7 +531,7 @@ typedef unsigned char xtbool4;
 
 // Alignment Zero
 #define AE_ZALIGN64() ((ae_valign)0)
-#define AE_ZALIGN128() ((ae_valignx2){{0}, {0}})
+#define AE_ZALIGN128() ((ae_valignx2){0, 0})
 
 // Miscellaneous Arithmetic
 #define AE_F32_ADDS_F32(a, b) (__builtin_xtensa_ae_add32s((a), (b)))
