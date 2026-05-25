@@ -173,6 +173,11 @@ def FeatureHIFI4 : SubtargetFeature<"hifi4", "HasHIFI4", "true",
                                     "Enable Xtensa HiFi 4 Audio Engine instructions", [FeatureHIFI3]>;
 def HasHIFI4 : Predicate<"Subtarget->hasHIFI4()">,
                AssemblerPredicate<(all_of FeatureHIFI4)>;
+// Negative predicate: HiFi3 present but HiFi4 is NOT available.
+// Used to disambiguate ISel patterns for instructions that exist on both
+// HiFi3 and HiFi4 with the same opcode (e.g. ae_l32.ip, ae_la64.pp).
+def HasNoHIFI4 : Predicate<"!Subtarget->hasHIFI4()">,
+                 AssemblerPredicate<(all_of (not FeatureHIFI4))>;
 
 def FeatureHIFI5 : SubtargetFeature<"hifi5", "HasHIFI5", "true",
                                     "Enable Xtensa HiFi 5 Audio Engine instructions", [FeatureHIFI4]>;
