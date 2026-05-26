@@ -1278,10 +1278,37 @@ let Predicates = [HasHIFI3] in {
     let Constraints = "$acc = $t";
   }
 
-  def AE_MULAAFP24S_HH_LL_PSEUDO : Pseudo<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
-                                          "ae_mulaafp24s.hh.ll\t$t, $s, $r",
-                                          [(set AEDR:$t, (int_xtensa_ae_mulaafp24s_hh_ll AEDR:$acc, AEDR:$s, AEDR:$r))]> {
+  // AE_MULAAFP24S_HH_LL: HiFi3 24-bit fractional MAC (saturating).
+  // The mnemonic "ae_mulaafp24s.hh.ll" is NOT recognized by the TGL GCC assembler
+  // (Zephyr SDK xtensa-intel_tgl_adsp_zephyr-elf-as).  On HiFi3 / CAVS 2.5 targets
+  // the assembler-visible instruction is "ae_mulaafd24.hh.ll".  We therefore emit
+  // that mnemonic so -fno-integrated-as builds succeed with the SDK assembler.
+  //
+  // Encoding (verified from xtensa-intel_tgl_adsp_zephyr-elf-as disassembly):
+  //   Bytes (LE): 0x9e 0x95 (0x80|t) (0x30|s) (0xc0|r) 0x1a 0x80 0x0c
+  //   i.e. Inst{63:56}=0x0c, Inst{55:48}=0x80, Inst{47:40}=0x1a,
+  //        Inst{39:36}=0xc, Inst{35:32}=r, Inst{31:28}=0x3, Inst{27:24}=s,
+  //        Inst{23:20}=0x8, Inst{19:16}=t, Inst{15:8}=0x95, Inst{7:0}=0x9e
+  def AE_MULAAFP24S_HH_LL_HIFI3 : XtensaInst64<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
+                                                "ae_mulaafd24.hh.ll\t$t, $s, $r",
+                                                [(set AEDR:$t, (int_xtensa_ae_mulaafp24s_hh_ll AEDR:$acc, AEDR:$s, AEDR:$r))]> {
     let Constraints = "$acc = $t";
+    let DecoderNamespace = "XtensaHIFI3";
+    let Predicates = [HasHIFI3];
+    bits<4> t;
+    bits<4> s;
+    bits<4> r;
+    let Inst{63-56} = 0x0c;
+    let Inst{55-48} = 0x80;
+    let Inst{47-40} = 0x1a;
+    let Inst{39-36} = 0xc;
+    let Inst{35-32} = r;
+    let Inst{31-28} = 0x3;
+    let Inst{27-24} = s;
+    let Inst{23-20} = 0x8;
+    let Inst{19-16} = t;
+    let Inst{15-8}  = 0x95;
+    let Inst{7-0}   = 0x9e;
   }
 
 // MAC Batch 2 Pseudo Instructions
