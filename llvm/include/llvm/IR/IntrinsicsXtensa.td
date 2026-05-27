@@ -206,6 +206,8 @@ let TargetPrefix = "xtensa" in {
   def int_xtensa_ae_mulaafd32x16_h1_l0 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty, llvm_v4i16_ty], [IntrNoMem]>;
   def int_xtensa_ae_mulaf32s_ll : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
   def int_xtensa_ae_mulaf32s_lh : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
+  // AE_MULAF32S_HL: acc += hi(b)*lo(c). Maps to ae_mulaf32s.lh with swapped b/c.
+  def int_xtensa_ae_mulaf32s_hl : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
   def int_xtensa_ae_mulf32s_ll : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
   def int_xtensa_ae_mulf32s_lh : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
 
@@ -297,6 +299,10 @@ let TargetPrefix = "xtensa" in {
   def int_xtensa_ae_movint16x4_fromint32x2 : Intrinsic<[llvm_v4i16_ty], [llvm_v2i32_ty], [IntrNoMem]>;
   def int_xtensa_ae_movint24x2_fromf24x2 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
   def int_xtensa_ae_movint24x2_fromf32x2 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+  // Identity bitcast conversions between ae_int64 and ae_int32x2 views.
+  // Both types map to the same 64-bit AEDR register; these are no-ops at ISel.
+  def int_xtensa_ae_movint32x2_fromint64 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_movint64_fromint32x2 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
   
   def int_xtensa_ae_movint32_fromint16 : Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
   def int_xtensa_ae_movint32_fromint24x2 : Intrinsic<[llvm_i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;

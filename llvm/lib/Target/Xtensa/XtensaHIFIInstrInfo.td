@@ -193,6 +193,12 @@ let Predicates = [HasHIFI3] in {
                                     [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_l16x4_ip AR:$s, imm8_x4_add8:$t))]> {
       let Constraints = "$s = $s_out"; let DecoderNamespace = "XtensaHIFI4"; let Predicates = [HasHIFI4]; let mayLoad = 1;
     }
+    // HiFi3 variant — same encoding, different predicate
+    def AE_L16X4_IP_HIFI3 : RRR_Inst<0x04, 0x00, 0x09, (outs AEDR:$r, AR:$s_out), (ins AR:$s, imm8_x4_add8:$t),
+                                    "ae_l16x4.ip\t$r, $s, $t",
+                                    [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_l16x4_ip AR:$s, imm8_x4_add8:$t))]> {
+      let Constraints = "$s = $s_out"; let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3, HasNoHIFI4]; let mayLoad = 1;
+    }
     
     // AE_L16X4_XP_HIFI4: post-increment load 4x int16 with register offset
     def AE_L16X4_XP_HIFI4 : RRR_AE_Inst<0x0D, 0x04, 0x0C, (outs AEDR:$r, AR:$s_out), (ins AR:$s, AR:$t),
@@ -225,6 +231,12 @@ let Predicates = [HasHIFI3] in {
                                         "ae_s16x4.ip\t$r, $s, $t",
                                         [(set AR:$s_out, (int_xtensa_ae_s16x4_ip AEDR:$r, AR:$s, imm8_x4_add8:$t))]> {
       let Constraints = "$s = $s_out"; let DecoderNamespace = "XtensaHIFI4"; let Predicates = [HasHIFI4]; let mayStore = 1;
+    }
+    // HiFi3 variant — same encoding, different predicate
+    def AE_S16X4_IP_HIFI3 : RRR_Inst<0x04, 0x00, 0x08, (outs AR:$s_out), (ins AEDR:$r, AR:$s, imm8_x4_add8:$t),
+                                        "ae_s16x4.ip\t$r, $s, $t",
+                                        [(set AR:$s_out, (int_xtensa_ae_s16x4_ip AEDR:$r, AR:$s, imm8_x4_add8:$t))]> {
+      let Constraints = "$s = $s_out"; let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3, HasNoHIFI4]; let mayStore = 1;
     }
     // AE_S16_0_IP: store low 16b with post-increment. Same opcode on HiFi3 and HiFi4.
     def AE_S16_0_IP_HIFI4 : RRR_Inst<0x04, 0x03, 0x0D, (outs AR:$s_out), (ins AEDR:$r, AR:$s, imm8n_7_x2:$t),
@@ -762,6 +774,13 @@ class AE_Unary_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> s_val,
                                "ae_round32x2f64ssym\t$r, $s, $t",
                                [(set AEDR:$r, (int_xtensa_ae_round32x2f64ssym AEDR:$s, AEDR:$t))]> { let Predicates = [HasHIFI3]; }
 
+  // Single-operand wrappers: AE_ROUND32F48SSYM(a) == ae_round32x2f48ssym(a, a)
+  // AE_ROUND32F48SASYM(a) == ae_round32x2f48sasym(a, a)
+  // AE_ROUND32F64SSYM(a)  == ae_round32x2f64ssym(a, a)
+  // These are trivially handled by the existing two-operand patterns with identical
+  // inputs; no new ISel patterns are needed — the header macros expand them directly
+  // to the two-operand builtins.
+
   def AE_ROUNDSP16Q48X2SYM_Pseudo_HIFI3 : Pseudo<(outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                "ae_roundsp16q48x2sym\t$r, $s, $t",
                                [(set AEDR:$r, (int_xtensa_ae_roundsp16q48x2sym AEDR:$s, AEDR:$t))]> { let Predicates = [HasHIFI3]; }
@@ -1162,6 +1181,15 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
   def AE_MOVINT24X2_FROMF32X2_PSEUDO : Pseudo<(outs AEDR:$r), (ins AEDR:$t),
                                 "ae_mov\t$r, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_movint24x2_fromf32x2 AEDR:$t))]>;
+  // Identity bitcasts: ae_int64 and ae_int32x2 are the same AEDR register.
+  // AE_MOVINT32X2_FROMINT64(a) and AE_MOVINT64_FROMINT32X2(a) are both (a) in the header,
+  // but if the compiler emits the intrinsic form, lower it to a no-op ae_mov.
+  def AE_MOVINT32X2_FROMINT64_PSEUDO : Pseudo<(outs AEDR:$r), (ins AEDR:$t),
+                                "ae_mov\t$r, $t",
+                                [(set AEDR:$r, (int_xtensa_ae_movint32x2_fromint64 AEDR:$t))]>;
+  def AE_MOVINT64_FROMINT32X2_PSEUDO : Pseudo<(outs AEDR:$r), (ins AEDR:$t),
+                                "ae_mov\t$r, $t",
+                                [(set AEDR:$r, (int_xtensa_ae_movint64_fromint32x2 AEDR:$t))]>;
   // AR -> AR type casts: no-op, use or (self-move)
   def AE_MOVINT32_FROMINT16_PSEUDO : Pseudo<(outs AR:$r), (ins AR:$t),
                                 "or\t$r, $t, $t",
@@ -1323,6 +1351,13 @@ let Predicates = [HasHIFI3] in {
   def AE_MULAF32S_LH_PSEUDO : Pseudo<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
                                      "ae_mulaf32s.lh\t$t, $s, $r",
                                      [(set AEDR:$t, (int_xtensa_ae_mulaf32s_lh AEDR:$acc, AEDR:$s, AEDR:$r))]> {
+    let Constraints = "$acc = $t";
+  }
+
+  // AE_MULAF32S_HL: acc += hi(b)*lo(c) == ae_mulaf32s.lh(acc, c, b) (b and c swapped).
+  def AE_MULAF32S_HL_PSEUDO : Pseudo<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
+                                     "ae_mulaf32s.lh\t$t, $r, $s",
+                                     [(set AEDR:$t, (int_xtensa_ae_mulaf32s_hl AEDR:$acc, AEDR:$s, AEDR:$r))]> {
     let Constraints = "$acc = $t";
   }
 
