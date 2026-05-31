@@ -14,21 +14,22 @@
 
 #include <stdint.h>
 
-/* All HiFi ae_ types are 64-bit AEDR register values.
- * In Cadence's compiler they are opaque TIE types with C-cast support.
- * We represent them as int64_t since C allows scalar casts between
- * int64_t and int32_t/int16_t, matching Cadence's cast semantics.
+/* All HiFi ae_ types map to 64-bit AEDR register values in hardware.
+ * In Cadence's TIE type system, scalar (x1) types carry their memory
+ * footprint as sizeof, while vector (x2/x4) types fill the 64-bit register.
+ * Match that convention so that pointer arithmetic on ae_f32 ptr, ae_f16 ptr
+ * etc. advances by the correct element size, just as ae_int32/ae_int16 do.
  * The builtins use v2i32/v4i16; macros bridge via __ae_v2i32/__ae_v4i16. */
 typedef int64_t ae_int32x2;
 typedef int64_t ae_int16x4;
 typedef int64_t ae_f64;
 typedef int32_t ae_int32;
 typedef int16_t ae_int16;
-typedef int64_t ae_f32;
-typedef int64_t ae_f32x2;
-typedef int64_t ae_f24x2;
-typedef int64_t ae_f16;
-typedef int64_t ae_f16x4;
+typedef int32_t ae_f32;   /* scalar 32-bit fixed-point; sizeof == 4 */
+typedef int64_t ae_f32x2; /* 2x32-bit packed; sizeof == 8 */
+typedef int64_t ae_f24x2; /* 2x24-bit packed; sizeof == 8 */
+typedef int16_t ae_f16;   /* scalar 16-bit fixed-point; sizeof == 2 */
+typedef int64_t ae_f16x4; /* 4x16-bit packed; sizeof == 8 */
 typedef int64_t ae_int64;
 typedef int64_t ae_valign;
 typedef int64_t ae_q56s;
@@ -36,11 +37,11 @@ typedef int64_t ae_q56s;
 /* Legacy/alternate names used by SOF */
 typedef int64_t ae_p24x2f;
 typedef int64_t ae_p16x2s;
-typedef int64_t ae_p24f;
-typedef int64_t ae_p16s;
+typedef int32_t ae_p24f;  /* scalar 24-bit fractional; sizeof == 4 */
+typedef int16_t ae_p16s;  /* scalar 16-bit fractional; sizeof == 2 */
 typedef int64_t ae_p24x2s;
 typedef int64_t ae_int24x2;
-typedef int64_t ae_f24;
+typedef int32_t ae_f24;   /* scalar 24-bit fixed-point; sizeof == 4 */
 
 /* HiFi5 128-bit types — pairs of 64-bit AE register values.
  * These are used by HiFi5 "x2" instructions (ae_l32x2x2, etc.) which
