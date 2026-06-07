@@ -19,28 +19,37 @@
  * footprint as sizeof, while vector (x2/x4) types fill the 64-bit register.
  * Match that convention so that pointer arithmetic on ae_f32 ptr, ae_f16 ptr
  * etc. advances by the correct element size, just as ae_int32/ae_int16 do.
- * The builtins use v2i32/v4i16; macros bridge via __ae_v2i32/__ae_v4i16. */
-typedef int64_t ae_int32x2;
-typedef int64_t ae_int16x4;
-typedef int64_t ae_f64;
+ * The builtins use v2i32/v4i16; macros bridge via __ae_v2i32/__ae_v4i16.
+ *
+ * Alignment: AE_L32X2* / AE_L16X4* and similar vector load/store instructions
+ * require the base address to be 8-byte aligned.  On Xtensa, int64_t has only
+ * 4-byte natural alignment per the ABI.  All 64-bit ae_ types therefore carry
+ * __attribute__((aligned(8))) so that stack-allocated variables (ae_int32x2,
+ * ae_valign, ae_f64, etc.) are automatically aligned to 8 bytes without
+ * requiring explicit per-variable annotations.  Pointers derived by casting
+ * externally-allocated buffers to ae_int32x2 * must still guarantee 8-byte
+ * alignment at the call site. */
+typedef int64_t ae_int32x2 __attribute__((aligned(8)));
+typedef int64_t ae_int16x4 __attribute__((aligned(8)));
+typedef int64_t ae_f64      __attribute__((aligned(8)));
 typedef int32_t ae_int32;
 typedef int16_t ae_int16;
 typedef int32_t ae_f32;   /* scalar 32-bit fixed-point; sizeof == 4 */
-typedef int64_t ae_f32x2; /* 2x32-bit packed; sizeof == 8 */
-typedef int64_t ae_f24x2; /* 2x24-bit packed; sizeof == 8 */
+typedef int64_t ae_f32x2  __attribute__((aligned(8))); /* 2x32-bit packed; sizeof == 8 */
+typedef int64_t ae_f24x2  __attribute__((aligned(8))); /* 2x24-bit packed; sizeof == 8 */
 typedef int16_t ae_f16;   /* scalar 16-bit fixed-point; sizeof == 2 */
-typedef int64_t ae_f16x4; /* 4x16-bit packed; sizeof == 8 */
-typedef int64_t ae_int64;
-typedef int64_t ae_valign;
-typedef int64_t ae_q56s;
+typedef int64_t ae_f16x4  __attribute__((aligned(8))); /* 4x16-bit packed; sizeof == 8 */
+typedef int64_t ae_int64  __attribute__((aligned(8)));
+typedef int64_t ae_valign __attribute__((aligned(8)));
+typedef int64_t ae_q56s   __attribute__((aligned(8)));
 
 /* Legacy/alternate names used by SOF */
-typedef int64_t ae_p24x2f;
-typedef int64_t ae_p16x2s;
+typedef int64_t ae_p24x2f __attribute__((aligned(8)));
+typedef int64_t ae_p16x2s __attribute__((aligned(8)));
 typedef int32_t ae_p24f;  /* scalar 24-bit fractional; sizeof == 4 */
 typedef int16_t ae_p16s;  /* scalar 16-bit fractional; sizeof == 2 */
-typedef int64_t ae_p24x2s;
-typedef int64_t ae_int24x2;
+typedef int64_t ae_p24x2s __attribute__((aligned(8)));
+typedef int64_t ae_int24x2 __attribute__((aligned(8)));
 typedef int32_t ae_f24;   /* scalar 24-bit fixed-point; sizeof == 4 */
 
 /* HiFi5 128-bit types — pairs of 64-bit AE register values.
