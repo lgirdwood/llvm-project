@@ -178,7 +178,9 @@ void XtensaInstrInfo::getLoadStoreOpcodes(const TargetRegisterClass *RC,
                                           unsigned &LoadOpcode,
                                           unsigned &StoreOpcode,
                                           int64_t offset) const {
-  if (RC == &Xtensa::ARRegClass) {
+  if (RC == &Xtensa::ARRegClass || RC == &Xtensa::VALIGNRegClass) {
+    // VALIGN uses AR register allocation (A0-A15), so spill/reload is
+    // identical to AR.
     LoadOpcode = Xtensa::L32I;
     StoreOpcode = Xtensa::S32I;
   } else if (RC == &Xtensa::FPRRegClass) {

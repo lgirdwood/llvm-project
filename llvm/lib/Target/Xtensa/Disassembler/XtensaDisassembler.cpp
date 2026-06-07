@@ -244,10 +244,15 @@ static DecodeStatus DecodeBRRegisterClass(MCInst &Inst, uint64_t RegNo,
   return MCDisassembler::Success;
 }
 
+static const MCPhysReg VALIGNDecoderTable[] = {
+    Xtensa::U0, Xtensa::U1, Xtensa::U2, Xtensa::U3};
+
 static DecodeStatus DecodeVALIGNRegisterClass(MCInst &Inst, uint64_t RegNo,
                                            uint64_t Address,
                                            const void *Decoder) {
-  Inst.addOperand(MCOperand::createReg(Xtensa::AE_VALIGN));
+  if (RegNo >= 4)
+    return MCDisassembler::Fail;
+  Inst.addOperand(MCOperand::createReg(VALIGNDecoderTable[RegNo]));
   return MCDisassembler::Success;
 }
 
