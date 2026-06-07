@@ -44,16 +44,16 @@ TARGET_BUILTIN(__builtin_xtensa_ae_l32_xp, "LLiv**i", "n", "")
 // Post-increment Stores
 TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_ip, "vLLiv**i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_ip, "vLLiv**i", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_sa16x4_ip, "vLLiLLiv**", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_sa32x2_ip, "vLLiLLiv**", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s16_0_ip, "vLLiv**i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_ip, "vLLiv**i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s16_0_xp, "vLLiv**i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_xp, "vLLiv**i", "n", "")
 
-// Alignment & State Loads
-TARGET_BUILTIN(__builtin_xtensa_ae_la64_pp, "vv**", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_la128_pp, "vv**", "n", "")
+// Alignment & State Loads — alignment token (LLi) is explicit
+// ae_la64_pp: primes alignment from ptr, returns (updated_ptr, align_token)
+TARGET_BUILTIN(__builtin_xtensa_ae_la64_pp, "LLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_la128_pp, "LLiv**", "n", "")
+// ae_la32x2_ip(align_in, void** ptr) -> {data, align_out, ptr_out}
 TARGET_BUILTIN(__builtin_xtensa_ae_la32x2_ip, "LLiLLiv**", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_la16x4_ip, "LLiLLiv**", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_la24x2_ip, "LLiLLiv**", "n", "")
@@ -61,8 +61,9 @@ TARGET_BUILTIN(__builtin_xtensa_ae_la24_ip, "LLiLLiv**", "n", "")
 
 TARGET_BUILTIN(__builtin_xtensa_ae_la16x4pos_pc, "vvC*", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_la32x2pos_pc, "vvC*", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_sa64pos_fp, "vvC*", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_sa128pos_fp, "vvC*", "n", "")
+// ae_sa64pos_fp(align, void*) -- flushes alignment buffer to memory
+TARGET_BUILTIN(__builtin_xtensa_ae_sa64pos_fp, "vLLivC*", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa128pos_fp, "vLLivC*", "n", "")
 
 // Circular Base Loads
 TARGET_BUILTIN(__builtin_xtensa_ae_l16_xc, "LLiv**i", "n", "")
@@ -88,9 +89,12 @@ TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_xc, "vLLiv**i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s32_l_xc1, "vLLiv**i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_xc, "vLLiv**i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_s32x2_xc1, "vLLiv**i", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_sa16x4_ic, "vLLiLLiv**", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_sa32x2_ic, "vLLiLLiv**", "n", "")
-TARGET_BUILTIN(__builtin_xtensa_ae_sa24x2_ip, "vLLiLLiv**", "n", "")
+// ae_sa32x2_ip(data, align_in, void**) -> LLi (updated align token)
+TARGET_BUILTIN(__builtin_xtensa_ae_sa16x4_ip, "LLiLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa16x4_ic, "LLiLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa32x2_ip, "LLiLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa32x2_ic, "LLiLLiLLiv**", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_sa24x2_ip, "LLiLLiLLiv**", "n", "")
 
 // MAC and Arithmetic Operations
 TARGET_BUILTIN(__builtin_xtensa_ae_mul32_ll, "LLiLLiLLi", "n", "")

@@ -47,17 +47,37 @@ let TargetPrefix = "xtensa" in {
   def int_xtensa_ae_s32_l_xp : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly]>;
 
   // Alignment & State Loads
-  def int_xtensa_ae_la64_pp : Intrinsic<[llvm_ptr_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_la128_pp : Intrinsic<[llvm_ptr_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_la32x2_ip : Intrinsic<[llvm_v2i32_ty, llvm_ptr_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_la16x4_ip : Intrinsic<[llvm_v4i16_ty, llvm_ptr_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_la24x2_ip : Intrinsic<[llvm_v2i32_ty, llvm_ptr_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_la24_ip : Intrinsic<[llvm_v2i32_ty, llvm_ptr_ty], [llvm_ptr_ty], [IntrReadMem, IntrArgMemOnly]>;
-  
+  // The alignment token (i32) represents the physical u-register holding the
+  // alignment shift state.  It flows explicitly through the def-use chain so
+  // the register allocator can assign distinct physical u registers (u0-u3 on
+  // HiFi4) to independent ae_valign SSA values, preventing state corruption.
+  // i32 is chosen because i64 is not legal on Xtensa's 32-bit ISA -- the
+  // token is opaque (just the u-reg number), so 32 bits suffices.
+  def int_xtensa_ae_la64_pp : Intrinsic<[llvm_ptr_ty, llvm_i32_ty],
+                                         [llvm_ptr_ty],
+                                         [IntrHasSideEffects, IntrArgMemOnly]>;
+  def int_xtensa_ae_la128_pp : Intrinsic<[llvm_ptr_ty, llvm_i32_ty],
+                                          [llvm_ptr_ty],
+                                          [IntrHasSideEffects, IntrArgMemOnly]>;
+  // ae_la32x2.ip: takes and returns the alignment token (read-modify-write u reg)
+  def int_xtensa_ae_la32x2_ip : Intrinsic<[llvm_v2i32_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrArgMemOnly]>;
+  def int_xtensa_ae_la16x4_ip : Intrinsic<[llvm_v4i16_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrArgMemOnly]>;
+  def int_xtensa_ae_la24x2_ip : Intrinsic<[llvm_v2i32_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrArgMemOnly]>;
+  def int_xtensa_ae_la24_ip   : Intrinsic<[llvm_v2i32_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrArgMemOnly]>;
+
   def int_xtensa_ae_la16x4pos_pc : Intrinsic<[], [llvm_ptr_ty], []>;
   def int_xtensa_ae_la32x2pos_pc : Intrinsic<[], [llvm_ptr_ty], []>;
-  def int_xtensa_ae_sa64pos_fp   : Intrinsic<[], [llvm_ptr_ty], []>;
-  def int_xtensa_ae_sa128pos_fp  : Intrinsic<[], [llvm_ptr_ty], []>;
+  // ae_sa64pos.fp: consumes the alignment token (flushes u reg buffer)
+  def int_xtensa_ae_sa64pos_fp   : Intrinsic<[], [llvm_i32_ty, llvm_ptr_ty], [IntrHasSideEffects]>;
+  def int_xtensa_ae_sa128pos_fp  : Intrinsic<[], [llvm_i32_ty, llvm_ptr_ty], [IntrHasSideEffects]>;
 
   // Circular Base Loads
   def int_xtensa_ae_l16_xc   : Intrinsic<[llvm_v2i32_ty, llvm_ptr_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly]>;
@@ -85,11 +105,22 @@ let TargetPrefix = "xtensa" in {
   def int_xtensa_ae_s32x2_xc  : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
   def int_xtensa_ae_s32x2_xc1 : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
   
-  def int_xtensa_ae_sa16x4_ip : Intrinsic<[llvm_ptr_ty], [llvm_v4i16_ty, llvm_ptr_ty], [IntrWriteMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_sa16x4_ic : Intrinsic<[llvm_ptr_ty], [llvm_v4i16_ty, llvm_ptr_ty], [IntrWriteMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_sa32x2_ip : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty], [IntrWriteMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_sa32x2_ic : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty], [IntrWriteMem, IntrArgMemOnly]>;
-  def int_xtensa_ae_sa24x2_ip : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty], [IntrWriteMem, IntrArgMemOnly]>;
+  // ae_sa32x2.ip: takes and returns the alignment token
+  def int_xtensa_ae_sa16x4_ip : Intrinsic<[llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_v4i16_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrWriteMem, IntrArgMemOnly]>;
+  def int_xtensa_ae_sa16x4_ic : Intrinsic<[llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_v4i16_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrWriteMem, IntrArgMemOnly]>;
+  def int_xtensa_ae_sa32x2_ip : Intrinsic<[llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_v2i32_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrWriteMem, IntrArgMemOnly]>;
+  def int_xtensa_ae_sa32x2_ic : Intrinsic<[llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_v2i32_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrWriteMem, IntrArgMemOnly]>;
+  def int_xtensa_ae_sa24x2_ip : Intrinsic<[llvm_i32_ty, llvm_ptr_ty],
+                                            [llvm_v2i32_ty, llvm_i32_ty, llvm_ptr_ty],
+                                            [IntrHasSideEffects, IntrWriteMem, IntrArgMemOnly]>;
 
   // MAC and Arithmetic Operations
   def int_xtensa_ae_mul16 : Intrinsic<[llvm_v4i16_ty], [llvm_v4i16_ty, llvm_v4i16_ty], [IntrNoMem]>;
@@ -342,8 +373,11 @@ let TargetPrefix = "xtensa" in {
   // ae_s64_i: 64-bit store with immediate offset
   def int_xtensa_ae_s64_i : Intrinsic<[], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem]>;
 
-  // ae_zalign64: initialize store alignment register (returns ae_valign as i64/v2i32)
-  def int_xtensa_ae_zalign64 : Intrinsic<[llvm_v2i32_ty], [], [IntrNoMem]>;
+  // ae_zalign64: initialize a u-register to zero, returning the token.
+  // Returns i32 (the alignment token = which u-register).  IntrHasSideEffects
+  // prevents DCE when the result flows into ae_sa32x2.ip.
+  // i32 is used (not i64) because i64 is not legal on Xtensa's 32-bit ISA.
+  def int_xtensa_ae_zalign64 : Intrinsic<[llvm_i32_ty], [], [IntrHasSideEffects]>;
 
   // ae_addandsub32s: simultaneous saturating add and subtract (2 results)
   def int_xtensa_ae_addandsub32s : Intrinsic<[llvm_v2i32_ty, llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;

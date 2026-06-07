@@ -113,67 +113,77 @@ let Predicates = [HasHIFI3] in {
   }
 
   // --- Alignment and State Loads ---
+  // AE_LA64_PP primes the u-register from the load pointer's alignment bits.
+  // T-nibble encoding: Inst[7:6]=t_base=0b11, Inst[5:4]=u-reg#.
+  // (Original fixed opcode for u0: t_val=0x0C=1100, i.e. t_base=11, u=00)
   let hasSideEffects = 1 in {
-    def AE_LA64_PP_HIFI4 : RRR_TFC_Inst<0x04, 0x07, 0x07, 0x02, 0x0C, (outs AR:$s_out), (ins AR:$s),
-                                    "ae_la64.pp\tu0, $s",
-                                    [(set AR:$s_out, (int_xtensa_ae_la64_pp AR:$s))]> {
+    def AE_LA64_PP_HIFI4 : RRR_TFC_U_Inst<0x04, 0x07, 0x07, 0x02, 0b11,
+                                          (outs AR:$s_out, VALIGN:$align_out), (ins AR:$s),
+                                          "ae_la64.pp\tu0, $s",
+                                          [(set AR:$s_out, VALIGN:$align_out,
+                                            (int_xtensa_ae_la64_pp AR:$s))]> {
       let Constraints = "$s = $s_out";
       let DecoderNamespace = "XtensaHIFIX";
       let Predicates = [HasHIFI4];
       let mayLoad = 1;
-      let Defs = [AE_VALIGN];
     }
-    // HiFi3 variant — same opcode, fires on HiFi3-only targets (e.g. TGL/CAVS2.5)
-    def AE_LA64_PP_HIFI3 : RRR_TFC_Inst<0x04, 0x07, 0x07, 0x02, 0x0C, (outs AR:$s_out), (ins AR:$s),
-                                    "ae_la64.pp\tu0, $s",
-                                    [(set AR:$s_out, (int_xtensa_ae_la64_pp AR:$s))]> {
+    def AE_LA64_PP_HIFI3 : RRR_TFC_U_Inst<0x04, 0x07, 0x07, 0x02, 0b11,
+                                          (outs AR:$s_out, VALIGN:$align_out), (ins AR:$s),
+                                          "ae_la64.pp\tu0, $s",
+                                          [(set AR:$s_out, VALIGN:$align_out,
+                                            (int_xtensa_ae_la64_pp AR:$s))]> {
       let Constraints = "$s = $s_out";
       let DecoderNamespace = "XtensaHIFI3";
       let Predicates = [HasHIFI3, HasNoHIFI4];
       let mayLoad = 1;
-      let Defs = [AE_VALIGN];
     }
 
-    def AE_LA32X2_IP_HIFI4 : RRR_TC_Inst<0x04, 0x0D, 0x00, 0x0C, (outs AEDR:$r, AR:$s_out), (ins AR:$s),
-                                    "ae_la32x2.ip\t$r, u0, $s",
-                                    [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_la32x2_ip AR:$s))]> {
-      let Constraints = "$s = $s_out";
+    // ae_la32x2.ip: reads VALIGN:$align_in, produces data + VALIGN:$align_out
+    // T-nibble: Inst[7:6]=t_base=0b11, Inst[5:4]=u-reg#
+    def AE_LA32X2_IP_HIFI4 : RRR_TC_U_Inst<0x04, 0x0D, 0x00, 0b11,
+                                           (outs AEDR:$r, VALIGN:$align_out, AR:$s_out),
+                                           (ins VALIGN:$align_in, AR:$s),
+                                           "ae_la32x2.ip\t$r, u0, $s",
+                                           [(set AEDR:$r, VALIGN:$align_out, AR:$s_out,
+                                             (int_xtensa_ae_la32x2_ip VALIGN:$align_in, AR:$s))]> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
       let DecoderNamespace = "XtensaHIFIX";
       let Predicates = [HasHIFI4];
       let mayLoad = 1;
-      let Uses = [AE_VALIGN];
     }
-    // HiFi3 variant
-    def AE_LA32X2_IP_HIFI3 : RRR_TC_Inst<0x04, 0x0D, 0x00, 0x0C, (outs AEDR:$r, AR:$s_out), (ins AR:$s),
-                                    "ae_la32x2.ip\t$r, u0, $s",
-                                    [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_la32x2_ip AR:$s))]> {
-      let Constraints = "$s = $s_out";
+    def AE_LA32X2_IP_HIFI3 : RRR_TC_U_Inst<0x04, 0x0D, 0x00, 0b11,
+                                           (outs AEDR:$r, VALIGN:$align_out, AR:$s_out),
+                                           (ins VALIGN:$align_in, AR:$s),
+                                           "ae_la32x2.ip\t$r, u0, $s",
+                                           [(set AEDR:$r, VALIGN:$align_out, AR:$s_out,
+                                             (int_xtensa_ae_la32x2_ip VALIGN:$align_in, AR:$s))]> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
       let DecoderNamespace = "XtensaHIFI3";
       let Predicates = [HasHIFI3, HasNoHIFI4];
       let mayLoad = 1;
-      let Uses = [AE_VALIGN];
     }
 
-    // AE_LA16X4_IP: Aligned load 4x int16 with post-increment through alignment register
-    // Encoding from Cadence assembler: op0=0x04, op1=0x07, op2=0x03, t_val=0x0C
-    def AE_LA16X4_IP_HIFI4 : RRR_TC_Inst<0x04, 0x07, 0x03, 0x0C, (outs AEDR:$r, AR:$s_out), (ins AR:$s),
-                                    "ae_la16x4.ip\t$r, u0, $s",
-                                    [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_la16x4_ip AR:$s))]> {
-      let Constraints = "$s = $s_out";
+    def AE_LA16X4_IP_HIFI4 : RRR_TC_U_Inst<0x04, 0x07, 0x03, 0b11,
+                                           (outs AEDR:$r, VALIGN:$align_out, AR:$s_out),
+                                           (ins VALIGN:$align_in, AR:$s),
+                                           "ae_la16x4.ip\t$r, u0, $s",
+                                           [(set AEDR:$r, VALIGN:$align_out, AR:$s_out,
+                                             (int_xtensa_ae_la16x4_ip VALIGN:$align_in, AR:$s))]> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
       let DecoderNamespace = "XtensaHIFIX";
       let Predicates = [HasHIFI4];
       let mayLoad = 1;
-      let Uses = [AE_VALIGN];
     }
-    // HiFi3 variant
-    def AE_LA16X4_IP_HIFI3 : RRR_TC_Inst<0x04, 0x07, 0x03, 0x0C, (outs AEDR:$r, AR:$s_out), (ins AR:$s),
-                                    "ae_la16x4.ip\t$r, u0, $s",
-                                    [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_la16x4_ip AR:$s))]> {
-      let Constraints = "$s = $s_out";
+    def AE_LA16X4_IP_HIFI3 : RRR_TC_U_Inst<0x04, 0x07, 0x03, 0b11,
+                                           (outs AEDR:$r, VALIGN:$align_out, AR:$s_out),
+                                           (ins VALIGN:$align_in, AR:$s),
+                                           "ae_la16x4.ip\t$r, u0, $s",
+                                           [(set AEDR:$r, VALIGN:$align_out, AR:$s_out,
+                                             (int_xtensa_ae_la16x4_ip VALIGN:$align_in, AR:$s))]> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
       let DecoderNamespace = "XtensaHIFI3";
       let Predicates = [HasHIFI3, HasNoHIFI4];
       let mayLoad = 1;
-      let Uses = [AE_VALIGN];
     }
   }
 
@@ -433,7 +443,7 @@ class FLIX_MAC_Inst<bits<8> byte0, bits<8> byte2, dag outs, dag ins, string asms
     let Constraints = "$ptr_out = $ptr_in";
     let isCodeGenOnly = 0;
     let mayLoad = 1;
-    let Uses = [AE_VALIGN];
+    // Uses VALIGN via explicit DAG operand
   }
 
   // AE_LA32X2X2_IP: aligned load 2x ae_int32x2 with post-increment
@@ -445,31 +455,31 @@ class FLIX_MAC_Inst<bits<8> byte0, bits<8> byte2, dag outs, dag ins, string asms
     let Constraints = "$ptr_out = $ptr_in";
     let isCodeGenOnly = 0;
     let mayLoad = 1;
-    let Uses = [AE_VALIGN];
+    // Uses VALIGN via explicit DAG operand
   }
 
   // AE_SA16X4X2_IP: aligned store 2x ae_int16x4 with post-increment
   // Syntax: ae_sa16x4x2_ip aed0, aed1, u0, a_ptr
   def AE_SA16X4X2_IP_HIFI5 : Pseudo<(outs AR:$ptr_out), (ins AEDR:$t1, AEDR:$t2, AR:$ptr_in),
-                                      "ae_sa16x4x2_ip\t$t1, $t2, u0, $ptr_in",
+                                      "ae_sa16x4x2_ip\t$t1, $t2, u1, $ptr_in",
                                       []> {
     let Predicates = [HasHIFI5];
     let Constraints = "$ptr_out = $ptr_in";
     let isCodeGenOnly = 0;
     let mayStore = 1;
-    let Defs = [AE_VALIGN];
+    // Defs VALIGN via explicit DAG operand
   }
 
   // AE_SA32X2X2_IP: aligned store 2x ae_int32x2 with post-increment
   // Syntax: ae_sa32x2x2_ip aed0, aed1, u0, a_ptr
   def AE_SA32X2X2_IP_HIFI5 : Pseudo<(outs AR:$ptr_out), (ins AEDR:$t1, AEDR:$t2, AR:$ptr_in),
-                                      "ae_sa32x2x2_ip\t$t1, $t2, u0, $ptr_in",
+                                      "ae_sa32x2x2_ip\t$t1, $t2, u1, $ptr_in",
                                       []> {
     let Predicates = [HasHIFI5];
     let Constraints = "$ptr_out = $ptr_in";
     let isCodeGenOnly = 0;
     let mayStore = 1;
-    let Defs = [AE_VALIGN];
+    // Defs VALIGN via explicit DAG operand
   }
 
 
@@ -1048,31 +1058,43 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
     let Constraints = "$s = $s_out";
   }
 
-  def AE_SA16X4_IP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$r, AR:$s),
-                                 "ae_sa16x4.ip\t$r, u0, $s",
-                                 [(set AR:$s_out, (int_xtensa_ae_sa16x4_ip AEDR:$r, AR:$s))]> {
-    let Constraints = "$s = $s_out";
+  def AE_SA16X4_IP_PSEUDO : Pseudo<(outs VALIGN:$align_out, AR:$s_out),
+                                   (ins AEDR:$r, VALIGN:$align_in, AR:$s),
+                                   "ae_sa16x4.ip\t$r, u1, $s",
+                                   [(set VALIGN:$align_out, AR:$s_out,
+                                     (int_xtensa_ae_sa16x4_ip AEDR:$r, VALIGN:$align_in, AR:$s))]> {
+    let Constraints = "$s = $s_out, $align_in = $align_out";
   }
-  def AE_SA16X4_IC_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$r, AR:$s),
-                                 "ae_sa16x4.ic\t$r, u0, $s",
-                                 [(set AR:$s_out, (int_xtensa_ae_sa16x4_ic AEDR:$r, AR:$s))]> {
-    let Constraints = "$s = $s_out";
+  def AE_SA16X4_IC_PSEUDO : Pseudo<(outs VALIGN:$align_out, AR:$s_out),
+                                   (ins AEDR:$r, VALIGN:$align_in, AR:$s),
+                                   "ae_sa16x4.ic\t$r, u1, $s",
+                                   [(set VALIGN:$align_out, AR:$s_out,
+                                     (int_xtensa_ae_sa16x4_ic AEDR:$r, VALIGN:$align_in, AR:$s))]> {
+    let Constraints = "$s = $s_out, $align_in = $align_out";
   }
-  def AE_SA32X2_IP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$r, AR:$s),
-                                 "ae_sa32x2.ip\t$r, u0, $s",
-                                 [(set AR:$s_out, (int_xtensa_ae_sa32x2_ip AEDR:$r, AR:$s))]> {
-    let Constraints = "$s = $s_out";
+  def AE_SA32X2_IP_PSEUDO : Pseudo<(outs VALIGN:$align_out, AR:$s_out),
+                                   (ins AEDR:$r, VALIGN:$align_in, AR:$s),
+                                   "ae_sa32x2.ip\t$r, u1, $s",
+                                   [(set VALIGN:$align_out, AR:$s_out,
+                                     (int_xtensa_ae_sa32x2_ip AEDR:$r, VALIGN:$align_in, AR:$s))]> {
+    let Constraints = "$s = $s_out, $align_in = $align_out";
   }
 
-  def AE_SA24X2_IP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$r, AR:$s),
-                                 "ae_sa24x2.ip\t$r, u0, $s",
-                                 [(set AR:$s_out, (int_xtensa_ae_sa24x2_ip AEDR:$r, AR:$s))]> {
-    let Constraints = "$s = $s_out";
+  def AE_SA24X2_IP_PSEUDO : Pseudo<(outs VALIGN:$align_out, AR:$s_out),
+                                   (ins AEDR:$r, VALIGN:$align_in, AR:$s),
+                                   "ae_sa24x2.ip\t$r, u1, $s",
+                                   [(set VALIGN:$align_out, AR:$s_out,
+                                     (int_xtensa_ae_sa24x2_ip AEDR:$r, VALIGN:$align_in, AR:$s))]> {
+    let Constraints = "$s = $s_out, $align_in = $align_out";
   }
 
-  def AE_LA24X2_IP_PSEUDO : Pseudo<(outs AEDR:$r, AR:$s_out), (ins AR:$s),
-                                 "ae_la24x2.ip\t$r, u0, $s",
-                                 [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_la24x2_ip AR:$s))]>;
+  def AE_LA24X2_IP_PSEUDO : Pseudo<(outs AEDR:$r, VALIGN:$align_out, AR:$s_out),
+                                   (ins VALIGN:$align_in, AR:$s),
+                                   "ae_la24x2.ip\t$r, u0, $s",
+                                   [(set AEDR:$r, VALIGN:$align_out, AR:$s_out,
+                                     (int_xtensa_ae_la24x2_ip VALIGN:$align_in, AR:$s))]> {
+    let Constraints = "$align_in = $align_out";
+  }
 
   def AE_LA128_PP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AR:$s),
                                  "ae_la128.pp\tu0, $s",
@@ -1080,29 +1102,35 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
     let Constraints = "$s = $s_out";
   }
 
-  def AE_LA24_IP_PSEUDO : Pseudo<(outs AEDR:$r, AR:$s_out), (ins AR:$s),
+  def AE_LA24_IP_PSEUDO : Pseudo<(outs AEDR:$r, VALIGN:$align_out, AR:$s_out),
+                                 (ins VALIGN:$align_in, AR:$s),
                                  "ae_la24.ip\t$r, u0, $s",
-                                 [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_la24_ip AR:$s))]>;
+                                 [(set AEDR:$r, VALIGN:$align_out, AR:$s_out,
+                                   (int_xtensa_ae_la24_ip VALIGN:$align_in, AR:$s))]> {
+    let Constraints = "$align_in = $align_out";
+  }
 
   def AE_LA16X4POS_PC_PSEUDO : Pseudo<(outs), (ins AR:$s),
-                                 "ae_la16x4pos.pc\tu0, $s",
-                                 [(int_xtensa_ae_la16x4pos_pc AR:$s)]>;
+                                       "ae_la64.pp\tu0, $s",
+                                       [(int_xtensa_ae_la16x4pos_pc AR:$s)]>;
 
   def AE_LA32X2POS_PC_PSEUDO : Pseudo<(outs), (ins AR:$s),
-                                 "ae_la32x2pos.pc\tu0, $s",
-                                 [(int_xtensa_ae_la32x2pos_pc AR:$s)]>;
+                                       "ae_la64.pp\tu0, $s",
+                                       [(int_xtensa_ae_la32x2pos_pc AR:$s)]>;
 
-  def AE_SA64POS_FP_PSEUDO : Pseudo<(outs), (ins AR:$s),
-                                 "ae_sa64pos.fp\tu0, $s",
-                                 [(int_xtensa_ae_sa64pos_fp AR:$s)]>;
+  def AE_SA64POS_FP_PSEUDO : Pseudo<(outs), (ins VALIGN:$align, AR:$s),
+                                    "ae_sa64pos.fp\tu1, $s",
+                                    [(int_xtensa_ae_sa64pos_fp VALIGN:$align, AR:$s)]>;
 
-  def AE_SA128POS_FP_PSEUDO : Pseudo<(outs), (ins AR:$s),
-                                 "ae_sa128pos.fp\tu0, $s",
-                                 [(int_xtensa_ae_sa128pos_fp AR:$s)]>;
-  def AE_SA32X2_IC_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$r, AR:$s),
-                                 "ae_sa32x2.ic\t$r, u0, $s",
-                                 [(set AR:$s_out, (int_xtensa_ae_sa32x2_ic AEDR:$r, AR:$s))]> {
-    let Constraints = "$s = $s_out";
+  def AE_SA128POS_FP_PSEUDO : Pseudo<(outs), (ins VALIGN:$align, AR:$s),
+                                     "ae_sa128pos.fp\tu1, $s",
+                                     [(int_xtensa_ae_sa128pos_fp VALIGN:$align, AR:$s)]>;
+  def AE_SA32X2_IC_PSEUDO : Pseudo<(outs VALIGN:$align_out, AR:$s_out),
+                                   (ins AEDR:$r, VALIGN:$align_in, AR:$s),
+                                   "ae_sa32x2.ic\t$r, u1, $s",
+                                   [(set VALIGN:$align_out, AR:$s_out,
+                                     (int_xtensa_ae_sa32x2_ic AEDR:$r, VALIGN:$align_in, AR:$s))]> {
+    let Constraints = "$s = $s_out, $align_in = $align_out";
   }
 
   // Conversions and Moves Pseudos
@@ -1687,11 +1715,23 @@ let mayStore = 1 in {
   }
 }
 
-// --- ae_zalign64: initialize store alignment register ---
-def AE_ZALIGN64_PSEUDO : Pseudo<(outs AEDR:$r), (ins),
-                                "ae_zalign64\tu0",
-                                [(set AEDR:$r, (int_xtensa_ae_zalign64))]> {
-  let Predicates = [HasHIFI3];
+// --- ae_zalign64: initialize store alignment register u0 to zero ---
+// IMPORTANT: must declare Defs = [AE_VALIGN] so LLVM knows this writes the
+// hardware u0 register.  Without it, LLVM sees AEDR:$r as dead (immediately
+// overwritten by ae_la64.pp) and eliminates the instruction.  The result is
+// then consumed by ae_sa32x2.ip which reads AE_VALIGN, creating a true
+// def-use chain that prevents dead-code elimination.
+let hasSideEffects = 1 in {
+  def AE_ZALIGN64_PSEUDO_HIFI4 : Pseudo<(outs VALIGN:$align), (ins),
+                                  "ae_zalign64\tu1",
+                                  [(set VALIGN:$align, (int_xtensa_ae_zalign64))]> {
+    let Predicates = [HasHIFI4];
+  }
+  def AE_ZALIGN64_PSEUDO_HIFI3 : Pseudo<(outs VALIGN:$align), (ins),
+                                  "ae_zalign64\tu1",
+                                  [(set VALIGN:$align, (int_xtensa_ae_zalign64))]> {
+    let Predicates = [HasHIFI3, HasNoHIFI4];
+  }
 }
 
 // --- ae_addandsub32s: simultaneous saturating add and subtract ---
@@ -1772,7 +1812,7 @@ def AE_LA32X2X2_IP_PSEUDO : Pseudo<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (ins AR
   let Constraints = "$s = $s_out";
   let Predicates = [HasHIFI5];
   let mayLoad = 1;
-  let Uses = [AE_VALIGN];
+  // Uses VALIGN via explicit DAG operand
 }
 
 def AE_LA16X4X2_IP_PSEUDO : Pseudo<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (ins AR:$s),
@@ -1782,7 +1822,7 @@ def AE_LA16X4X2_IP_PSEUDO : Pseudo<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (ins AR
   let Constraints = "$s = $s_out";
   let Predicates = [HasHIFI5];
   let mayLoad = 1;
-  let Uses = [AE_VALIGN];
+  // Uses VALIGN via explicit DAG operand
 }
 
 def AE_L32X2X2_XC_PSEUDO : Pseudo<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (ins AR:$s, AR:$off),
@@ -1808,23 +1848,23 @@ def AE_L32X2X2_XC1_PSEUDO : Pseudo<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (ins AR
 // =========================================================================
 
 def AE_SA32X2X2_IP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$d0, AEDR:$d1, AR:$s),
-                                   "ae_sa32x2x2_ip\t$d0, $d1, u0, $s",
+                                   "ae_sa32x2x2_ip\t$d0, $d1, u1, $s",
                                    [(set AR:$s_out,
                                          (int_xtensa_ae_sa32x2x2_ip AEDR:$d0, AEDR:$d1, AR:$s))]> {
   let Constraints = "$s = $s_out";
   let Predicates = [HasHIFI5];
   let mayStore = 1;
-  let Uses = [AE_VALIGN];
+  // Uses VALIGN via explicit DAG operand
 }
 
 def AE_SA16X4X2_IP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$d0, AEDR:$d1, AR:$s),
-                                   "ae_sa16x4x2_ip\t$d0, $d1, u0, $s",
+                                   "ae_sa16x4x2_ip\t$d0, $d1, u1, $s",
                                    [(set AR:$s_out,
                                          (int_xtensa_ae_sa16x4x2_ip AEDR:$d0, AEDR:$d1, AR:$s))]> {
   let Constraints = "$s = $s_out";
   let Predicates = [HasHIFI5];
   let mayStore = 1;
-  let Uses = [AE_VALIGN];
+  // Uses VALIGN via explicit DAG operand
 }
 
 def AE_S32X2X2_XC1_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$d0, AEDR:$d1, AR:$s, AR:$off),
