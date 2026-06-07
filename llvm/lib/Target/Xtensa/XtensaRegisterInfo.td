@@ -257,10 +257,40 @@ class URReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
   let AltNames = alt;
 }
 
-def AE_VALIGN : URReg<238, "ae_valign", ["AE_VALIGN"]>;
+// Xtensa HiFi Alignment registers (u0-u3).
+// HiFi3 has one alignment register (u0).
+// HiFi4 has four alignment registers (u0-u3).
+// HWEncoding[1:0] = the u-register number; this matches the instruction
+// T-nibble[1:0] used by ae_la32x2.ip, ae_sa32x2.ip, ae_la64.pp, etc.
+class URAlignReg<bits<2> num, string n, list<string> altnames = []> : XtensaReg<n> {
+  let HWEncoding{1-0} = num;
+  let AltNames = altnames;
+}
+def U0 : URAlignReg<0, "u0", ["ae_valign", "AE_VALIGN"]>;
+def U1 : URAlignReg<1, "u1">;
+def U2 : URAlignReg<2, "u2">;
+def U3 : URAlignReg<3, "u3">;
 
-// Alignment register class
-def VALIGN : RegisterClass<"Xtensa", [i64], 64, (add AE_VALIGN)>;
+// Legacy name for use in hasSideEffects Defs lists; U0 IS the hardware u0
+// alignment register.  Any Defs = [AE_VALIGN] in instruction definitions
+// should use U0 directly.
+// Note: no separate AE_VALIGN register -- that caused duplicate "u0" names.
+
+// Alignment token register class.
+// The alignment state token is tracked as an i32 value in the general-purpose
+// AR register file.  The u0 hardware alignment register is written as a
+// side-effect of ae_la64.pp / ae_zalign64; the token itself travels through
+// AR so that normal AR instructions (or, s32i, l32i) work for copies and spills.
+// The instruction formats RRR_TC_U_Inst / RRR_TFC_U_Inst hardcode the
+// alignment register field to u0 (bits [5:4] = 00), so no separate physical
+// register allocation for the u-register is needed.
+//
+// VALIGN is defined as a subclass of AR so that copyPhysReg, storeRegToStackSlot,
+// and loadRegFromStackSlot all fall through to their existing AR cases without
+// special handling.
+def VALIGN : RegisterClass<"Xtensa", [i32], 32,
+  (add A8, A9, A10, A11, A12, A13, A14, A15,
+       A7, A6, A5, A4, A3, A2, A0, SP)>;
 
 // Thread Pointer register
 def THREADPTR : URReg<231, "threadptr", ["THREADPTR"]>;
