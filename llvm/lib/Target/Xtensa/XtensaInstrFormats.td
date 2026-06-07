@@ -76,6 +76,48 @@ class RRR_TC_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> t_val,
   let Inst{3-0}   = op0;
 }
 
+// RRR_TC_U_Inst: like RRR_TC_Inst but the alignment register (u0-u3) is a
+// variable field encoded in Inst[5:4] (T-nibble bits [1:0]).
+// Inst[7:6] = t_base (fixed upper 2 opcode bits of T nibble).
+// Used for ae_la32x2.ip, ae_la16x4.ip, ae_sa32x2.ip on HiFi4 where
+// the ISA encodes the alignment register number in T[1:0].
+// The operand field is named 'align_in' to match the DAG operand.
+class RRR_TC_U_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<2> t_base,
+                    dag outs, dag ins, string asmstr, list<dag> pattern>
+  : XtensaInst24<outs, ins, asmstr, pattern> {
+  bits<4> r;
+  bits<4> s;
+  bits<2> align_in;   // alignment register number 0-3 (u0/u1/u2/u3)
+
+  let Inst{23-20} = op2;
+  let Inst{19-16} = op1;
+  let Inst{15-12} = r;
+  let Inst{11-8}  = s;
+  let Inst{7-6}   = t_base;
+  let Inst{5-4}   = align_in;
+  let Inst{3-0}   = op0;
+}
+
+// RRR_TFC_U_Inst: like RRR_TFC_Inst but u encoded in T[1:0].
+// r_val is fixed (constant opcode field); u is variable alignment register.
+// Used for ae_la64.pp on HiFi4.
+// The operand field is named 'align_out' to match the DAG operand.
+class RRR_TFC_U_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> r_val,
+                     bits<2> t_base,
+                     dag outs, dag ins, string asmstr, list<dag> pattern>
+  : XtensaInst24<outs, ins, asmstr, pattern> {
+  bits<4> s;
+  bits<2> align_out;   // alignment register number 0-3 (u0/u1/u2/u3)
+
+  let Inst{23-20} = op2;
+  let Inst{19-16} = op1;
+  let Inst{15-12} = r_val;
+  let Inst{11-8}  = s;
+  let Inst{7-6}   = t_base;
+  let Inst{5-4}   = align_out;
+  let Inst{3-0}   = op0;
+}
+
 class RRR_Inst<bits<4> op0, bits<4> op1, bits<4> op2, dag outs, dag ins,
                string asmstr, list<dag> pattern, InstrItinClass itin = NoItinerary>
   : XtensaInst24<outs, ins, asmstr, pattern, itin> {

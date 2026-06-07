@@ -719,6 +719,9 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_l32x2_xc1; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
 
   // Alignment & State Loads
+  // ae_la64_pp(void** ptr) -> LLi (alignment token)
+  // The intrinsic returns {ptr_updated[0], i32_align_token[1]}.
+  // C ae_valign is long long (i64); bridge with zext i32->i64.
   case Xtensa::BI__builtin_xtensa_ae_la64_pp:
   case Xtensa::BI__builtin_xtensa_ae_la128_pp: {
     Address PtrAddr = EmitPointerWithAlignment(E->getArg(0));
@@ -732,29 +735,44 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
 
     Value *Call = Builder.CreateCall(F, {Ptr});
 
-    Builder.CreateStore(Call, PtrAddr);
-    return llvm::UndefValue::get(CGM.VoidTy);
+    // ae_la64_pp returns {ptr_updated[0], i32_align_token[1]}.
+    // Store the updated ptr back, zext token to i64 for C ae_valign.
+    Value *UpdatedPtr = Builder.CreateExtractValue(Call, 0, "ptr.post");
+    Value *AlignI32  = Builder.CreateExtractValue(Call, 1, "align.i32");
+    Builder.CreateStore(UpdatedPtr, PtrAddr);
+    return Builder.CreateZExt(AlignI32, Builder.getInt64Ty(), "align.i64");
   }
   case Xtensa::BI__builtin_xtensa_ae_la16x4pos_pc:
-  case Xtensa::BI__builtin_xtensa_ae_la32x2pos_pc:
-  case Xtensa::BI__builtin_xtensa_ae_sa64pos_fp:
-  case Xtensa::BI__builtin_xtensa_ae_sa128pos_fp: {
+  case Xtensa::BI__builtin_xtensa_ae_la32x2pos_pc: {
     unsigned IntrinsicID;
     if (BuiltinID == Xtensa::BI__builtin_xtensa_ae_la16x4pos_pc)
       IntrinsicID = Intrinsic::xtensa_ae_la16x4pos_pc;
-    else if (BuiltinID == Xtensa::BI__builtin_xtensa_ae_la32x2pos_pc)
-      IntrinsicID = Intrinsic::xtensa_ae_la32x2pos_pc;
-    else if (BuiltinID == Xtensa::BI__builtin_xtensa_ae_sa64pos_fp)
-      IntrinsicID = Intrinsic::xtensa_ae_sa64pos_fp;
     else
-      IntrinsicID = Intrinsic::xtensa_ae_sa128pos_fp;
-
+      IntrinsicID = Intrinsic::xtensa_ae_la32x2pos_pc;
     Value *Ptr = EmitScalarExpr(E->getArg(0));
     Function *F = CGM.getIntrinsic(IntrinsicID);
     Builder.CreateCall(F, {Ptr});
-
     return llvm::UndefValue::get(CGM.VoidTy);
   }
+  // ae_sa64pos_fp(LLi align, void* ptr) -- flush alignment buffer, no return
+  case Xtensa::BI__builtin_xtensa_ae_sa64pos_fp:
+  case Xtensa::BI__builtin_xtensa_ae_sa128pos_fp: {
+    unsigned IntrinsicID;
+    if (BuiltinID == Xtensa::BI__builtin_xtensa_ae_sa64pos_fp)
+      IntrinsicID = Intrinsic::xtensa_ae_sa64pos_fp;
+    else
+      IntrinsicID = Intrinsic::xtensa_ae_sa128pos_fp;
+    // Ops[0] = i64 align token (C long long), Ops[1] = void* ptr
+    // Truncate i64->i32: intrinsic expects i32 token.
+    Value *AlignI32 = Builder.CreateTrunc(Ops[0], Builder.getInt32Ty(), "align.i32");
+    Value *Ptr = Ops[1];
+    Function *F = CGM.getIntrinsic(IntrinsicID);
+    Builder.CreateCall(F, {AlignI32, Ptr});
+    return llvm::UndefValue::get(CGM.VoidTy);
+  }
+  // Unaligned loads: ae_la32x2_ip(LLi align, void** ptr) -> LLi data
+  // Intrinsic takes i32 align token (Xtensa-legal); C passes i64 (long long).
+  // Bridge: trunc i64->i32 going in, data result is already i64-compatible.
   case Xtensa::BI__builtin_xtensa_ae_la32x2_ip:
   case Xtensa::BI__builtin_xtensa_ae_la16x4_ip:
   case Xtensa::BI__builtin_xtensa_ae_la24x2_ip:
@@ -769,14 +787,18 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     else
       IntrinsicID = Intrinsic::xtensa_ae_la24_ip;
 
+    // Ops[0] = i64 alignment token (C long long ae_valign) -> trunc to i32
+    Value *AlignI32 = Builder.CreateTrunc(Ops[0], Builder.getInt32Ty(), "align.i32");
     Address PtrAddr = EmitPointerWithAlignment(E->getArg(1));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F = CGM.getIntrinsic(IntrinsicID);
-    Value *Call = Builder.CreateCall(F, {Ptr});
+    // Intrinsic: (i32 align_in, ptr) -> {data[0], i32_align_out[1], ptr_updated[2]}
+    Value *Call = Builder.CreateCall(F, {AlignI32, Ptr});
 
-    Value *LoadedVal = Builder.CreateExtractValue(Call, 0, "val");
-    Value *UpdatedPtr = Builder.CreateExtractValue(Call, 1, "ptr.post");
+    Value *LoadedVal  = Builder.CreateExtractValue(Call, 0, "val");
+    // align_out is at index 1 (tied u-reg constraint -- RA keeps same register)
+    Value *UpdatedPtr = Builder.CreateExtractValue(Call, 2, "ptr.post");
 
     // Bitcast vector result back to i64 for C type compatibility
     if (LoadedVal->getType()->isVectorTy())
@@ -785,6 +807,9 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     Builder.CreateStore(UpdatedPtr, PtrAddr);
     return LoadedVal;
   }
+  // Unaligned stores: ae_sa32x2_ip(LLi data, LLi align_in, void** ptr) -> LLi align_out
+  // Intrinsic takes/returns i32 align token; C uses i64 (long long ae_valign).
+  // Bridge: trunc i64->i32 going in, zext i32->i64 coming out.
   case Xtensa::BI__builtin_xtensa_ae_sa16x4_ip:
   case Xtensa::BI__builtin_xtensa_ae_sa16x4_ic:
   case Xtensa::BI__builtin_xtensa_ae_sa32x2_ip:
@@ -802,6 +827,8 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     else
       IntrinsicID = Intrinsic::xtensa_ae_sa32x2_ic;
 
+    // Ops[0]=LLi data, Ops[1]=LLi align_in (ae_valign), Ops[2]=void** ptr
+    Value *AlignI32 = Builder.CreateTrunc(Ops[1], Builder.getInt32Ty(), "align.i32");
     Address PtrAddr = EmitPointerWithAlignment(E->getArg(2));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
@@ -811,10 +838,15 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     llvm::Type *ExpectedTy = F->getFunctionType()->getParamType(0);
     if (DataArg->getType() != ExpectedTy && DataArg->getType()->isIntegerTy(64))
       DataArg = Builder.CreateBitCast(DataArg, ExpectedTy);
-    Value *Call = Builder.CreateCall(F, {DataArg, Ptr});
 
-    Builder.CreateStore(Call, PtrAddr);
-    return llvm::UndefValue::get(CGM.VoidTy);
+    // Intrinsic: (v2i32 data, i32 align_in, ptr) -> {i32 align_out[0], ptr_updated[1]}
+    Value *Call = Builder.CreateCall(F, {DataArg, AlignI32, Ptr});
+
+    Value *AlignOutI32 = Builder.CreateExtractValue(Call, 0, "align.out.i32");
+    Value *UpdatedPtr  = Builder.CreateExtractValue(Call, 1, "ptr.post");
+    Builder.CreateStore(UpdatedPtr, PtrAddr);
+    // Zext i32->i64: return ae_valign token to C as long long
+    return Builder.CreateZExt(AlignOutI32, Builder.getInt64Ty(), "align.out.i64");
   }
 
   // Circular Base Stores

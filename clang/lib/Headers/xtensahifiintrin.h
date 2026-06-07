@@ -40,6 +40,12 @@ typedef int64_t ae_f24x2  __attribute__((aligned(8))); /* 2x24-bit packed; sizeo
 typedef int16_t ae_f16;   /* scalar 16-bit fixed-point; sizeof == 2 */
 typedef int64_t ae_f16x4  __attribute__((aligned(8))); /* 4x16-bit packed; sizeof == 8 */
 typedef int64_t ae_int64  __attribute__((aligned(8)));
+/* ae_valign maps to the Xtensa AE alignment registers (u0 for loads, u1 for
+ * stores).  The LLVM backend statically assigns load-align instructions
+ * (ae_la64.pp, ae_la32x2.ip, ae_la16x4.ip) to u0 and store-align
+ * instructions (ae_zalign64, ae_sa32x2.ip, ae_sa16x4.ip, ae_sa64pos.fp)
+ * to u1, so concurrent load/store alignment tokens do not interfere.
+ * HiFi5 extends this with a 128-bit alignment register via ae_valignx2. */
 typedef int64_t ae_valign __attribute__((aligned(8)));
 typedef int64_t ae_q56s   __attribute__((aligned(8)));
 
@@ -89,26 +95,31 @@ typedef unsigned char xtbool4;
 #define AE_L16X4_X(ptr, offset) \
     (__builtin_xtensa_ae_l16x4_x((void *)(ptr), (offset)))
 
-//* Alignment & State Loads */
+/* Alignment prime: primes u-register from ptr alignment bits, returns token.
+ * AE_ZALIGN64() allocates a separate u-register and zeroes it for store use.
+ * HiFi4 has u0-u3; the RA assigns inu and outu to distinct registers so
+ * ae_la32x2.ip and ae_sa32x2.ip operate on different alignment state. */
 #define AE_LA64_PP(ptr) \
-  ({ __builtin_xtensa_ae_la64_pp((void **)&(ptr)); AE_ZALIGN64(); })
+    ((ae_valign)__builtin_xtensa_ae_la64_pp((void **)&(ptr)))
 #define AE_LA128_PP(ptr) \
-  ({ __builtin_xtensa_ae_la128_pp((void **)&(ptr)); \
-     (ae_valignx2){0, 0}; })
+    ((ae_valign)__builtin_xtensa_ae_la128_pp((void **)&(ptr)))
+/* Unaligned load macros — pass alignment token in, get updated token out.
+ * The ae_valign (VALIGN register) is carried through explicitly so RA assigns
+ * independent physical u-registers to inu vs outu. */
 #define AE_LA32X2_IP(val, align, ptr) \
-    (val) = (__builtin_xtensa_ae_la32x2_ip((align), (void **)&(ptr)))
+    ((val) = __builtin_xtensa_ae_la32x2_ip((align), (void **)&(ptr)))
 #define AE_LA32X2_IC(val, align, ptr) \
-    (val) = (__builtin_xtensa_ae_la32x2_ip((align), (void **)&(ptr)))
+    ((val) = __builtin_xtensa_ae_la32x2_ip((align), (void **)&(ptr)))
 #define AE_LA16X4_IP(val, align, ptr) \
-    (val) = (__builtin_xtensa_ae_la16x4_ip((align), (void **)&(ptr)))
+    ((val) = __builtin_xtensa_ae_la16x4_ip((align), (void **)&(ptr)))
 #define AE_LA16X4_IC(val, align, ptr) \
-    (val) = (__builtin_xtensa_ae_la16x4_ip((align), (void **)&(ptr)))
+    ((val) = __builtin_xtensa_ae_la16x4_ip((align), (void **)&(ptr)))
 #define AE_LA24X2_IP(val, align, ptr) \
-    (val) = (__builtin_xtensa_ae_la24x2_ip((align), (void **)&(ptr)))
+    ((val) = __builtin_xtensa_ae_la24x2_ip((align), (void **)&(ptr)))
 #define AE_LA24_IP(val, align, ptr) \
-    (val) = (__builtin_xtensa_ae_la24_ip((align), (void **)&(ptr)))
+    ((val) = __builtin_xtensa_ae_la24_ip((align), (void **)&(ptr)))
 #define AE_SA24_IP(val, align, ptr) \
-    __builtin_xtensa_ae_sa24x2_ip((val), (align), (void **)&(ptr))
+    (align) = __builtin_xtensa_ae_sa24x2_ip((val), (align), (void **)&(ptr))
 
 
 #define AE_LA16X4POS_PC(align, ptr) \
@@ -116,7 +127,7 @@ typedef unsigned char xtbool4;
 #define AE_LA32X2POS_PC(align, ptr) \
   ((void)(align), __builtin_xtensa_ae_la32x2pos_pc((const void *)(ptr)))
 #define AE_SA64POS_FP(align, ptr) \
-  ((void)(align), __builtin_xtensa_ae_sa64pos_fp((const void *)(ptr)))
+    __builtin_xtensa_ae_sa64pos_fp((align), (void *)(ptr))
 #define AE_SA128POS_FP(align, ptr) \
   ((void)(align), __builtin_xtensa_ae_sa128pos_fp((const void *)(ptr)))
 
@@ -190,15 +201,15 @@ typedef unsigned char xtbool4;
 #define AE_S32X2_XC1(val, ptr, offset) \
     __builtin_xtensa_ae_s32x2_xc1((val), (void **)&(ptr), (offset))
 #define AE_SA16X4_IP(val, align, ptr) \
-    __builtin_xtensa_ae_sa16x4_ip((val), (align), (void **)&(ptr))
+    (align) = __builtin_xtensa_ae_sa16x4_ip((val), (align), (void **)&(ptr))
 #define AE_SA16X4_IC(val, align, ptr) \
-    __builtin_xtensa_ae_sa16x4_ic((val), (align), (void **)&(ptr))
+    (align) = __builtin_xtensa_ae_sa16x4_ic((val), (align), (void **)&(ptr))
 #define AE_SA32X2_IP(val, align, ptr) \
-    __builtin_xtensa_ae_sa32x2_ip((val), (align), (void **)&(ptr))
+    (align) = __builtin_xtensa_ae_sa32x2_ip((val), (align), (void **)&(ptr))
 #define AE_SA32X2_IC(val, align, ptr) \
-    __builtin_xtensa_ae_sa32x2_ic((val), (align), (void **)&(ptr))
+    (align) = __builtin_xtensa_ae_sa32x2_ic((val), (align), (void **)&(ptr))
 #define AE_SA24X2_IP(val, align, ptr) \
-    __builtin_xtensa_ae_sa24x2_ip((val), (align), (void **)&(ptr))
+    (align) = __builtin_xtensa_ae_sa24x2_ip((val), (align), (void **)&(ptr))
 
 // Audio Engine MAC Instructions
 #define AE_MULAAFD32X16_H3_L2(a, b, c) \
@@ -539,9 +550,10 @@ typedef unsigned char xtbool4;
 #define XT_ALL8(b)  (((b) & 0xFF) == 0xFF)
 #define XT_ANY8(b)  (((b) & 0xFF) != 0)
 
-// Alignment Zero
-#define AE_ZALIGN64() ((ae_valign)0)
-#define AE_ZALIGN128() ((ae_valignx2){0, 0})
+/* AE_ZALIGN64/128 canonical definitions are in the HiFi5 section below.
+ * Do not define a constant-zero fallback here — ae_valign is a struct
+ * and cannot be cast from an integer literal. */
+#define AE_ZALIGN128() ((ae_valignx2){{0}, {0}})
 
 // Miscellaneous Arithmetic
 #define AE_F32_ADDS_F32(a, b) (__builtin_xtensa_ae_add32s((a), (b)))
@@ -668,7 +680,9 @@ typedef unsigned char xtbool4;
     (ptr) = (__typeof__(ptr))((char *)(ptr) + (ofs)); \
   } while(0)
 
-// Initialize store alignment register
+/* AE_ZALIGN64: allocate a zeroed u-register for store alignment accumulation.
+ * Returns the alignment token; the RA assigns it a physical u register (u0-u3
+ * on HiFi4) distinct from the one used for inu = AE_LA64_PP(ptr). */
 #define AE_ZALIGN64() ((ae_valign)__builtin_xtensa_ae_zalign64())
 
 // Simultaneous saturating add and subtract
