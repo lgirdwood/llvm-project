@@ -29,6 +29,9 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   Intrinsic::ID ID = Intrinsic::not_intrinsic;
   bool IsPostUpdateLoad = false;
   bool IsPostUpdateStore = false;
+  // Set for 64-bit pair loads (ae_l32x2_*, ae_l16x4_*) that require the
+  // data pointer to be 8-byte aligned (AE hardware constraint).
+  bool NeedsAlignedPtr8 = false;
 
   switch (BuiltinID) {
   // MAC and Arithmetic Operations
@@ -692,28 +695,28 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   case Xtensa::BI__builtin_xtensa_ae_l16_xp:
     ID = Intrinsic::xtensa_ae_l16_xp; IsPostUpdateLoad = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l16x4_ip:
-    ID = Intrinsic::xtensa_ae_l16x4_ip; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l16x4_ip; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l16x4_xp:
-    ID = Intrinsic::xtensa_ae_l16x4_xp; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l16x4_xp; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32_ip:
     ID = Intrinsic::xtensa_ae_l32_ip; IsPostUpdateLoad = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32_xp:
     ID = Intrinsic::xtensa_ae_l32_xp; IsPostUpdateLoad = true; break;
 
   case Xtensa::BI__builtin_xtensa_ae_l16m_xu:
-    ID = Intrinsic::xtensa_ae_l16m_xu; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l16m_xu; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32f24_xc:
     ID = Intrinsic::xtensa_ae_l32f24_xc; IsPostUpdateLoad = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32x2f24_ip:
-    ID = Intrinsic::xtensa_ae_l32x2f24_ip; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l32x2f24_ip; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32x2f24_xc:
-    ID = Intrinsic::xtensa_ae_l32x2f24_xc; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l32x2f24_xc; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32x2_ip:
-    ID = Intrinsic::xtensa_ae_l32x2_ip; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l32x2_ip; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32x2_xc:
-    ID = Intrinsic::xtensa_ae_l32x2_xc; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l32x2_xc; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32x2_xc1:
-    ID = Intrinsic::xtensa_ae_l32x2_xc1; IsPostUpdateLoad = true; break;
+    ID = Intrinsic::xtensa_ae_l32x2_xc1; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
 
   // Alignment & State Loads
   case Xtensa::BI__builtin_xtensa_ae_la64_pp:
@@ -853,17 +856,17 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_l32_x;
     break;
   case Xtensa::BI__builtin_xtensa_ae_l16x4_x:
-    ID = Intrinsic::xtensa_ae_l16x4_x;
+    ID = Intrinsic::xtensa_ae_l16x4_x; NeedsAlignedPtr8 = true;
     break;
 
   case Xtensa::BI__builtin_xtensa_ae_l16m_x:
-    ID = Intrinsic::xtensa_ae_l16m_x;
+    ID = Intrinsic::xtensa_ae_l16m_x; NeedsAlignedPtr8 = true;
     break;
   case Xtensa::BI__builtin_xtensa_ae_l32m_x:
     ID = Intrinsic::xtensa_ae_l32m_x;
     break;
   case Xtensa::BI__builtin_xtensa_ae_l32x2_i:
-    ID = Intrinsic::xtensa_ae_l32x2_i;
+    ID = Intrinsic::xtensa_ae_l32x2_i; NeedsAlignedPtr8 = true;
     break;
 
   // Standard Stores
@@ -919,6 +922,11 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   if (IsPostUpdateLoad) {
     Address PtrAddr = EmitPointerWithAlignment(E->getArg(0));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
+    // 64-bit pair loads (ae_l32x2_*, ae_l16x4_*) require the data pointer to
+    // be 8-byte aligned.  Emit an assumption so LLVM promotes any stack
+    // alloca that feeds this pointer to at least align(8).
+    if (NeedsAlignedPtr8)
+      Builder.CreateAlignmentAssumption(CGM.getDataLayout(), Ptr, 8U);
     Ops[0] = Ptr;
 
     Function *F = CGM.getIntrinsic(ID);
@@ -944,6 +952,11 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     Builder.CreateStore(UpdatedPtr, PtrAddr);
     return UpdatedPtr;
   }
+
+  // For 64-bit pair loads (non-post-update), Ops[0] is the data pointer.
+  // Emit an alignment assumption so LLVM promotes stack allocas to align(8).
+  if (NeedsAlignedPtr8 && !Ops.empty())
+    Builder.CreateAlignmentAssumption(CGM.getDataLayout(), Ops[0], 8U);
 
   Function *F = CGM.getIntrinsic(ID);
   BitcastOpsForIntrinsic(F, Ops);
