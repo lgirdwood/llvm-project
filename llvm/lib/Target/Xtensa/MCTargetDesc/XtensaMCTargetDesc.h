@@ -48,6 +48,11 @@ std::unique_ptr<MCObjectTargetWriter>
 createXtensaObjectWriter(uint8_t OSABI, bool IsLittleEndian);
 
 namespace Xtensa {
+enum {
+  XtensaJJumpTrampolinesEnabled = 1 << 0,
+  XtensaJJumpTrampolinesDisabled = 1 << 1,
+};
+
 // Check address offset for load/store instructions.
 // The offset should be multiple of scale.
 bool isValidAddrOffset(int Scale, int64_t OffsetVal);

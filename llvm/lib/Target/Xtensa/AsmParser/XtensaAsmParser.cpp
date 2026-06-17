@@ -30,12 +30,60 @@
 
 using namespace llvm;
 
+namespace llvm {
+extern cl::opt<bool> AbsoluteLiterals;
+
+cl::opt<bool> Longcalls(
+    "longcalls",
+    cl::desc("Enable longcall relaxation"),
+    cl::init(false));
+
+cl::opt<bool> TargetAlign(
+    "target-align",
+    cl::desc("Align branch targets"),
+    cl::init(true));
+
+cl::opt<bool> NoTargetAlign(
+    "no-target-align",
+    cl::desc("Do not align branch targets"),
+    cl::init(false));
+
+cl::opt<bool> Transform(
+    "transform",
+    cl::desc("Enable transform mode"),
+    cl::init(true));
+
+cl::opt<bool> NoTransform(
+    "no-transform",
+    cl::desc("Disable transform mode"),
+    cl::init(false));
+
+cl::opt<bool> Trampolines(
+    "trampolines",
+    cl::desc("Enable trampolines relaxation"),
+    cl::init(true));
+
+cl::opt<bool> NoTrampolines(
+    "no-trampolines",
+    cl::desc("Disable trampolines relaxation"),
+    cl::init(false));
+}
 #define DEBUG_TYPE "xtensa-asm-parser"
 
 struct XtensaOperand;
 
 class XtensaAsmParser : public MCTargetAsmParser {
   const MCRegisterInfo &MRI;
+  bool LongcallsEnabled;
+  bool TargetAlignEnabled;
+  unsigned StructUniqueID;
+  bool InBrackets;
+  MCInst CurrentBundle;
+  bool TransformEnabled;
+  std::vector<bool> AbsoluteLiteralsStack;
+  std::vector<bool> TransformStack;
+  bool TrampolinesEnabled;
+  std::vector<bool> TrampolinesStack;
 
   enum XtensaRegisterType { Xtensa_Generic, Xtensa_SR, Xtensa_UR };
   SMLoc getLoc() const { return getParser().getTok().getLoc(); }
@@ -94,7 +142,13 @@ public:
   XtensaAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
                   const MCInstrInfo &MII)
       : MCTargetAsmParser(STI, MII),
-        MRI(*Parser.getContext().getRegisterInfo()) {
+        MRI(*Parser.getContext().getRegisterInfo()),
+        LongcallsEnabled(Longcalls),
+        TargetAlignEnabled(TargetAlign && !NoTargetAlign),
+        StructUniqueID(0),
+        InBrackets(false),
+        TransformEnabled(Transform && !NoTransform),
+        TrampolinesEnabled(Trampolines && !NoTrampolines) {
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
   }
 
@@ -417,6 +471,14 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   Inst.setLoc(IDLoc);
   const unsigned Opcode = Inst.getOpcode();
   switch (Opcode) {
+  case Xtensa::J: {
+    if (TrampolinesEnabled) {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaJJumpTrampolinesEnabled);
+    } else {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaJJumpTrampolinesDisabled);
+    }
+    break;
+  }
   case Xtensa::L32R: {
     const MCSymbolRefExpr *OpExpr =
         static_cast<const MCSymbolRefExpr *>(Inst.getOperand(1).getExpr());
@@ -894,6 +956,148 @@ ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
     return parseLiteralDirective(Loc);
   }
 
+  if (IDVal == ".struct") {
+    MCAsmParser &Parser = getParser();
+    const MCExpr *ExprVal;
+    if (Parser.parseExpression(ExprVal))
+      return ParseStatus::Failure;
+    if (parseEOL())
+      return ParseStatus::Failure;
+
+    int64_t OffsetVal = 0;
+    if (!ExprVal->evaluateAsAbsolute(OffsetVal))
+      return Error(Loc, "expected absolute expression");
+
+    MCContext &Ctx = getContext();
+    unsigned StructID = ++StructUniqueID;
+    MCSectionELF *StructSec = Ctx.getELFSection(".struct", ELF::SHT_NOBITS, 0, 0, "", false, StructID, nullptr);
+    getParser().getStreamer().switchSection(StructSec);
+
+    if (OffsetVal > 0) {
+      getParser().getStreamer().emitZeros(OffsetVal);
+    }
+    return false;
+  }
+
+  if (IDVal == ".begin") {
+    AsmToken ArgTok = getLexer().getTok();
+    if (ArgTok.is(AsmToken::Identifier)) {
+      StringRef FirstArg = ArgTok.getString();
+      if (FirstArg == "longcalls") {
+        LongcallsEnabled = true;
+        getParser().Lex(); // consume 'longcalls' token
+        return parseEOL();
+      }
+      if (FirstArg == "literal_prefix") {
+        getParser().Lex(); // consume 'literal_prefix' token
+        StringRef Prefix = "";
+        if (getLexer().isNot(AsmToken::EndOfStatement)) {
+          if (getParser().parseIdentifier(Prefix)) {
+            return Error(getLexer().getLoc(), "expected literal prefix name");
+          }
+        }
+        XtensaTargetStreamer &TS = this->getTargetStreamer();
+        TS.emitLiteralPrefix(Prefix);
+        return parseEOL();
+      }
+      std::string FullArg = "";
+      SMLoc StartLoc = getLexer().getLoc();
+      while (getLexer().isNot(AsmToken::EndOfStatement) &&
+             getLexer().isNot(AsmToken::Eof)) {
+        FullArg += getLexer().getTok().getString().str();
+        getParser().Lex();
+      }
+      if (FullArg == "absolute-literals") {
+        AbsoluteLiteralsStack.push_back(getTargetStreamer().isAbsoluteLiteralsEnabled());
+        getTargetStreamer().setAbsoluteLiterals(true);
+        return parseEOL();
+      }
+      if (FullArg == "no-absolute-literals") {
+        AbsoluteLiteralsStack.push_back(getTargetStreamer().isAbsoluteLiteralsEnabled());
+        getTargetStreamer().setAbsoluteLiterals(false);
+        return parseEOL();
+      }
+      if (FullArg == "transform") {
+        TransformStack.push_back(TransformEnabled);
+        TransformEnabled = true;
+        return parseEOL();
+      }
+      if (FullArg == "no-transform") {
+        TransformStack.push_back(TransformEnabled);
+        TransformEnabled = false;
+        return parseEOL();
+      }
+      if (FullArg == "trampolines") {
+        TrampolinesStack.push_back(TrampolinesEnabled);
+        TrampolinesEnabled = true;
+        return parseEOL();
+      }
+      if (FullArg == "no-trampolines") {
+        TrampolinesStack.push_back(TrampolinesEnabled);
+        TrampolinesEnabled = false;
+        return parseEOL();
+      }
+      if (FullArg == "schedule") {
+        return parseEOL();
+      }
+      return Error(StartLoc, "unrecognized argument to .begin directive");
+    }
+    return ParseStatus::NoMatch;
+  }
+
+  if (IDVal == ".end") {
+    AsmToken ArgTok = getLexer().getTok();
+    if (ArgTok.is(AsmToken::Identifier)) {
+      StringRef FirstArg = ArgTok.getString();
+      if (FirstArg == "longcalls") {
+        LongcallsEnabled = false;
+        getParser().Lex(); // consume 'longcalls' token
+        return parseEOL();
+      }
+      if (FirstArg == "literal_prefix") {
+        getParser().Lex(); // consume 'literal_prefix' token
+        XtensaTargetStreamer &TS = this->getTargetStreamer();
+        TS.emitLiteralPrefixEnd();
+        return parseEOL();
+      }
+      std::string FullArg = "";
+      SMLoc StartLoc = getLexer().getLoc();
+      while (getLexer().isNot(AsmToken::EndOfStatement) &&
+             getLexer().isNot(AsmToken::Eof)) {
+        FullArg += getLexer().getTok().getString().str();
+        getParser().Lex();
+      }
+      if (FullArg == "absolute-literals" || FullArg == "no-absolute-literals") {
+        if (!AbsoluteLiteralsStack.empty()) {
+          bool Prev = AbsoluteLiteralsStack.back();
+          AbsoluteLiteralsStack.pop_back();
+          getTargetStreamer().setAbsoluteLiterals(Prev);
+        }
+        return parseEOL();
+      }
+      if (FullArg == "transform" || FullArg == "no-transform") {
+        if (!TransformStack.empty()) {
+          bool Prev = TransformStack.back();
+          TransformStack.pop_back();
+          TransformEnabled = Prev;
+        }
+        return parseEOL();
+      }
+      if (FullArg == "trampolines" || FullArg == "no-trampolines") {
+        if (!TrampolinesStack.empty()) {
+          bool Prev = TrampolinesStack.back();
+          TrampolinesStack.pop_back();
+          TrampolinesEnabled = Prev;
+        }
+        return parseEOL();
+      }
+      if (FullArg == "schedule") {
+        return parseEOL();
+      }
+      return Error(StartLoc, "unrecognized argument to .end directive");
+    }
+    return ParseStatus::NoMatch;
+  }
   return ParseStatus::NoMatch;
 }
 

@@ -17,6 +17,12 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCSection.h"
+#include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/Support/Debug.h"
 
 using namespace llvm;
 
@@ -40,6 +46,9 @@ public:
                   uint8_t *Data, uint64_t Value, bool IsResolved) override;
   bool writeNopData(raw_ostream &OS, uint64_t Count,
                     const MCSubtargetInfo *STI) const override;
+  bool finishLayout() const override;
+  bool mayNeedRelaxation(unsigned Opcode, ArrayRef<MCOperand> Operands,
+                         const MCSubtargetInfo &STI) const override;
 
   std::unique_ptr<MCObjectTargetWriter> createObjectTargetWriter() const override {
     return createXtensaObjectWriter(OSABI, IsLittleEndian);
@@ -205,6 +214,329 @@ bool XtensaAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
   }
 
   return true;
+}
+
+namespace llvm {
+extern cl::opt<bool> Trampolines;
+}
+
+static bool isUnconditionalBranchOrReturn(const MCFragment &F) {
+  if (F.getKind() != MCFragment::FT_Relaxable)
+    return false;
+  unsigned Opcode = F.getInst().getOpcode();
+  return Opcode == Xtensa::J || Opcode == Xtensa::JX ||
+         Opcode == Xtensa::RET || Opcode == Xtensa::RETW ||
+         Opcode == Xtensa::RET_N || Opcode == Xtensa::RETW_N;
+}
+
+static bool isTrampolineEnabled(const MCInst &Inst) {
+  unsigned Flags = Inst.getFlags();
+  if (Flags & Xtensa::XtensaJJumpTrampolinesEnabled)
+    return true;
+  if (Flags & Xtensa::XtensaJJumpTrampolinesDisabled)
+    return false;
+  return Trampolines;
+}
+
+bool XtensaAsmBackend::mayNeedRelaxation(unsigned Opcode,
+                                         ArrayRef<MCOperand> Operands,
+                                         const MCSubtargetInfo &STI) const {
+  if (Opcode == Xtensa::J) {
+    return true;
+  }
+  return false;
+}
+
+bool XtensaAsmBackend::finishLayout() const {
+  MCContext &Ctx = getContext();
+  bool Changed = false;
+
+  for (unsigned Iter = 0; Iter < 100; ++Iter) {
+    bool IterChanged = false;
+    DenseSet<const MCFragment *> LabeledFragments;
+    for (const MCSymbol &S : Asm->symbols()) {
+      if (S.isDefined() && !S.isVariable()) {
+        if (const MCFragment *F = S.getFragment()) {
+          LabeledFragments.insert(F);
+        }
+      }
+    }
+
+    for (MCSection &Sec : *Asm) {
+      if (!Sec.isText())
+        continue;
+
+      for (MCSection::iterator I = Sec.begin(), E = Sec.end(); I != E; ++I) {
+        MCFragment &F = *I;
+        if (F.getKind() != MCFragment::FT_Relaxable)
+          continue;
+
+        MCInst Inst = F.getInst();
+        if (Inst.getOpcode() != Xtensa::J)
+          continue;
+
+        LLVM_DEBUG(dbgs() << "DEBUG: Found J instruction at offset "
+                          << Asm->getFragmentOffset(F) << "\n");
+
+        if (!isTrampolineEnabled(Inst)) {
+          LLVM_DEBUG(dbgs() << "DEBUG: Trampolines disabled for this jump\n");
+          continue;
+        }
+
+        auto Fixups = F.getVarFixups();
+        if (Fixups.empty()) {
+          LLVM_DEBUG(dbgs() << "DEBUG: Fixups empty\n");
+          continue;
+        }
+
+        const MCFixup &Fixup = Fixups[0];
+        LLVM_DEBUG(dbgs() << "DEBUG: Fixup kind = " << (unsigned)Fixup.getKind() << "\n");
+        if (Fixup.getKind() != (MCFixupKind)Xtensa::fixup_xtensa_jump_18)
+          continue;
+
+        const MCExpr *Expr = Fixup.getValue();
+        if (!Expr)
+          continue;
+
+        MCValue TargetVal;
+        if (!Expr->evaluateAsRelocatable(TargetVal, Asm)) {
+          LLVM_DEBUG(dbgs() << "DEBUG: Failed to evaluate expression as relocatable\n");
+          continue;
+        }
+
+        const MCSymbol *TargetSym = TargetVal.getAddSym();
+        if (!TargetSym) {
+          LLVM_DEBUG(dbgs() << "DEBUG: TargetSym is null\n");
+          continue;
+        }
+
+        LLVM_DEBUG(dbgs() << "DEBUG: TargetSym = " << TargetSym->getName() << "\n");
+        if (!TargetSym->isDefined()) {
+          LLVM_DEBUG(dbgs() << "DEBUG: TargetSym is undefined\n");
+          continue;
+        }
+
+        if (!TargetSym->getFragment()) {
+          LLVM_DEBUG(dbgs() << "DEBUG: TargetSym has no fragment\n");
+          continue;
+        }
+        if (TargetSym->getFragment()->getParent() != &Sec) {
+          LLVM_DEBUG(dbgs() << "DEBUG: TargetSym parent section is different\n");
+          continue;
+        }
+
+        uint64_t TargetOffset = Asm->getSymbolOffset(*TargetSym) + TargetVal.getConstant();
+        uint64_t SourceOffset = Asm->getFragmentOffset(F) + Fixup.getOffset();
+        int64_t OffsetVal = (int64_t)TargetOffset - (int64_t)SourceOffset;
+        int64_t RelOffset = OffsetVal - 4;
+
+        LLVM_DEBUG(dbgs() << "DEBUG: TargetOffset=" << TargetOffset << " SourceOffset=" << SourceOffset << " RelOffset=" << RelOffset << "\n");
+
+        if (isInt<18>(RelOffset)) {
+          LLVM_DEBUG(dbgs() << "DEBUG: Jump is in range\n");
+          continue;
+        }
+
+        LLVM_DEBUG(dbgs() << "DEBUG: Out of range jump found!\n");
+
+        bool Forward = (RelOffset > 0);
+        MCFragment *TrampolineInsertAfter = nullptr;
+        bool UseUnreachable = false;
+
+        if (Forward) {
+          uint64_t FOffset = Asm->getFragmentOffset(F);
+          MCFragment *G = &F;
+          MCFragment *FurthestUnreachable = nullptr;
+          MCFragment *FurthestPossible = &F;
+
+          while (G->getNext()) {
+            MCFragment *H = G->getNext();
+            uint64_t HOffset = Asm->getFragmentOffset(*H);
+            if (HOffset - FOffset > 120000)
+              break;
+
+            if (isUnconditionalBranchOrReturn(*G) && !LabeledFragments.count(H)) {
+              FurthestUnreachable = G;
+            }
+            FurthestPossible = H;
+            G = H;
+          }
+
+          if (FurthestUnreachable) {
+            uint64_t UnreachOffset = Asm->getFragmentOffset(*FurthestUnreachable);
+            int64_t DistToTarget = (int64_t)TargetOffset - (int64_t)UnreachOffset;
+            if ((DistToTarget < 120000 && DistToTarget > -120000) || (UnreachOffset - FOffset) > 80000) {
+              TrampolineInsertAfter = FurthestUnreachable;
+              UseUnreachable = true;
+            }
+          }
+
+          if (!TrampolineInsertAfter) {
+            TrampolineInsertAfter = FurthestPossible;
+            UseUnreachable = false;
+          }
+        } else {
+          uint64_t FOffset = Asm->getFragmentOffset(F);
+          MCFragment *Curr = Sec.curFragList()->Head;
+          MCFragment *FurthestUnreachable = nullptr;
+          MCFragment *FurthestPossible = nullptr;
+
+          while (Curr && Curr != &F) {
+            uint64_t CurrOffset = Asm->getFragmentOffset(*Curr);
+            if (FOffset - CurrOffset < 120000) {
+              if (!FurthestPossible) {
+                FurthestPossible = Curr;
+              }
+              MCFragment *Next = Curr->getNext();
+              if (Next && Next != &F) {
+                if (isUnconditionalBranchOrReturn(*Curr) && !LabeledFragments.count(Next)) {
+                  if (!FurthestUnreachable) {
+                    FurthestUnreachable = Curr;
+                  }
+                }
+              }
+            }
+            Curr = Curr->getNext();
+          }
+
+          if (FurthestUnreachable) {
+            uint64_t UnreachOffset = Asm->getFragmentOffset(*FurthestUnreachable);
+            int64_t DistToTarget = (int64_t)UnreachOffset - (int64_t)TargetOffset;
+            if ((DistToTarget < 120000 && DistToTarget > -120000) || (FOffset - UnreachOffset) > 80000) {
+              TrampolineInsertAfter = FurthestUnreachable;
+              UseUnreachable = true;
+            }
+          }
+
+          if (!TrampolineInsertAfter) {
+            TrampolineInsertAfter = FurthestPossible;
+            UseUnreachable = false;
+          }
+        }
+
+        if (!TrampolineInsertAfter) {
+          TrampolineInsertAfter = &F;
+        }
+
+        MCSymbol *TrampSym = Ctx.createTempSymbol();
+        const MCSubtargetInfo &STI = *F.getSubtargetInfo();
+
+        if (UseUnreachable) {
+          MCFragment *T = new (Ctx.allocate(sizeof(MCFragment))) MCFragment(MCFragment::FT_Relaxable);
+          T->setHasInstructions(STI);
+          T->setParent(&Sec);
+
+          MCInst TrampInst;
+          TrampInst.setOpcode(Xtensa::J);
+          TrampInst.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(TargetSym, Ctx)));
+          if (Inst.getFlags() & Xtensa::XtensaJJumpTrampolinesEnabled)
+            TrampInst.setFlags(Xtensa::XtensaJJumpTrampolinesEnabled);
+          else if (Inst.getFlags() & Xtensa::XtensaJJumpTrampolinesDisabled)
+            TrampInst.setFlags(Xtensa::XtensaJJumpTrampolinesDisabled);
+
+          SmallVector<char, 16> Data;
+          SmallVector<MCFixup, 1> Fixups;
+          Asm->getEmitter().encodeInstruction(TrampInst, Data, Fixups, STI);
+          T->setVarContents(Data);
+          T->setInst(TrampInst);
+          T->setVarFixups(Fixups);
+
+          T->setNext(TrampolineInsertAfter->getNext());
+          TrampolineInsertAfter->setNext(T);
+          if (Sec.curFragList()->Tail == TrampolineInsertAfter) {
+            Sec.curFragList()->Tail = T;
+          }
+
+          TrampSym->setFragment(T);
+          TrampSym->setOffset(0);
+          const_cast<MCAssembler *>(Asm)->registerSymbol(*TrampSym);
+        } else {
+          MCSymbol *ResumeSym = Ctx.createTempSymbol();
+
+          MCFragment *JmpResume = new (Ctx.allocate(sizeof(MCFragment))) MCFragment(MCFragment::FT_Relaxable);
+          JmpResume->setHasInstructions(STI);
+          JmpResume->setParent(&Sec);
+
+          MCInst JmpResumeInst;
+          JmpResumeInst.setOpcode(Xtensa::J);
+          JmpResumeInst.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(ResumeSym, Ctx)));
+          JmpResumeInst.setFlags(Xtensa::XtensaJJumpTrampolinesDisabled);
+
+          SmallVector<char, 16> Data1;
+          SmallVector<MCFixup, 1> Fixups1;
+          Asm->getEmitter().encodeInstruction(JmpResumeInst, Data1, Fixups1, STI);
+          JmpResume->setVarContents(Data1);
+          JmpResume->setInst(JmpResumeInst);
+          JmpResume->setVarFixups(Fixups1);
+
+          MCFragment *Tramp = new (Ctx.allocate(sizeof(MCFragment))) MCFragment(MCFragment::FT_Relaxable);
+          Tramp->setHasInstructions(STI);
+          Tramp->setParent(&Sec);
+
+          MCInst TrampInst;
+          TrampInst.setOpcode(Xtensa::J);
+          TrampInst.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(TargetSym, Ctx)));
+          if (Inst.getFlags() & Xtensa::XtensaJJumpTrampolinesEnabled)
+            TrampInst.setFlags(Xtensa::XtensaJJumpTrampolinesEnabled);
+          else if (Inst.getFlags() & Xtensa::XtensaJJumpTrampolinesDisabled)
+            TrampInst.setFlags(Xtensa::XtensaJJumpTrampolinesDisabled);
+
+          SmallVector<char, 16> Data2;
+          SmallVector<MCFixup, 1> Fixups2;
+          Asm->getEmitter().encodeInstruction(TrampInst, Data2, Fixups2, STI);
+          Tramp->setVarContents(Data2);
+          Tramp->setInst(TrampInst);
+          Tramp->setVarFixups(Fixups2);
+
+          MCFragment *Resume = new (Ctx.allocate(sizeof(MCFragment))) MCFragment();
+          Resume->setParent(&Sec);
+
+          Resume->setNext(TrampolineInsertAfter->getNext());
+          Tramp->setNext(Resume);
+          JmpResume->setNext(Tramp);
+          TrampolineInsertAfter->setNext(JmpResume);
+
+          if (Sec.curFragList()->Tail == TrampolineInsertAfter) {
+            Sec.curFragList()->Tail = Resume;
+          }
+
+          TrampSym->setFragment(Tramp);
+          TrampSym->setOffset(0);
+          const_cast<MCAssembler *>(Asm)->registerSymbol(*TrampSym);
+
+          ResumeSym->setFragment(Resume);
+          ResumeSym->setOffset(0);
+          const_cast<MCAssembler *>(Asm)->registerSymbol(*ResumeSym);
+        }
+
+        unsigned LayoutOrder = 0;
+        for (MCFragment &Frag : Sec) {
+          Frag.setLayoutOrder(LayoutOrder++);
+        }
+
+        MCInst NewInst = F.getInst();
+        NewInst.getOperand(0).setExpr(MCSymbolRefExpr::create(TrampSym, Ctx));
+        F.setInst(NewInst);
+
+        SmallVector<char, 16> DataF;
+        SmallVector<MCFixup, 1> FixupsF;
+        Asm->getEmitter().encodeInstruction(NewInst, DataF, FixupsF, STI);
+        F.setVarContents(DataF);
+        F.setVarFixups(FixupsF);
+
+        const_cast<MCAssembler *>(Asm)->layoutSection(Sec);
+
+        IterChanged = true;
+        Changed = true;
+        break;
+      }
+      if (IterChanged)
+        break;
+    }
+    if (!IterChanged)
+      break;
+  }
+  return Changed;
 }
 
 MCAsmBackend *llvm::createXtensaAsmBackend(const Target &T,

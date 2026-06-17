@@ -175,6 +175,7 @@ public:
   MCFragment &operator=(const MCFragment &) = delete;
 
   MCFragment *getNext() const { return Next; }
+  void setNext(MCFragment *N) { Next = N; }
 
   FragmentType getKind() const { return Kind; }
 
