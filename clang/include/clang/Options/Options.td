@@ -5363,6 +5363,18 @@ def mlong_double_128 : Flag<["-"], "mlong-double-128">, Group<LongDouble_Group>,
 let Flags = [TargetSpecific] in {
 def mno_long_calls : Flag<["-"], "mno-long-calls">, Group<m_Group>,
   HelpText<"Restore the default behaviour of not generating long calls">;
+def mlongcalls : Flag<["-"], "mlongcalls">, Group<m_xtensa_Features_Group>,
+  HelpText<"Use long calls for Xtensa">;
+def mno_longcalls : Flag<["-"], "mno-longcalls">, Group<m_xtensa_Features_Group>,
+  HelpText<"Do not use long calls for Xtensa">;
+def mtext_section_literals : Flag<["-"], "mtext-section-literals">, Group<m_xtensa_Features_Group>,
+  HelpText<"Place literals in text section for Xtensa">;
+def mno_text_section_literals : Flag<["-"], "mno-text-section-literals">, Group<m_xtensa_Features_Group>,
+  HelpText<"Do not place literals in text section for Xtensa">;
+def mabsolute_literals : Flag<["-"], "mabsolute-literals">, Group<m_xtensa_Features_Group>,
+  HelpText<"Use absolute literals for Xtensa">;
+def mno_absolute_literals : Flag<["-"], "mno-absolute-literals">, Group<m_xtensa_Features_Group>,
+  HelpText<"Do not use absolute literals for Xtensa">;
 } // let Flags = [TargetSpecific]
 def mexecute_only : Flag<["-"], "mexecute-only">, Group<m_arm_Features_Group>,
   HelpText<"Disallow generation of data access to code sections (AArch64/ARM only)">;
