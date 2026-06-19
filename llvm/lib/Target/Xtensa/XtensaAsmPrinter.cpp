@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "XtensaAsmPrinter.h"
+#include "MCTargetDesc/XtensaMCTargetDesc.h"
 #include "MCTargetDesc/XtensaInstPrinter.h"
 #include "MCTargetDesc/XtensaMCAsmInfo.h"
 #include "MCTargetDesc/XtensaTargetStreamer.h"
@@ -391,6 +392,15 @@ void XtensaAsmPrinter::lowerToMCInst(const MachineInstr *MI,
 
     if (MCOp.isValid())
       OutMI.addOperand(MCOp);
+  }
+}
+
+void XtensaAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
+  MCInst CInst;
+  if (Xtensa::compress(CInst, Inst, *STI)) {
+    AsmPrinter::EmitToStreamer(S, CInst);
+  } else {
+    AsmPrinter::EmitToStreamer(S, Inst);
   }
 }
 

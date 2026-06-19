@@ -118,11 +118,17 @@ void XtensaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned Opcode;
 
   // The MOV instruction is not present in core ISA for AR registers,
-  // so use OR instruction.
+  // so use OR instruction (or MOV_N if Density is enabled).
   if (Xtensa::ARRegClass.contains(DestReg, SrcReg)) {
-    BuildMI(MBB, MBBI, DL, get(Xtensa::OR), DestReg)
-        .addReg(SrcReg, getKillRegState(KillSrc))
-        .addReg(SrcReg, getKillRegState(KillSrc));
+    unsigned Opcode = STI.hasDensity() ? Xtensa::MOV_N : Xtensa::OR;
+    if (Opcode == Xtensa::MOV_N) {
+      BuildMI(MBB, MBBI, DL, get(Opcode), DestReg)
+          .addReg(SrcReg, getKillRegState(KillSrc));
+    } else {
+      BuildMI(MBB, MBBI, DL, get(Opcode), DestReg)
+          .addReg(SrcReg, getKillRegState(KillSrc))
+          .addReg(SrcReg, getKillRegState(KillSrc));
+    }
     return;
   }
 

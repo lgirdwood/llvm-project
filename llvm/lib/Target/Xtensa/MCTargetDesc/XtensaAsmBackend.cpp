@@ -49,6 +49,11 @@ public:
   bool finishLayout() const override;
   bool mayNeedRelaxation(unsigned Opcode, ArrayRef<MCOperand> Operands,
                          const MCSubtargetInfo &STI) const override;
+  bool fixupNeedsRelaxationAdvanced(const MCFragment &F, const MCFixup &Fixup,
+                                    const MCValue &Target, uint64_t Value,
+                                    bool Resolved) const override;
+  void relaxInstruction(MCInst &Inst,
+                        const MCSubtargetInfo &STI) const override;
 
   std::unique_ptr<MCObjectTargetWriter> createObjectTargetWriter() const override {
     return createXtensaObjectWriter(OSABI, IsLittleEndian);
@@ -123,7 +128,9 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     if (!isUInt<8>(Value))
       Ctx.reportError(Fixup.getLoc(), "loop fixup value out of range");
     return (Value & 0xff);
-  case Xtensa::fixup_xtensa_l32r_16:
+  case Xtensa::fixup_xtensa_l32r_16: {
+    if (!IsResolved)
+      return 0;
     unsigned Offset = Fixup.getOffset();
     if (Offset & 0x3)
       Value -= 4;
@@ -163,6 +170,9 @@ std::optional<bool> XtensaAsmBackend::evaluateFixup(const MCFragment &F,
 void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
                                   const MCValue &Target, uint8_t *Data,
                                   uint64_t Value, bool IsResolved) {
+  if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_l32r_16) {
+    IsResolved = false;
+  }
   maybeAddReloc(F, Fixup, Target, Value, IsResolved);
   MCContext &Ctx = getContext();
   MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
@@ -244,9 +254,41 @@ bool XtensaAsmBackend::mayNeedRelaxation(unsigned Opcode,
   if (Opcode == Xtensa::J) {
     return true;
   }
+  if (Opcode == Xtensa::BEQZ_N || Opcode == Xtensa::BNEZ_N) {
+    return true;
+  }
   return false;
 }
 
+bool XtensaAsmBackend::fixupNeedsRelaxationAdvanced(const MCFragment &F,
+                                                    const MCFixup &Fixup,
+                                                    const MCValue &Target,
+                                                    uint64_t Value,
+                                                    bool Resolved) const {
+  if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_branch_6) {
+    if (!Resolved)
+      return false;
+    int64_t SVal = (int64_t)Value;
+    int64_t RelOffset = SVal - 4;
+    if (RelOffset >= 0 && RelOffset <= 63) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+void XtensaAsmBackend::relaxInstruction(MCInst &Inst,
+                                        const MCSubtargetInfo &STI) const {
+  unsigned Opcode = Inst.getOpcode();
+  if (Opcode == Xtensa::BEQZ_N) {
+    Inst.setOpcode(Xtensa::BEQZ);
+  } else if (Opcode == Xtensa::BNEZ_N) {
+    Inst.setOpcode(Xtensa::BNEZ);
+  } else {
+    llvm_unreachable("Unexpected instruction to relax");
+  }
+}
 bool XtensaAsmBackend::finishLayout() const {
   MCContext &Ctx = getContext();
   bool Changed = false;

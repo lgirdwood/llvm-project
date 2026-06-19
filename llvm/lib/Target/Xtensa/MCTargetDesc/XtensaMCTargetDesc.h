@@ -23,6 +23,7 @@ class FeatureBitset;
 class MCAsmBackend;
 class MCCodeEmitter;
 class MCContext;
+class MCInst;
 class MCInstrInfo;
 class MCObjectTargetWriter;
 class MCObjectWriter;
@@ -72,6 +73,9 @@ bool checkRegister(MCRegister RegNo, const FeatureBitset &FeatureBits,
 
 // Get Xtensa User Register by register encoding value.
 MCRegister getUserRegister(unsigned Code, const MCRegisterInfo &MRI);
+
+// Compress instruction when density option is enabled.
+bool compress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
 } // namespace Xtensa
 } // end namespace llvm
 

@@ -36,7 +36,7 @@ extern cl::opt<bool> AbsoluteLiterals;
 cl::opt<bool> Longcalls(
     "longcalls",
     cl::desc("Enable longcall relaxation"),
-    cl::init(false));
+    cl::init(true));
 
 cl::opt<bool> TargetAlign(
     "target-align",
@@ -523,6 +523,11 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   }
   default:
     break;
+  }
+
+  MCInst CInst;
+  if (Xtensa::compress(CInst, Inst, *STI)) {
+    Inst = CInst;
   }
 
   return true;
