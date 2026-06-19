@@ -12,39 +12,72 @@
 
 #include "XtensaTargetStreamer.h"
 #include "XtensaInstPrinter.h"
+#include "MCTargetDesc/XtensaMCTargetDesc.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCSectionELF.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormattedStream.h"
 
 using namespace llvm;
 
-static std::string getLiteralSectionName(StringRef CSectionName) {
+namespace llvm {
+cl::opt<bool> TextSectionLiterals(
+    "text-section-literals",
+    cl::desc("Put literal pools in a text section"),
+    cl::init(false));
+
+cl::opt<bool> AbsoluteLiterals(
+    "absolute-literals",
+    cl::desc("Enable absolute literal mode"),
+    cl::init(false));
+
+extern cl::opt<bool> AutoLitpools;
+}
+
+static std::string getLiteralSectionName(StringRef CSectionName, bool AbsoluteLiterals) {
   std::size_t Pos = CSectionName.find(".text");
   std::string SectionName;
+  std::string Suffix = AbsoluteLiterals ? ".lit4" : ".literal";
   if (Pos != std::string::npos) {
     SectionName = CSectionName.substr(0, Pos);
-
+ 
     if (Pos > 0)
       SectionName += ".text";
-
+ 
     CSectionName = CSectionName.drop_front(Pos);
     CSectionName.consume_front(".text");
-
-    SectionName += ".literal";
+ 
+    SectionName += Suffix;
     SectionName += CSectionName;
   } else {
     SectionName = CSectionName;
-    SectionName += ".literal";
+    SectionName += Suffix;
   }
   return SectionName;
 }
 
 XtensaTargetStreamer::XtensaTargetStreamer(MCStreamer &S)
-    : MCTargetStreamer(S) {}
+    : MCTargetStreamer(S), AbsoluteLiteralsEnabled(AbsoluteLiterals),
+      AutoLitpoolsEnabled(AutoLitpools) {}
+
+void XtensaTargetStreamer::emitLiteralPrefix(StringRef Prefix) {
+  LiteralPrefixStack.push_back(Prefix.str());
+}
+
+void XtensaTargetStreamer::emitLiteralPrefixEnd() {
+  if (!LiteralPrefixStack.empty())
+    LiteralPrefixStack.pop_back();
+}
+
+void XtensaTargetStreamer::finish() {
+  MCTargetStreamer::finish();
+}
 
 XtensaTargetAsmStreamer::XtensaTargetAsmStreamer(MCStreamer &S,
                                                  formatted_raw_ostream &OS)
@@ -52,6 +85,33 @@ XtensaTargetAsmStreamer::XtensaTargetAsmStreamer(MCStreamer &S,
 
 void XtensaTargetAsmStreamer::emitLiteral(MCSymbol *LblSym, const MCExpr *Value,
                                           bool SwitchLiteralSection, SMLoc L) {
+  MCStreamer &OutStreamer = getStreamer();
+  if ((TextSectionLiterals || AutoLitpoolsEnabled) && SwitchLiteralSection) {
+    MCSection *CurSection = OutStreamer.getCurrentSectionOnly();
+    LiteralMap[CurSection].push_back({LblSym, Value, L});
+    return;
+  }
+
+  if (SwitchLiteralSection) {
+    auto *CS = static_cast<MCSectionELF *>(OutStreamer.getCurrentSectionOnly());
+    std::string SectionName;
+    if (!LiteralPrefixStack.empty() && !LiteralPrefixStack.back().empty()) {
+      SectionName = LiteralPrefixStack.back() + (AbsoluteLiteralsEnabled ? ".lit4" : ".literal");
+    } else {
+      SectionName = getLiteralSectionName(CS->getName(), AbsoluteLiteralsEnabled);
+    }
+
+    unsigned Flags = ELF::SHF_ALLOC;
+    if (CS->getFlags() & ELF::SHF_EXECINSTR)
+      Flags |= ELF::SHF_EXECINSTR;
+
+    MCSection *ConstSection = OutStreamer.getContext().getELFSection(
+        SectionName, ELF::SHT_PROGBITS, Flags);
+    OutStreamer.pushSection();
+    OutStreamer.switchSection(ConstSection);
+    OutStreamer.emitValueToAlignment(Align(4));
+  }
+
   SmallString<60> Str;
   raw_svector_ostream LiteralStr(Str);
 
@@ -67,10 +127,27 @@ void XtensaTargetAsmStreamer::emitLiteral(MCSymbol *LblSym, const MCExpr *Value,
   }
 
   OS << LiteralStr.str();
+
+  if (SwitchLiteralSection) {
+    OutStreamer.popSection();
+  }
 }
 
 void XtensaTargetAsmStreamer::emitLiteralPosition() {
-  OS << "\t.literal_position\n";
+  MCStreamer &OutStreamer = getStreamer();
+  MCSection *CurSection = OutStreamer.getCurrentSectionOnly();
+  auto it = LiteralMap.find(CurSection);
+  bool HasLiterals = (it != LiteralMap.end() && !it->second.empty());
+  if (TextSectionLiterals || AutoLitpoolsEnabled || HasLiterals) {
+    if (HasLiterals) {
+      for (const auto &Lit : it->second) {
+        emitLiteral(Lit.Sym, Lit.Value, false, Lit.Loc);
+      }
+      it->second.clear();
+    }
+  } else {
+    OS << "\t.literal_position\n";
+  }
 }
 
 void XtensaTargetAsmStreamer::startLiteralSection(MCSection *BaseSection) {
@@ -94,19 +171,63 @@ void XtensaTargetAsmStreamer::startLiteralSection(MCSection *BaseSection) {
   emitLiteralPosition();
 }
 
-XtensaTargetELFStreamer::XtensaTargetELFStreamer(MCStreamer &S)
-    : XtensaTargetStreamer(S) {}
+void XtensaTargetAsmStreamer::emitLiteralPrefix(StringRef Prefix) {
+  XtensaTargetStreamer::emitLiteralPrefix(Prefix);
+  if (!Prefix.empty()) {
+    OS << "\t.begin\tliteral_prefix\t" << Prefix << "\n";
+  } else {
+    OS << "\t.begin\tliteral_prefix\n";
+  }
+}
+
+void XtensaTargetAsmStreamer::emitLiteralPrefixEnd() {
+  XtensaTargetStreamer::emitLiteralPrefixEnd();
+  OS << "\t.end\tliteral_prefix\n";
+}
+
+void XtensaTargetAsmStreamer::finish() {
+  MCStreamer &OutStreamer = getStreamer();
+  for (auto &Pair : LiteralMap) {
+    MCSection *Sec = Pair.first;
+    if (!Pair.second.empty()) {
+      OutStreamer.pushSection();
+      OutStreamer.switchSection(Sec);
+      emitLiteralPosition();
+      OutStreamer.popSection();
+    }
+  }
+  XtensaTargetStreamer::finish();
+}
+
+XtensaTargetELFStreamer::XtensaTargetELFStreamer(MCStreamer &S, const MCSubtargetInfo &STI)
+    : XtensaTargetStreamer(S), STI(STI) {}
 
 void XtensaTargetELFStreamer::emitLiteral(MCSymbol *LblSym, const MCExpr *Value,
                                           bool SwitchLiteralSection, SMLoc L) {
   MCStreamer &OutStreamer = getStreamer();
+  if ((TextSectionLiterals || AutoLitpoolsEnabled) && SwitchLiteralSection) {
+    MCSection *CurSection = OutStreamer.getCurrentSectionOnly();
+    LiteralMap[CurSection].push_back({LblSym, Value, L});
+    return;
+  }
+
   if (SwitchLiteralSection) {
     MCContext &Context = OutStreamer.getContext();
     auto *CS = static_cast<MCSectionELF *>(OutStreamer.getCurrentSectionOnly());
-    std::string SectionName = getLiteralSectionName(CS->getName());
+    std::string SectionName;
+    if (!LiteralPrefixStack.empty() && !LiteralPrefixStack.back().empty()) {
+      SectionName = LiteralPrefixStack.back() + (AbsoluteLiteralsEnabled ? ".lit4" : ".literal");
+    } else {
+      SectionName = getLiteralSectionName(CS->getName(), AbsoluteLiteralsEnabled);
+    }
+
+    unsigned Flags = ELF::SHF_ALLOC;
+    if (CS->getFlags() & ELF::SHF_EXECINSTR)
+      Flags |= ELF::SHF_EXECINSTR;
 
     MCSection *ConstSection = Context.getELFSection(
-        SectionName, ELF::SHT_PROGBITS, ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
+        SectionName, ELF::SHT_PROGBITS, Flags);
+    ConstSection->setAlignment(Align(4));
 
     OutStreamer.pushSection();
     OutStreamer.switchSection(ConstSection);
@@ -120,15 +241,78 @@ void XtensaTargetELFStreamer::emitLiteral(MCSymbol *LblSym, const MCExpr *Value,
   }
 }
 
+void XtensaTargetELFStreamer::emitLiteralPosition() {
+  MCStreamer &OutStreamer = getStreamer();
+  MCSection *CurSection = OutStreamer.getCurrentSectionOnly();
+  auto it = LiteralMap.find(CurSection);
+  if (it != LiteralMap.end() && !it->second.empty()) {
+    OutStreamer.emitValueToAlignment(Align(4));
+    for (const auto &Lit : it->second) {
+      OutStreamer.emitLabel(Lit.Sym, Lit.Loc);
+      OutStreamer.emitValue(Lit.Value, 4, Lit.Loc);
+    }
+    it->second.clear();
+  }
+}
+
 void XtensaTargetELFStreamer::startLiteralSection(MCSection *BaseSection) {
   MCContext &Context = getStreamer().getContext();
 
-  std::string SectionName = getLiteralSectionName(BaseSection->getName());
+  std::string SectionName;
+  if (!LiteralPrefixStack.empty() && !LiteralPrefixStack.back().empty()) {
+    SectionName = LiteralPrefixStack.back() + (AbsoluteLiteralsEnabled ? ".lit4" : ".literal");
+  } else {
+    SectionName = getLiteralSectionName(BaseSection->getName(), AbsoluteLiteralsEnabled);
+  }
+
+  auto *BS = static_cast<MCSectionELF *>(BaseSection);
+  unsigned Flags = ELF::SHF_ALLOC;
+  if (BS->getFlags() & ELF::SHF_EXECINSTR)
+    Flags |= ELF::SHF_EXECINSTR;
 
   MCSection *ConstSection = Context.getELFSection(
-      SectionName, ELF::SHT_PROGBITS, ELF::SHF_EXECINSTR | ELF::SHF_ALLOC);
+      SectionName, ELF::SHT_PROGBITS, Flags);
 
   ConstSection->setAlignment(Align(4));
+}
+
+void XtensaTargetELFStreamer::emitLiteralPrefix(StringRef Prefix) {
+  XtensaTargetStreamer::emitLiteralPrefix(Prefix);
+}
+
+void XtensaTargetELFStreamer::emitLiteralPrefixEnd() {
+  XtensaTargetStreamer::emitLiteralPrefixEnd();
+}
+
+void XtensaTargetELFStreamer::finish() {
+  MCStreamer &OutStreamer = getStreamer();
+  MCContext &Context = OutStreamer.getContext();
+  for (auto &Pair : LiteralMap) {
+    MCSection *Sec = Pair.first;
+    if (!Pair.second.empty()) {
+      OutStreamer.pushSection();
+      OutStreamer.switchSection(Sec);
+      
+      bool IsText = Sec->isText();
+      MCSymbol *PostLabel = nullptr;
+      if (IsText) {
+        PostLabel = Context.createTempSymbol();
+        MCInst Jmp;
+        Jmp.setOpcode(Xtensa::J);
+        Jmp.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(PostLabel, Context)));
+        OutStreamer.emitInstruction(Jmp, STI);
+      }
+      
+      emitLiteralPosition();
+      
+      if (IsText) {
+        OutStreamer.emitLabel(PostLabel);
+      }
+      
+      OutStreamer.popSection();
+    }
+  }
+  XtensaTargetStreamer::finish();
 }
 
 MCELFStreamer &XtensaTargetELFStreamer::getStreamer() {

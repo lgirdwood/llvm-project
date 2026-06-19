@@ -31,7 +31,7 @@ public:
 };
 
 namespace Xtensa {
-enum Specifier { S_None, S_TPOFF };
+enum Specifier { S_None, S_TPOFF, S_PLT };
 
 uint8_t parseSpecifier(StringRef name);
 StringRef getSpecifierName(uint8_t S);

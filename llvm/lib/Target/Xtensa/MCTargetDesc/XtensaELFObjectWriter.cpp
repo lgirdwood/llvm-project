@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MCTargetDesc/XtensaFixupKinds.h"
 #include "MCTargetDesc/XtensaMCAsmInfo.h"
 #include "MCTargetDesc/XtensaMCTargetDesc.h"
 #include "llvm/ADT/STLExtras.h"
@@ -50,8 +51,42 @@ unsigned XtensaObjectWriter::getRelocType(const MCFixup &Fixup,
 
   switch ((unsigned)Fixup.getKind()) {
   case FK_Data_4:
+    if (IsPCRel)
+      return ELF::R_XTENSA_32_PCREL;
+    if (Specifier == Xtensa::S_PLT)
+      return ELF::R_XTENSA_PLT;
     return Specifier == Xtensa::S_TPOFF ? ELF::R_XTENSA_TLS_TPOFF
                                         : ELF::R_XTENSA_32;
+  case Xtensa::fixup_xtensa_slot0:
+    return ELF::R_XTENSA_SLOT0_OP;
+  case Xtensa::fixup_xtensa_slot1:
+    return ELF::R_XTENSA_SLOT1_OP;
+  case Xtensa::fixup_xtensa_slot2:
+    return ELF::R_XTENSA_SLOT2_OP;
+  case Xtensa::fixup_xtensa_slot3:
+    return ELF::R_XTENSA_SLOT3_OP;
+  case Xtensa::fixup_xtensa_slot4:
+    return ELF::R_XTENSA_SLOT4_OP;
+  case Xtensa::fixup_xtensa_slot5:
+    return ELF::R_XTENSA_SLOT5_OP;
+  case Xtensa::fixup_xtensa_slot6:
+    return ELF::R_XTENSA_SLOT6_OP;
+  case Xtensa::fixup_xtensa_slot7:
+    return ELF::R_XTENSA_SLOT7_OP;
+  case Xtensa::fixup_xtensa_slot8:
+    return ELF::R_XTENSA_SLOT8_OP;
+  case Xtensa::fixup_xtensa_slot9:
+    return ELF::R_XTENSA_SLOT9_OP;
+  case Xtensa::fixup_xtensa_slot10:
+    return ELF::R_XTENSA_SLOT10_OP;
+  case Xtensa::fixup_xtensa_slot11:
+    return ELF::R_XTENSA_SLOT11_OP;
+  case Xtensa::fixup_xtensa_slot12:
+    return ELF::R_XTENSA_SLOT12_OP;
+  case Xtensa::fixup_xtensa_slot13:
+    return ELF::R_XTENSA_SLOT13_OP;
+  case Xtensa::fixup_xtensa_slot14:
+    return ELF::R_XTENSA_SLOT14_OP;
   default:
     return ELF::R_XTENSA_SLOT0_OP;
   }

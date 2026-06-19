@@ -788,23 +788,34 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
   std::string name;
   unsigned char TF = 0;
 
+  bool UsePLT = false;
+  if (isPositionIndependent()) {
+    if (isa<ExternalSymbolSDNode>(Callee)) {
+      UsePLT = true;
+    } else if (const auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
+      const GlobalValue *GV = G->getGlobal();
+      if (!GV->isDSOLocal()) {
+        UsePLT = true;
+      }
+    }
+  }
+
   // Accept direct calls by converting symbolic call addresses to the
   // associated Target* opcodes.
   if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     name = E->getSymbol();
     TF = E->getTargetFlags();
-    if (isPositionIndependent()) {
-      report_fatal_error("PIC relocations is not supported");
-    } else
+    if (!isPositionIndependent())
       Callee = DAG.getTargetExternalSymbol(E->getSymbol(), PtrVT, TF);
   } else if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
     const GlobalValue *GV = G->getGlobal();
     name = GV->getName().str();
   }
 
-  if ((!name.empty()) && isLongCall(name.c_str())) {
+  if ((!name.empty()) && (isLongCall(name.c_str()) || UsePLT)) {
     // Create a constant pool entry for the callee address
-    XtensaCP::XtensaCPModifier Modifier = XtensaCP::no_modifier;
+    XtensaCP::XtensaCPModifier Modifier =
+        UsePLT ? XtensaCP::PLT : XtensaCP::no_modifier;
     XtensaMachineFunctionInfo *XtensaFI =
         MF.getInfo<XtensaMachineFunctionInfo>();
     unsigned LabelId = XtensaFI->createCPLabelId();

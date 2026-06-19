@@ -170,7 +170,7 @@ void XtensaAsmPrinter::emitMachineConstantPoolValue(
   }
 
   const MCExpr *Expr = MCSymbolRefExpr::create(MCSym, Spec, OutContext);
-  TS->emitLiteral(LblSym, Expr, false);
+  TS->emitLiteral(LblSym, Expr, true);
 }
 
 void XtensaAsmPrinter::emitMachineConstantPoolEntry(
@@ -199,7 +199,7 @@ void XtensaAsmPrinter::emitMachineConstantPoolEntry(
       llvm_unreachable("unexpected constant pool entry type");
     }
 
-    TS->emitLiteral(LblSym, Value, false);
+    TS->emitLiteral(LblSym, Value, true);
   }
 }
 
@@ -219,6 +219,7 @@ void XtensaAsmPrinter::emitConstantPool() {
   auto *TS =
       static_cast<XtensaTargetStreamer *>(OutStreamer->getTargetStreamer());
   MCSection *CS = getObjFileLowering().SectionForGlobal(&F, TM);
+  OutStreamer->switchSection(CS);
   TS->startLiteralSection(CS);
 
   // The ELF streamer's startLiteralSection() only registers an aligned
@@ -239,6 +240,9 @@ void XtensaAsmPrinter::emitConstantPool() {
   for (const MachineConstantPoolEntry &CPE : CP) {
     emitMachineConstantPoolEntry(CPE, CPIdx++);
   }
+
+  if (TextSectionLiterals)
+    TS->emitLiteralPosition();
 
   OutStreamer->popSection();
 }
