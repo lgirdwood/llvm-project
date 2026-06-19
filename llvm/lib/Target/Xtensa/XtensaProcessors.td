@@ -22,11 +22,11 @@ def : Proc<"generic", []>;
 
 // dc233c - Diamond Standard 233L core (Xtensa LX reference)
 def : Proc<"dc233c", [FeatureDensity, FeatureWindowed, FeatureLoop, FeatureSEXT, FeatureNSA,
-                      FeatureMul16, FeatureMul32, FeatureDiv32, FeatureS32C1I, FeatureTHREADPTR,
+                      FeatureMul16, FeatureMul32, FeatureMAC16, FeatureDiv32, FeatureS32C1I, FeatureTHREADPTR,
                       FeatureDebug, FeatureException, FeatureHighPriInterrupts,
-                      FeatureHighPriInterruptsLevel6, FeatureCoprocessor, FeatureInterrupt,
+                      FeatureHighPriInterruptsLevel6, FeatureHighPriInterruptsLevel7, FeatureCoprocessor, FeatureInterrupt,
                       FeatureDataCache, FeatureRelocatableVector, FeatureTimers3, FeaturePRID,
-                      FeatureMINMAX, FeatureCLAMPS]>;
+                      FeatureRegionProtection, FeatureExtendedL32R, FeatureMINMAX, FeatureCLAMPS, FeatureMiscSR]>;
 
 // sample_controller - Xtensa sample controller core (no loops, no FP)
 def : Proc<"sample_controller", [FeatureDensity, FeatureWindowed, FeatureSEXT, FeatureNSA,
@@ -88,7 +88,7 @@ def : Proc<"intel_tgl_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, F
                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                FeatureHighPriInterruptsLevel6, FeatureCoprocessor, FeatureInterrupt,
                                FeatureDataCache, FeatureRelocatableVector, FeatureTimers3, FeaturePRID,
-                               FeatureMINMAX, FeatureCLAMPS, FeatureHIFI3]>;
+                               FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI3]>;
 
 // intel_ace15_adsp - ACE 1.5 Audio DSP (HiFi4)
 // Note: FeatureSingleFloat intentionally omitted - the Zephyr SDK GNU
@@ -99,14 +99,28 @@ def : Proc<"intel_ace15_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean,
                                 FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                 FeatureHighPriInterruptsLevel4, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                 FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
-                                FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
+                                FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
+
+def : Proc<"intel_ace15_mtpm", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+                                FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
+                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
+                                FeatureHighPriInterruptsLevel4, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
+                                FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
+                                FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
 
 // intel_ace30_adsp - ACE 3.0 Audio DSP (HiFi4)
 def : Proc<"intel_ace30_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
-                               FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX,
+                               FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
+                               FeatureCLAMPS, FeatureHIFI4]>;
+
+def : Proc<"intel_ace30_ptl", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+                               FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
+                               FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
+                               FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
+                               FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
                                FeatureCLAMPS, FeatureHIFI4]>;
 
 // intel_ace40_adsp - ACE 4.0 Audio DSP (HiFi5)
@@ -116,6 +130,14 @@ def : Proc<"intel_ace40_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean,
                            FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                            FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX,
                            FeatureCLAMPS, FeatureHIFI5]>;
+
+def : Proc<"intel_ace40", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
+                           FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
+                           FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
+                           FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
+                           FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureMiscSR, FeatureMINMAX,
+                           FeatureCLAMPS, FeatureHIFI5]>;
+
 
 //===----------------------------------------------------------------------===//
 // AMD Audio Co-Processor family
