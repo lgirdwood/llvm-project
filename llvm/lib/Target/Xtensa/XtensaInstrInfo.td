@@ -181,6 +181,12 @@ def SSA8L : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
   let t = 0x0;
 }
 
+def SSA8B : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
+                    "ssa8b\t$s", []> {
+  let r = 0x3;
+  let t = 0x0;
+}
+
 def SSAI : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins uimm5:$imm),
                    "ssai\t$imm", []> {
   bits<5> imm;
@@ -260,6 +266,99 @@ let isCodeGenOnly = 1, mayLoad = 1 in {
     let imm8{7-0} = addr{11-4};
     let s{3-0} = addr{3-0};
   }
+}
+
+//===----------------------------------------------------------------------===//
+// Cache instructions
+//===----------------------------------------------------------------------===//
+let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
+  class Cache_Inst<bits<4> t_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm8_x4:$imm8),
+                instrAsm#"\t$s, $imm8", []> {
+    let r = 0x7;
+    let t = t_val;
+    let isAsmParserOnly = 1;
+  }
+
+  def DHWB  : Cache_Inst<0x4, "dhwb">;
+  def DHWBI : Cache_Inst<0x5, "dhwbi">;
+  def DHI   : Cache_Inst<0x6, "dhi">;
+  def DII   : Cache_Inst<0x7, "dii">;
+  def DPFR  : Cache_Inst<0x0, "dpfr">;
+  def DPFW  : Cache_Inst<0x1, "dpfw">;
+
+  class Cache_Lock_Inst<bits<4> t_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm8:$imm8),
+                instrAsm#"\t$s, $imm8", []> {
+    let r = 0x7;
+    let t = t_val;
+    let isAsmParserOnly = 1;
+  }
+
+  def DPFL  : Cache_Lock_Inst<0x8, "dpfl">;
+  def IPFL  : Cache_Lock_Inst<0xd, "ipfl">;
+
+  class Cache_Ind_Inst<bits<4> op1_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm4_x16:$imm),
+                instrAsm#"\t$s, $imm", []> {
+    bits<4> imm;
+
+    let r = 0x7;
+    let t = 0x8;
+    let Inst{23-20} = imm;
+    let Inst{19-16} = op1_val;
+    let isAsmParserOnly = 1;
+  }
+
+  def DIWB  : Cache_Ind_Inst<0x4, "diwb">;
+  def DIWBI : Cache_Ind_Inst<0x5, "diwbi">;
+
+  def IHI   : Cache_Inst<0xe, "ihi">;
+  def III   : Cache_Inst<0xf, "iii">;
+
+  class Cache_Ind_T_Inst<bits<4> t_val, bits<4> op1_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm4_x16:$imm),
+                instrAsm#"\t$s, $imm", []> {
+    bits<4> imm;
+
+    let r = 0x7;
+    let t = t_val;
+    let Inst{23-20} = imm;
+    let Inst{19-16} = op1_val;
+    let isAsmParserOnly = 1;
+  }
+
+  def DHU  : Cache_Ind_T_Inst<0x8, 0x2, "dhu">;
+  def DIU  : Cache_Ind_T_Inst<0x8, 0x3, "diu">;
+  def IHU  : Cache_Ind_T_Inst<0xd, 0x2, "ihu">;
+  def IIU  : Cache_Ind_T_Inst<0xd, 0x3, "iiu">;
+
+  class Cache_Tag_Inst<bits<4> op1_val, string instrAsm>
+    : RRR_Inst<0x00, op1_val, 0x0f, (outs AR:$t), (ins AR:$s),
+               instrAsm#"\t$t, $s", []> {
+    let r = 0x1;
+    let isAsmParserOnly = 1;
+  }
+
+  def LICT : Cache_Tag_Inst<0x0, "lict">;
+  def LICW : Cache_Tag_Inst<0x2, "licw">;
+  def LDCT : Cache_Tag_Inst<0x8, "ldct">;
+  def LDCW : Cache_Tag_Inst<0xa, "ldcw">;
+  def SICT : Cache_Tag_Inst<0x1, "sict">;
+  def SICW : Cache_Tag_Inst<0x3, "sicw">;
+  def SDCT : Cache_Tag_Inst<0x9, "sdct">;
+  def SDCW : Cache_Tag_Inst<0xb, "sdcw">;
+
+  class Cache_Inc_Inst<bits<4> t_val, bits<8> imm_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s),
+                instrAsm#"\t$s", []> {
+    let r = 0x7;
+    let t = t_val;
+    let imm8 = imm_val;
+    let isAsmParserOnly = 1;
+  }
+
+  def DIWBUI_P : Cache_Inc_Inst<0x8, 0x0f, "diwbui.p">;
 }
 
 //extending loads

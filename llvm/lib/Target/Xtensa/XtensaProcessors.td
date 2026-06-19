@@ -86,7 +86,7 @@ def : Proc<"intel_tgl_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, F
                                FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32,
                                FeatureS32C1I, FeatureSingleFloat,
                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
-                               FeatureHighPriInterruptsLevel6, FeatureCoprocessor, FeatureInterrupt,
+                               FeatureHighPriInterruptsLevel7, FeatureCoprocessor, FeatureInterrupt,
                                FeatureDataCache, FeatureRelocatableVector, FeatureTimers3, FeaturePRID,
                                FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI3]>;
 
@@ -97,14 +97,14 @@ def : Proc<"intel_tgl_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, F
 def : Proc<"intel_ace15_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                 FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
                                 FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
-                                FeatureHighPriInterruptsLevel4, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
+                                FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                 FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
                                 FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
 
 def : Proc<"intel_ace15_mtpm", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                 FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
                                 FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
-                                FeatureHighPriInterruptsLevel4, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
+                                FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                 FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
                                 FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
 

@@ -105,6 +105,15 @@ def ATOMCTL : SRReg<99, "atomctl", ["ATOMCTL", "99"]>;
 
 def DDR : SRReg<104, "ddr", ["DDR", "104"]>;
 
+// Memory Error Save Register
+def MESAVE : SRReg<108, "mesave", ["MESAVE", "108"]>;
+
+// Memory Error Control Register
+def MECR : SRReg<110, "mecr", ["MECR", "110"]>;
+
+// Memory Error Status Register
+def MESR : SRReg<115, "mesr", ["MESR", "115"]>;
+
 // Instuction break address register 0
 def IBREAKA0 : SRReg<128, "ibreaka0", ["IBREAKA0", "128"]>;
 
@@ -219,13 +228,16 @@ def M1    : SRReg<33, "m1", ["M1", "33"]>;
 def M2    : SRReg<34, "m2", ["M2", "34"]>;
 def M3    : SRReg<35, "m3", ["M3", "35"]>;
 
+// Cache Prefetch Control Register
+def PREFCTL : SRReg<40, "prefctl", ["PREFCTL", "40"]>;
+
 def MR01 :  RegisterClass<"Xtensa", [i32], 32, (add M0, M1)>;
 def MR23 :  RegisterClass<"Xtensa", [i32], 32, (add M2, M3)>;
 def MR   :  RegisterClass<"Xtensa", [i32], 32, (add MR01, MR23)>;
 
 def SR :  RegisterClass<"Xtensa", [i32], 32, (add
-  LBEG, LEND, LCOUNT, SAR, BREG, SCOMPARE1, LITBASE, ACCLO, ACCHI, MR,
-  WINDOWBASE, WINDOWSTART, IBREAKENABLE, MEMCTL, ATOMCTL, DDR, IBREAKA0, IBREAKA1,
+  LBEG, LEND, LCOUNT, SAR, BREG, SCOMPARE1, LITBASE, ACCLO, ACCHI, MR, PREFCTL,
+  WINDOWBASE, WINDOWSTART, IBREAKENABLE, MEMCTL, ATOMCTL, DDR, MESAVE, MECR, MESR, IBREAKA0, IBREAKA1,
   DBREAKA0, DBREAKA1, DBREAKC0, DBREAKC1, CONFIGID0, EPC1, EPC2, EPC3, EPC4, EPC5,
   EPC6, EPC7, DEPC, EPS2, EPS3, EPS4, EPS5, EPS6, EPS7, CONFIGID1, EXCSAVE1, EXCSAVE2,
   EXCSAVE3, EXCSAVE4, EXCSAVE5, EXCSAVE6, EXCSAVE7, CPENABLE, INTERRUPT, INTSET, INTCLEAR, INTENABLE,
