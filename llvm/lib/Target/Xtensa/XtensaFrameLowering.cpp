@@ -349,6 +349,10 @@ bool XtensaFrameLowering::restoreCalleeSavedRegisters(
   return TargetFrameLowering::restoreCalleeSavedRegisters(MBB, MI, CSI, TRI);
 }
 
+bool XtensaFrameLowering::hasReservedCallFrame(const MachineFunction &MF) const {
+  return !MF.getFrameInfo().hasVarSizedObjects();
+}
+
 // Eliminate ADJCALLSTACKDOWN, ADJCALLSTACKUP pseudo instructions
 MachineBasicBlock::iterator XtensaFrameLowering::eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB,
