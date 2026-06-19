@@ -523,8 +523,8 @@ void InputSection::copyRelocations(Ctx &ctx, uint8_t *buf,
 
       int64_t addend = rel.addend;
       const uint8_t *bufLoc = sec->content().begin() + rel.offset;
-      if (!RelTy::HasAddend)
-        addend = target.getImplicitAddend(bufLoc, type);
+      if (!RelTy::HasAddend || ctx.arg.emachine == EM_XTENSA)
+        addend += target.getImplicitAddend(bufLoc, type);
 
       if (ctx.arg.emachine == EM_MIPS &&
           target.getRelExpr(type, sym, bufLoc) == RE_MIPS_GOTREL) {
@@ -1074,7 +1074,7 @@ void InputSection::relocateNonAlloc(Ctx &ctx, uint8_t *buf,
     const uint64_t offset = rel.r_offset;
     uint8_t *bufLoc = buf + offset;
     int64_t addend = getAddend<ELFT>(rel);
-    if (!RelTy::HasAddend)
+    if (!RelTy::HasAddend || emachine == EM_XTENSA)
       addend += target.getImplicitAddend(bufLoc, type);
 
     Symbol &sym = f->getRelocTargetSym(rel);

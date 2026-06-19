@@ -176,9 +176,11 @@ public:
 
 template <class ELFT, class RelTy>
 int64_t RelocScan::getAddend(const RelTy &r, RelType type) {
-  return RelTy::HasAddend ? elf::getAddend<ELFT>(r)
-                          : ctx.target->getImplicitAddend(
-                                sec->content().data() + r.r_offset, type);
+  int64_t addend = RelTy::HasAddend ? elf::getAddend<ELFT>(r) : 0;
+  if (!RelTy::HasAddend || ctx.arg.emachine == EM_XTENSA)
+    addend += ctx.target->getImplicitAddend(
+                  sec->content().data() + r.r_offset, type);
+  return addend;
 }
 
 template <class ELFT, class RelTy>
