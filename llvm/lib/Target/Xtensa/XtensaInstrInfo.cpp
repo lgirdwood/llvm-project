@@ -243,16 +243,56 @@ unsigned XtensaInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   }
   case TargetOpcode::BUNDLE:
     return getInstBundleSize(MI);
-  default:
+  default: {
+    StringRef Name = getName(MI.getOpcode());
+    if (Name.starts_with("AE_")) {
+      if (Name == "AE_LA128_PP_PSEUDO" || Name == "AE_SA128POS_FP_PSEUDO" ||
+          Name == "AE_LA32X2X2_IP_PSEUDO" || Name == "AE_LA32X2X2_IP_HIFI5" ||
+          Name == "AE_LA16X4X2_IP_PSEUDO" || Name == "AE_LA16X4X2_IP_HIFI5" ||
+          Name == "AE_SA32X2X2_IP_PSEUDO" || Name == "AE_SA32X2X2_IP_HIFI5" ||
+          Name == "AE_SA16X4X2_IP_PSEUDO" || Name == "AE_SA16X4X2_IP_HIFI5" ||
+          Name == "AE_MULF2P32X16X4RS_HIFI5" || Name == "AE_MULF2P32X16X4RS_PSEUDO" ||
+          Name == "AE_MULF2P32X4RS_HIFI5" || Name == "AE_MULF2P32X4RS_PSEUDO" ||
+          Name == "AE_MULF32X2R_HH_LL_HIFI5" || Name == "AE_MULF32X2R_HH_LL_PSEUDO" ||
+           Name == "AE_L32X2X2_XC_PSEUDO" || Name == "AE_L32X2X2_XC1_PSEUDO" ||
+           Name == "AE_S32X2X2_XC1_PSEUDO") {
+        return 16;
+      }
+      if (Name == "AE_SRAA16RS" || Name == "AE_SRAA32RS" || Name == "AE_SLAI16S" ||
+          Name == "AE_ROUND16X4F32SASYM" || Name == "AE_MULAFD32X16X2_FIR_HH" ||
+          Name == "AE_ROUND16X4F32SSYM" || Name == "AE_ROUND32X2F64SSYM_REAL" ||
+          Name == "AE_ROUND32X2F64SASYM_REAL" || Name == "AE_MULAFD32X16X2_FIR_HL_REAL" ||
+          Name == "AE_MULAFD32X16X2_FIR_LH_REAL" || Name == "AE_MULAFD32X16X2_FIR_LL_REAL" ||
+          Name == "AE_MUL16X4_REAL" || Name == "AE_MULAF16SS_11_REAL" ||
+          Name == "AE_MULAF16SS_22_REAL" || Name == "AE_MULAF16SS_33_REAL" ||
+          Name == "AE_MULF16SS_11_REAL" || Name == "AE_MULF16SS_22_REAL" ||
+          Name == "AE_MULF16SS_33_REAL" || Name == "AE_EQ16_REAL" ||
+          Name == "AE_LT16_REAL" || Name == "AE_LE16_REAL" || Name == "AE_LE32_REAL" ||
+          Name == "AE_ROUND24X2F48SSYM_REAL") {
+        return 11;
+      }
+      if (Name == "AE_MOVAD16_1" || Name == "AE_SA16X4_IC_REAL" ||
+          Name == "AE_SA24X2_IP_REAL" || Name == "AE_LA16X4POS_PC_REAL" ||
+          Name == "AE_SA32X2_IC_REAL" || Name == "AE_S16_0_X" ||
+          Name == "AE_S16_0_XC" || Name == "AE_S16_0_XC1") {
+        return 6;
+      }
+      if (Name == "AE_SA16X4_IP_REAL" || Name == "AE_SA32X2_IP_REAL" ||
+          Name == "AE_S16_0_XP" || Name == "AE_S32_L_XP" ||
+          Name == "AE_EQ32_REAL" || Name == "AE_LT32_REAL") {
+        return 3;
+      }
+      unsigned Size = MI.getDesc().getSize();
+      if (Size == 0)
+        return 8;
+      return Size;
+    }
     unsigned Size = MI.getDesc().getSize();
     if (Size == 0) {
-      StringRef Name = getName(MI.getOpcode());
-      if (Name.starts_with("AE_")) {
-        return 8;
-      }
       return 4;
     }
     return Size;
+  }
   }
 }
 

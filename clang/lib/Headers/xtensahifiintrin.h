@@ -57,6 +57,7 @@ typedef int16_t ae_p16s;  /* scalar 16-bit fractional; sizeof == 2 */
 typedef int64_t ae_p24x2s __attribute__((aligned(8)));
 typedef int64_t ae_int24x2 __attribute__((aligned(8)));
 typedef int32_t ae_f24;   /* scalar 24-bit fixed-point; sizeof == 4 */
+typedef int32_t ae_q32s;
 
 /* HiFi5 128-bit types — pairs of 64-bit AE register values.
  * These are used by HiFi5 "x2" instructions (ae_l32x2x2, etc.) which
@@ -90,6 +91,9 @@ typedef unsigned char xtbool4;
 #define AE_L32_I(ptr, offset) (__builtin_xtensa_ae_l32_i((const void *)(ptr), (offset)))
 #define AE_L16_I(ptr, offset) (__builtin_xtensa_ae_l16_i((const void *)(ptr), (offset)))
 #define AE_L32_X(ptr, offset) (__builtin_xtensa_ae_l32_x((const void *)(ptr), (offset)))
+#define AE_L16_X(ptr, offset) (__builtin_xtensa_ae_l16_x((const void *)(ptr), (offset)))
+#define AE_L16M_I(ptr, offset) (__builtin_xtensa_ae_l16m_i((const void *)(ptr), (offset)))
+
 #define AE_L16X4_X3(val, ptr, offset) \
     val = (__builtin_xtensa_ae_l16x4_x((void **)&(ptr), (offset)))
 #define AE_L16X4_X(ptr, offset) \
@@ -102,7 +106,7 @@ typedef unsigned char xtbool4;
 #define AE_LA64_PP(ptr) \
     ((ae_valign)__builtin_xtensa_ae_la64_pp((void **)&(ptr)))
 #define AE_LA128_PP(ptr) \
-    ((ae_valign)__builtin_xtensa_ae_la128_pp((void **)&(ptr)))
+    ((ae_valignx2){__builtin_xtensa_ae_la128_pp((void **)&(ptr)), 0})
 /* Unaligned load macros — pass alignment token in, get updated token out.
  * The ae_valign (VALIGN register) is carried through explicitly so RA assigns
  * independent physical u-registers to inu vs outu. */
@@ -129,7 +133,7 @@ typedef unsigned char xtbool4;
 #define AE_SA64POS_FP(align, ptr) \
     __builtin_xtensa_ae_sa64pos_fp((align), (void *)(ptr))
 #define AE_SA128POS_FP(align, ptr) \
-  ((void)(align), __builtin_xtensa_ae_sa128pos_fp((const void *)(ptr)))
+  __builtin_xtensa_ae_sa128pos_fp(((align).lo), (const void *)(ptr))
 
 /* Post-increment Loads */
 #define AE_L32_IP(val, ptr, imm) \
@@ -155,6 +159,7 @@ typedef unsigned char xtbool4;
 #define AE_L32X2_XC1(val, ptr, offset) \
     val = (__builtin_xtensa_ae_l32x2_xc1((void **)&(ptr), (offset)))
 
+
 // Audio Engine Stores
 #define AE_S32_L_I(val, ptr, imm) \
     __builtin_xtensa_ae_s32_l_i(((val)), (void *)(ptr), (imm))
@@ -173,6 +178,7 @@ typedef unsigned char xtbool4;
 #define AE_S16_0_X(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_x(((val)), (void *)(ptr), (offset))
 
+
 // Post-increment Stores
 #define AE_S32_L_IP(val, ptr, imm) \
     __builtin_xtensa_ae_s32_l_ip((val), (void **)&(ptr), (imm))
@@ -184,12 +190,14 @@ typedef unsigned char xtbool4;
     __builtin_xtensa_ae_s16x4_ip((val), (void **)&(ptr), (imm))
 #define AE_S16_0_XP(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_xp((val), (void **)&(ptr), (offset))
+
 #define AE_S32_L_XP(val, ptr, offset) \
     __builtin_xtensa_ae_s32_l_xp((val), (void **)&(ptr), (offset))
 
 // Circular Base Stores
 #define AE_S16_0_XC(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_xc((val), (void **)&(ptr), (offset))
+
 #define AE_S16_0_XC1(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_xc1((val), (void **)&(ptr), (offset))
 #define AE_S32_L_XC(val, ptr, offset) \
@@ -375,6 +383,9 @@ typedef unsigned char xtbool4;
 #define AE_SUB32(a, b) (__builtin_xtensa_ae_sub32(((a)), ((b))))
 #define AE_SUB32S(a, b) (__builtin_xtensa_ae_sub32s(((a)), ((b))))
 #define AE_SUB64(a, b) (__builtin_xtensa_ae_sub64((a), (b)))
+#define AE_ADDSQ56S(a, b) (__builtin_xtensa_ae_addsq56s(((a)), ((b))))
+#define AE_ADDSUB32(a, b) (__builtin_xtensa_ae_addsub32(((a)), ((b))))
+#define AE_ADDSUB32S(a, b) (__builtin_xtensa_ae_addsub32s(((a)), ((b))))
 
 #define AE_MAX32(a, b) (__builtin_xtensa_ae_max32(((a)), ((b))))
 #define AE_MIN32(a, b) (__builtin_xtensa_ae_min32(((a)), ((b))))
@@ -384,6 +395,11 @@ typedef unsigned char xtbool4;
 #define AE_MAXABS32S(a, b) (__builtin_xtensa_ae_maxabs32s(((a)), ((b))))
 #define AE_NEG16S(a) (__builtin_xtensa_ae_neg16s(((a))))
 #define AE_NEG32S(a) (__builtin_xtensa_ae_neg32s(((a))))
+#define AE_ABS24S(a) (__builtin_xtensa_ae_abs24s(((a))))
+#define AE_ABS32(a) (__builtin_xtensa_ae_abs32(((a))))
+#define AE_ABS64(a) (__builtin_xtensa_ae_abs64(((a))))
+#define AE_ABS64S(a) (__builtin_xtensa_ae_abs64s(((a))))
+#define AE_ABSSQ56S(a) (__builtin_xtensa_ae_abssq56s(((a))))
 
 #define AE_AND16(a, b) (__builtin_xtensa_ae_and16(((a)), ((b))))
 #define AE_OR16(a, b) (__builtin_xtensa_ae_or16(((a)), ((b))))
@@ -553,7 +569,7 @@ typedef unsigned char xtbool4;
 /* AE_ZALIGN64/128 canonical definitions are in the HiFi5 section below.
  * Do not define a constant-zero fallback here — ae_valign is a struct
  * and cannot be cast from an integer literal. */
-#define AE_ZALIGN128() ((ae_valignx2){{0}, {0}})
+#define AE_ZALIGN128() ((ae_valignx2){0, 0})
 
 // Miscellaneous Arithmetic
 #define AE_F32_ADDS_F32(a, b) (__builtin_xtensa_ae_add32s((a), (b)))

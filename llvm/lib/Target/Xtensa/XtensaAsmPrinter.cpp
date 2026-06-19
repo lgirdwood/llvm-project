@@ -146,6 +146,7 @@ static unsigned getHIFIPseudoExpansion(unsigned Opc) {
   case Xtensa::AE_ADD16S_PSEUDO: return Xtensa::AE_ADD16S;
   case Xtensa::AE_MULFP16X4RAS: return Xtensa::AE_MULFP16X4RAS_REAL;
   case Xtensa::AE_MULFP16X4S: return Xtensa::AE_MULFP16X4S_REAL;
+  case Xtensa::AE_MULFP16X4RS: return Xtensa::AE_MULFP16X4RS_REAL;
   case Xtensa::AE_MULFP32X16X2RAS_H: return Xtensa::AE_MULFP32X16X2RAS_H_REAL;
   case Xtensa::AE_MULFP32X16X2RAS_L: return Xtensa::AE_MULFP32X16X2RAS_L_REAL;
   case Xtensa::AE_MULFP32X16X2RS_H: return Xtensa::AE_MULFP32X16X2RS_H_REAL;
@@ -509,11 +510,14 @@ void XtensaAsmPrinter::emitMachineConstantPoolEntry(
       Value = MCConstantExpr::create(CI->getValue().getSExtValue(), OutContext);
     } else if (isa<PointerType>(Ty)) {
       Value = lowerConstant(C);
-    } else {
-      llvm_unreachable("unexpected constant pool entry type");
     }
 
-    TS->emitLiteral(LblSym, Value, true);
+    if (Value) {
+      TS->emitLiteral(LblSym, Value, true);
+    } else {
+      OutStreamer->emitLabel(LblSym);
+      emitGlobalConstant(getDataLayout(), C);
+    }
   }
 }
 

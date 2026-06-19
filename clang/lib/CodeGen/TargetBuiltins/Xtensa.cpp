@@ -199,6 +199,29 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   case Xtensa::BI__builtin_xtensa_ae_neg32s:
     ID = Intrinsic::xtensa_ae_neg32s; break;
 
+  // Batch 1 & 2 Porting
+  case Xtensa::BI__builtin_xtensa_ae_abs24s:
+    ID = Intrinsic::xtensa_ae_abs24s; break;
+  case Xtensa::BI__builtin_xtensa_ae_abs32:
+    ID = Intrinsic::xtensa_ae_abs32; break;
+  case Xtensa::BI__builtin_xtensa_ae_abs64:
+    ID = Intrinsic::xtensa_ae_abs64; break;
+  case Xtensa::BI__builtin_xtensa_ae_abs64s:
+    ID = Intrinsic::xtensa_ae_abs64s; break;
+  case Xtensa::BI__builtin_xtensa_ae_abssq56s:
+    ID = Intrinsic::xtensa_ae_abssq56s; break;
+  case Xtensa::BI__builtin_xtensa_ae_addsq56s:
+    ID = Intrinsic::xtensa_ae_addsq56s; break;
+  case Xtensa::BI__builtin_xtensa_ae_addsub32:
+    ID = Intrinsic::xtensa_ae_addsub32; break;
+  case Xtensa::BI__builtin_xtensa_ae_addsub32s:
+    ID = Intrinsic::xtensa_ae_addsub32s; break;
+  case Xtensa::BI__builtin_xtensa_ae_l16_x:
+    ID = Intrinsic::xtensa_ae_l16_x; break;
+  case Xtensa::BI__builtin_xtensa_ae_l16m_i:
+    ID = Intrinsic::xtensa_ae_l16m_i; break;
+
+
   case Xtensa::BI__builtin_xtensa_ae_and16:
     ID = Intrinsic::xtensa_ae_and16; break;
   case Xtensa::BI__builtin_xtensa_ae_or16:
@@ -698,6 +721,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_l16x4_ip; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l16x4_xp:
     ID = Intrinsic::xtensa_ae_l16x4_xp; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
+
   case Xtensa::BI__builtin_xtensa_ae_l32_ip:
     ID = Intrinsic::xtensa_ae_l32_ip; IsPostUpdateLoad = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32_xp:
@@ -872,6 +896,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_s16_0_ip; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s16x4_ip:
     ID = Intrinsic::xtensa_ae_s16x4_ip; IsPostUpdateStore = true; break;
+
   case Xtensa::BI__builtin_xtensa_ae_s16_0_xp:
     ID = Intrinsic::xtensa_ae_s16_0_xp; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s32_l_xp:
@@ -890,6 +915,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   case Xtensa::BI__builtin_xtensa_ae_l16x4_x:
     ID = Intrinsic::xtensa_ae_l16x4_x; NeedsAlignedPtr8 = true;
     break;
+
 
   case Xtensa::BI__builtin_xtensa_ae_l16m_x:
     ID = Intrinsic::xtensa_ae_l16m_x; NeedsAlignedPtr8 = true;
@@ -925,6 +951,8 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     break;
   case Xtensa::BI__builtin_xtensa_ae_s32x2_x:
     ID = Intrinsic::xtensa_ae_s32x2_x;
+    break;
+
     break;
   }
 

@@ -35,6 +35,8 @@ let TargetPrefix = "xtensa" in {
   def int_xtensa_ae_l16x4_ip : Intrinsic<[llvm_v4i16_ty, llvm_ptr_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly, Align<ArgIndex<0>, 8>]>;
   def int_xtensa_ae_l16x4_x  : Intrinsic<[llvm_v4i16_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly, Align<ArgIndex<0>, 8>]>;
   def int_xtensa_ae_l16x4_xp : Intrinsic<[llvm_v4i16_ty, llvm_ptr_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly, Align<ArgIndex<0>, 8>]>;
+  def int_xtensa_ae_l16x4_i  : Intrinsic<[llvm_v4i16_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly, Align<ArgIndex<0>, 8>]>;
+  def int_xtensa_ae_l16x4_xc : Intrinsic<[llvm_v4i16_ty, llvm_ptr_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly, Align<ArgIndex<0>, 8>]>;
   def int_xtensa_ae_l16_xp   : Intrinsic<[llvm_v2i32_ty, llvm_ptr_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly]>;
   def int_xtensa_ae_l32_xp   : Intrinsic<[llvm_v2i32_ty, llvm_ptr_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly]>;
   
@@ -43,6 +45,10 @@ let TargetPrefix = "xtensa" in {
   def int_xtensa_ae_s32x2_ip : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
   def int_xtensa_ae_s16_0_ip : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly]>;
   def int_xtensa_ae_s16x4_ip : Intrinsic<[llvm_ptr_ty], [llvm_v4i16_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
+  def int_xtensa_ae_s16x4_i  : Intrinsic<[], [llvm_v4i16_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
+  def int_xtensa_ae_s16x4_x  : Intrinsic<[], [llvm_v4i16_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
+  def int_xtensa_ae_s16x4_xc : Intrinsic<[llvm_ptr_ty], [llvm_v4i16_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
+  def int_xtensa_ae_s16x4_xp : Intrinsic<[llvm_ptr_ty], [llvm_v4i16_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly, Align<ArgIndex<1>, 8>]>;
   def int_xtensa_ae_s16_0_xp : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly]>;
   def int_xtensa_ae_s32_l_xp : Intrinsic<[llvm_ptr_ty], [llvm_v2i32_ty, llvm_ptr_ty, llvm_i32_ty], [IntrWriteMem, IntrArgMemOnly]>;
 
@@ -419,4 +425,16 @@ let TargetPrefix = "xtensa" in {
   def int_xtensa_ae_mulf32x2r_hh_ll     : Intrinsic<[llvm_v2i32_ty, llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
   def int_xtensa_ae_mulf2p32x16x4rs     : Intrinsic<[llvm_v2i32_ty, llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty, llvm_v4i16_ty], [IntrNoMem]>;
   def int_xtensa_ae_mulf2p32x4rs        : Intrinsic<[llvm_v2i32_ty, llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty, llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
+
+  // Batch 1 & 2 Porting
+  def int_xtensa_ae_abs24s : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_abs32 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_abs64 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_abs64s : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_abssq56s : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_addsq56s : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_addsub32 : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_addsub32s : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty], [IntrNoMem]>;
+  def int_xtensa_ae_l16_x : Intrinsic<[llvm_v2i32_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly]>;
+  def int_xtensa_ae_l16m_i : Intrinsic<[llvm_v2i32_ty], [llvm_ptr_ty, llvm_i32_ty], [IntrReadMem, IntrArgMemOnly]>;
 }

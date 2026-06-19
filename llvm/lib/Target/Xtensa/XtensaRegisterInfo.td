@@ -107,6 +107,9 @@ def IBREAKENABLE : SRReg<96, "ibreakenable", ["IBREAKENABLE", "96"]>;
 // Memory Control Register
 def MEMCTL : SRReg<97, "memctl", ["MEMCTL", "97"]>;
 
+// Cache Address Disable Register
+def CACHEADRDIS : SRReg<98, "cacheadrdis", ["CACHEADRDIS", "98"]>;
+
 // Atomic Operation Control
 def ATOMCTL : SRReg<99, "atomctl", ["ATOMCTL", "99"]>;
 
@@ -244,7 +247,7 @@ def MR   :  RegisterClass<"Xtensa", [i32], 32, (add MR01, MR23)>;
 
 def SR :  RegisterClass<"Xtensa", [i32], 32, (add
   LBEG, LEND, LCOUNT, SAR, BREG, SCOMPARE1, LITBASE, ACCLO, ACCHI, MR, PREFCTL,
-  WINDOWBASE, WINDOWSTART, IBREAKENABLE, MEMCTL, ATOMCTL, DDR, MESAVE, MECR, MESR, IBREAKA0, IBREAKA1,
+  WINDOWBASE, WINDOWSTART, IBREAKENABLE, MEMCTL, CACHEADRDIS, ATOMCTL, DDR, MESAVE, MECR, MESR, IBREAKA0, IBREAKA1,
   DBREAKA0, DBREAKA1, DBREAKC0, DBREAKC1, CONFIGID0, EPC1, EPC2, EPC3, EPC4, EPC5,
   EPC6, EPC7, DEPC, EPS2, EPS3, EPS4, EPS5, EPS6, EPS7, CONFIGID1, EXCSAVE1, EXCSAVE2,
   EXCSAVE3, EXCSAVE4, EXCSAVE5, EXCSAVE6, EXCSAVE7, CPENABLE, INTERRUPT, INTSET, INTCLEAR, INTENABLE,
@@ -256,18 +259,20 @@ def SR :  RegisterClass<"Xtensa", [i32], 32, (add
 // HiFi Audio Engine registers
 //===----------------------------------------------------------------------===//
 
-class AEDRReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n> {
-  let HWEncoding{3-0} = num;
+class AEDRReg<bits<5> num, string n, list<string> alt = []> : XtensaReg<n> {
+  let HWEncoding{4-0} = num;
   let AltNames = alt;
 }
 
-foreach i = 0-15 in {
+foreach i = 0-31 in {
   def AED#i : AEDRReg<i, "aed"#i>;
 }
 
 def AEDR : RegisterClass<"Xtensa", [v2i32, v4i16, v8i8, i64, f64], 64, (add
   AED0, AED1, AED2, AED3, AED4, AED5, AED6, AED7,
-  AED8, AED9, AED10, AED11, AED12, AED13, AED14, AED15)>;
+  AED8, AED9, AED10, AED11, AED12, AED13, AED14, AED15,
+  AED16, AED17, AED18, AED19, AED20, AED21, AED22, AED23,
+  AED24, AED25, AED26, AED27, AED28, AED29, AED30, AED31)>;
 
 //===----------------------------------------------------------------------===//
 // USER registers
@@ -318,6 +323,9 @@ def VALIGN : RegisterClass<"Xtensa", [i32], 32,
 // Thread Pointer register
 def THREADPTR : URReg<231, "threadptr", ["THREADPTR"]>;
 
+// Neural Network Engine registers
+def XNNE_RERR : URReg<0, "xnne_rerr", ["XNNE_RERR"]>;
+
 def FCR : URReg<232, "fcr", ["FCR"]>;
 def FSR : URReg<233, "fsr", ["FSR"]>;
 
@@ -339,7 +347,7 @@ def AE_CBEGIN2 : URReg<250, "ae_cbegin2", ["AE_CBEGIN2"]>;
 def AE_CEND2   : URReg<251, "ae_cend2", ["AE_CEND2"]>;
 
 def UR :  RegisterClass<"Xtensa", [i32], 32, (add
-  THREADPTR, FCR, FSR, F64R_LO, F64R_HI, F64S,
+  THREADPTR, XNNE_RERR, FCR, FSR, F64R_LO, F64R_HI, F64S,
   AE_OVF_SAR, AE_BITHEAD, AE_TS_FTS_BU_BP, AE_CW_SD_NO,
   AE_CBEGIN0, AE_CEND0, AE_CBEGIN1, AE_CEND1,
   AE_CBEGIN2, AE_CEND2)>;

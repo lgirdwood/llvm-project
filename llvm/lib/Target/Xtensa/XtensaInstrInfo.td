@@ -1441,6 +1441,12 @@ let AddedComplexity = 10 in
 def : Pat<(f32 (load (Xtensa_pcrel_wrapper tconstpool:$in))),
           (WFR (L32R tconstpool:$in))>;
 
+def : Pat<(Xtensa_pcrel_wrapper tconstpool:$in), (L32R tconstpool:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper tglobaladdr:$in), (L32R tglobaladdr:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper tjumptable:$in), (L32R tjumptable:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper tblockaddress:$in), (L32R tblockaddress:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper texternalsym:$in), (L32R texternalsym:$in)>;
+
 //===----------------------------------------------------------------------===//
 // SelectCC and BranchCC instructions with FP operands
 //===----------------------------------------------------------------------===//
@@ -1525,6 +1531,8 @@ let Predicates = [HasRegionProtection] in {
                       "witlb\t$t, $s", []> {
     let r = 0x6;
   }
+
+  def : InstAlias<"wptlb\t$t, $s", (WDTLB AR:$t, AR:$s)>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1645,6 +1653,37 @@ let mayStore = 1, mayLoad = 1, Predicates = [HasS32C1I] in {
     let imm8{7-0} = addr{11-4};
     let s{3-0} = addr{3-0};
   }
+}
+
+//===----------------------------------------------------------------------===//
+// Exclusive Access Option
+//===----------------------------------------------------------------------===//
+
+let mayLoad = 1 in {
+  def L32EX : RRR_AE_Inst<0x01, 0x00, 0x0f, (outs AR:$t), (ins AR:$s),
+                         "l32ex\t$t, $s", []> {
+    let r = 0x04;
+  }
+}
+
+let mayStore = 1 in {
+  def S32EX : RRR_AE_Inst<0x01, 0x00, 0x0f, (outs), (ins AR:$t, AR:$s),
+                         "s32ex\t$t, $s", []> {
+    let r = 0x05;
+  }
+}
+
+def GETEX : RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins),
+                     "getex\t$t", []> {
+  let r = 0x0a;
+  let s = 0x00;
+}
+
+def CLREX : RRR_Inst<0x00, 0x00, 0x02, (outs), (ins),
+                     "clrex", []> {
+  let r = 0x03;
+  let s = 0x01;
+  let t = 0x00;
 }
 
 //===----------------------------------------------------------------------===//

@@ -381,5 +381,19 @@ TARGET_BUILTIN(__builtin_xtensa_ae_mulf32x2r_hh_ll, "vLLi*LLi*LLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulf2p32x16x4rs, "vLLi*LLi*LLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulf2p32x4rs, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
 
+// Batch 1 & 2 Porting
+TARGET_BUILTIN(__builtin_xtensa_ae_abs24s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abs32, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abs64, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abs64s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abssq56s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_addsq56s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_addsub32, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_addsub32s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16_x, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16m_i, "LLivC*i", "n", "")
+
+
+
 #undef BUILTIN
 #undef TARGET_BUILTIN

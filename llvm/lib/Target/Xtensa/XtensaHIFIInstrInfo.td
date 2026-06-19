@@ -2183,6 +2183,11 @@ def AE_MULF32RA_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
+  def AE_MULFP16X4RS_REAL : RRR_Slot3_Inst<0x00, 0x07, 0x01, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+                                          "ae_mulfp16x4rs\t$r, $s, $t", []> {
+    let DecoderNamespace = "XtensaHIFI3";
+    let Predicates = [HasHIFI3];
+  }
 
   def AE_MULFC24RA_REAL : RRR_Slot3_Inst<0x05, 0x0f, 0x00, (outs AEDR:$r), (ins AEDR:$t, AEDR:$s),
                                         "ae_mulfc24ra\t$r, $t, $s", []> {

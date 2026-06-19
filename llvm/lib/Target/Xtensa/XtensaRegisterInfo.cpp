@@ -34,31 +34,35 @@ XtensaRegisterInfo::XtensaRegisterInfo(const XtensaSubtarget &STI)
 
 const uint16_t *
 XtensaRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  return Subtarget.isWindowedABI() ? CSRW8_Xtensa_SaveList
-                                   : CSR_Xtensa_SaveList;
+  const XtensaSubtarget &STI = MF ? MF->getSubtarget<XtensaSubtarget>() : Subtarget;
+  return STI.isWindowedABI() ? CSRW8_Xtensa_SaveList
+                             : CSR_Xtensa_SaveList;
 }
 
 const uint32_t *
 XtensaRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
                                          CallingConv::ID) const {
-  return Subtarget.isWindowedABI() ? CSRW8_Xtensa_RegMask : CSR_Xtensa_RegMask;
+  const XtensaSubtarget &STI = MF.getSubtarget<XtensaSubtarget>();
+  return STI.isWindowedABI() ? CSRW8_Xtensa_RegMask : CSR_Xtensa_RegMask;
 }
 
 BitVector XtensaRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
-  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+  const XtensaSubtarget &STI = MF.getSubtarget<XtensaSubtarget>();
+  const TargetFrameLowering *TFI = STI.getFrameLowering();
 
   Reserved.set(Xtensa::A0);
   if (TFI->hasFP(MF)) {
     // Reserve frame pointer.
     Reserved.set(getFrameRegister(MF));
   }
-  if (Subtarget.hasTHREADPTR()) {
+  if (STI.hasTHREADPTR()) {
     // Reserve frame pointer.
     Reserved.set(Xtensa::THREADPTR);
   }
   // Reserve stack pointer.
   Reserved.set(Xtensa::SP);
+
   return Reserved;
 }
 
@@ -132,7 +136,8 @@ bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 }
 
 Register XtensaRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
-  return TFI->hasFP(MF) ? (Subtarget.isWindowedABI() ? Xtensa::A7 : Xtensa::A15)
+  const XtensaSubtarget &STI = MF.getSubtarget<XtensaSubtarget>();
+  const TargetFrameLowering *TFI = STI.getFrameLowering();
+  return TFI->hasFP(MF) ? (STI.isWindowedABI() ? Xtensa::A7 : Xtensa::A15)
                         : Xtensa::SP;
 }
