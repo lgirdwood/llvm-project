@@ -93,7 +93,7 @@ typedef unsigned char xtbool4;
 #define AE_L32_X(ptr, offset) (__builtin_xtensa_ae_l32_x((const void *)(ptr), (offset)))
 #define AE_L16_X(ptr, offset) (__builtin_xtensa_ae_l16_x((const void *)(ptr), (offset)))
 #define AE_L16M_I(ptr, offset) (__builtin_xtensa_ae_l16m_i((const void *)(ptr), (offset)))
-
+#define AE_L16X4_I(ptr, offset) (__builtin_xtensa_ae_l16x4_i((const void *)(ptr), (offset)))
 #define AE_L16X4_X3(val, ptr, offset) \
     val = (__builtin_xtensa_ae_l16x4_x((void **)&(ptr), (offset)))
 #define AE_L16X4_X(ptr, offset) \
@@ -158,7 +158,8 @@ typedef unsigned char xtbool4;
     val = (__builtin_xtensa_ae_l32_xc1((void **)&(ptr), (offset)))
 #define AE_L32X2_XC1(val, ptr, offset) \
     val = (__builtin_xtensa_ae_l32x2_xc1((void **)&(ptr), (offset)))
-
+#define AE_L16X4_XC(val, ptr, offset) \
+    val = (__builtin_xtensa_ae_l16x4_xc((void **)&(ptr), (offset)))
 
 // Audio Engine Stores
 #define AE_S32_L_I(val, ptr, imm) \
@@ -177,7 +178,10 @@ typedef unsigned char xtbool4;
     __builtin_xtensa_ae_s32_h_i(((val)), (void *)(ptr), (imm))
 #define AE_S16_0_X(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_x(((val)), (void *)(ptr), (offset))
-
+#define AE_S16X4_I(val, ptr, imm) \
+    __builtin_xtensa_ae_s16x4_i(((val)), (void *)(ptr), (imm))
+#define AE_S16X4_X(val, ptr, offset) \
+    __builtin_xtensa_ae_s16x4_x(((val)), (void *)(ptr), (offset))
 
 // Post-increment Stores
 #define AE_S32_L_IP(val, ptr, imm) \
@@ -190,14 +194,16 @@ typedef unsigned char xtbool4;
     __builtin_xtensa_ae_s16x4_ip((val), (void **)&(ptr), (imm))
 #define AE_S16_0_XP(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_xp((val), (void **)&(ptr), (offset))
-
+#define AE_S16X4_XP(val, ptr, offset) \
+    __builtin_xtensa_ae_s16x4_xp((val), (void **)&(ptr), (offset))
 #define AE_S32_L_XP(val, ptr, offset) \
     __builtin_xtensa_ae_s32_l_xp((val), (void **)&(ptr), (offset))
 
 // Circular Base Stores
 #define AE_S16_0_XC(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_xc((val), (void **)&(ptr), (offset))
-
+#define AE_S16X4_XC(val, ptr, offset) \
+    __builtin_xtensa_ae_s16x4_xc((val), (void **)&(ptr), (offset))
 #define AE_S16_0_XC1(val, ptr, offset) \
     __builtin_xtensa_ae_s16_0_xc1((val), (void **)&(ptr), (offset))
 #define AE_S32_L_XC(val, ptr, offset) \

@@ -393,7 +393,13 @@ TARGET_BUILTIN(__builtin_xtensa_ae_addsub32s, "LLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_l16_x, "LLivC*i", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_l16m_i, "LLivC*i", "n", "")
 
-
+// Batch 3 Porting (16x4 Loads/Stores)
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x4_i, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x4_xc, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_x, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_xc, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_xp, "vLLiv**i", "n", "")
 
 #undef BUILTIN
 #undef TARGET_BUILTIN

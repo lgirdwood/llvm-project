@@ -721,7 +721,8 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_l16x4_ip; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l16x4_xp:
     ID = Intrinsic::xtensa_ae_l16x4_xp; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
-
+  case Xtensa::BI__builtin_xtensa_ae_l16x4_xc:
+    ID = Intrinsic::xtensa_ae_l16x4_xc; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32_ip:
     ID = Intrinsic::xtensa_ae_l32_ip; IsPostUpdateLoad = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32_xp:
@@ -896,7 +897,10 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_s16_0_ip; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s16x4_ip:
     ID = Intrinsic::xtensa_ae_s16x4_ip; IsPostUpdateStore = true; break;
-
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_xp:
+    ID = Intrinsic::xtensa_ae_s16x4_xp; IsPostUpdateStore = true; break;
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_xc:
+    ID = Intrinsic::xtensa_ae_s16x4_xc; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s16_0_xp:
     ID = Intrinsic::xtensa_ae_s16_0_xp; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s32_l_xp:
@@ -915,7 +919,9 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   case Xtensa::BI__builtin_xtensa_ae_l16x4_x:
     ID = Intrinsic::xtensa_ae_l16x4_x; NeedsAlignedPtr8 = true;
     break;
-
+  case Xtensa::BI__builtin_xtensa_ae_l16x4_i:
+    ID = Intrinsic::xtensa_ae_l16x4_i; NeedsAlignedPtr8 = true;
+    break;
 
   case Xtensa::BI__builtin_xtensa_ae_l16m_x:
     ID = Intrinsic::xtensa_ae_l16m_x; NeedsAlignedPtr8 = true;
@@ -952,7 +958,11 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   case Xtensa::BI__builtin_xtensa_ae_s32x2_x:
     ID = Intrinsic::xtensa_ae_s32x2_x;
     break;
-
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_i:
+    ID = Intrinsic::xtensa_ae_s16x4_i;
+    break;
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_x:
+    ID = Intrinsic::xtensa_ae_s16x4_x;
     break;
   }
 
