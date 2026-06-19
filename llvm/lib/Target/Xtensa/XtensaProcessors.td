@@ -14,7 +14,7 @@
 class Proc<string Name, list<SubtargetFeature> Features>
     : Processor<Name, NoItineraries, Features>;
 
-def : Proc<"generic", []>;
+def : Proc<"generic", [FeatureWindowed]>;
 
 //===----------------------------------------------------------------------===//
 // Cadence/Tensilica reference cores
