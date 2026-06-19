@@ -211,6 +211,18 @@ bool Xtensa::checkRegister(MCRegister RegNo, const FeatureBitset &FeatureBits,
   case Xtensa::F64R_HI:
   case Xtensa::F64S:
     return FeatureBits[FeatureDFPAccel];
+  case Xtensa::AE_OVF_SAR:
+  case Xtensa::AE_BITHEAD:
+  case Xtensa::AE_TS_FTS_BU_BP:
+  case Xtensa::AE_CW_SD_NO:
+  case Xtensa::AE_CBEGIN0:
+  case Xtensa::AE_CEND0:
+  case Xtensa::AE_CBEGIN1:
+  case Xtensa::AE_CEND1:
+    return FeatureBits[Xtensa::FeatureHIFI3];
+  case Xtensa::AE_CBEGIN2:
+  case Xtensa::AE_CEND2:
+    return FeatureBits[Xtensa::FeatureHIFI5];
   case Xtensa::WINDOWBASE:
   case Xtensa::WINDOWSTART:
     return FeatureBits[Xtensa::FeatureWindowed];
@@ -238,17 +250,30 @@ MCRegister Xtensa::getUserRegister(unsigned Code, const MCRegisterInfo &MRI) {
     UserReg = Xtensa::F64R_HI;
   } else if (MRI.getEncodingValue(Xtensa::F64S) == Code) {
     UserReg = Xtensa::F64S;
+  } else if (MRI.getEncodingValue(Xtensa::AE_OVF_SAR) == Code) {
+    UserReg = Xtensa::AE_OVF_SAR;
+  } else if (MRI.getEncodingValue(Xtensa::AE_BITHEAD) == Code) {
+    UserReg = Xtensa::AE_BITHEAD;
+  } else if (MRI.getEncodingValue(Xtensa::AE_TS_FTS_BU_BP) == Code) {
+    UserReg = Xtensa::AE_TS_FTS_BU_BP;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CW_SD_NO) == Code) {
+    UserReg = Xtensa::AE_CW_SD_NO;
   } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN0) == Code) {
     UserReg = Xtensa::AE_CBEGIN0;
   } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN1) == Code) {
     UserReg = Xtensa::AE_CBEGIN1;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN2) == Code) {
+    UserReg = Xtensa::AE_CBEGIN2;
   } else if (MRI.getEncodingValue(Xtensa::AE_CEND0) == Code) {
     UserReg = Xtensa::AE_CEND0;
   } else if (MRI.getEncodingValue(Xtensa::AE_CEND1) == Code) {
     UserReg = Xtensa::AE_CEND1;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CEND2) == Code) {
+    UserReg = Xtensa::AE_CEND2;
   } else if (MRI.getEncodingValue(Xtensa::THREADPTR) == Code) {
     UserReg = Xtensa::THREADPTR;
   }
+
 
   return UserReg;
 }

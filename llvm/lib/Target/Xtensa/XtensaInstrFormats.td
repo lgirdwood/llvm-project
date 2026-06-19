@@ -32,12 +32,27 @@ class XtensaInst24<dag outs, dag ins, string asmstr, list<dag> pattern,
   field bits<24> Inst;
 }
 
+// Base class for Xtensa 48 bit Format (FLIX bundles)
+class XtensaInst48<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : XtensaInst<6, outs, ins, asmstr, pattern, itin> {
+  field bits<48> Inst;
+}
+
 // Base class for Xtensa 64 bit Format (FLIX bundles)
 class XtensaInst64<dag outs, dag ins, string asmstr, list<dag> pattern,
                    InstrItinClass itin = NoItinerary>
   : XtensaInst<8, outs, ins, asmstr, pattern, itin> {
   field bits<64> Inst;
 }
+
+// Base class for Xtensa 128 bit Format (FLIX bundles)
+class XtensaInst128<dag outs, dag ins, string asmstr, list<dag> pattern,
+                    InstrItinClass itin = NoItinerary>
+  : XtensaInst<16, outs, ins, asmstr, pattern, itin> {
+  field bits<128> Inst;
+}
+
 
 // Base class for Xtensa 16 bit Format
 class XtensaInst16<dag outs, dag ins, string asmstr, list<dag> pattern,

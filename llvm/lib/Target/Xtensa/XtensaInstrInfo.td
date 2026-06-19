@@ -187,6 +187,7 @@ def SSA8B : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
   let t = 0x0;
 }
 
+
 def SSAI : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins uimm5:$imm),
                    "ssai\t$imm", []> {
   bits<5> imm;
@@ -302,7 +303,7 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
     : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm4_x16:$imm),
                 instrAsm#"\t$s, $imm", []> {
     bits<4> imm;
-
+    
     let r = 0x7;
     let t = 0x8;
     let Inst{23-20} = imm;
@@ -320,7 +321,7 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
     : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm4_x16:$imm),
                 instrAsm#"\t$s, $imm", []> {
     bits<4> imm;
-
+    
     let r = 0x7;
     let t = t_val;
     let Inst{23-20} = imm;
@@ -348,6 +349,7 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
   def SICW : Cache_Tag_Inst<0x3, "sicw">;
   def SDCT : Cache_Tag_Inst<0x9, "sdct">;
   def SDCW : Cache_Tag_Inst<0xb, "sdcw">;
+
 
   class Cache_Inc_Inst<bits<4> t_val, bits<8> imm_val, string instrAsm>
     : RRI8_Inst<0x02, (outs), (ins AR:$s),
@@ -608,6 +610,21 @@ def ILL : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins),
   let n = 0x0;
   let r = 0;
   let s = 0;
+}
+
+def SIMCALL : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
+                      "simcall", []> {
+  let r = 0x5;
+  let s = 0x1;
+  let t = 0x0;
+  let hasSideEffects = 1;
+}
+
+def SIMCALL_IMM : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins uimm4:$t),
+                          "simcall\t$t", []> {
+  let r = 0x5;
+  let s = 0x1;
+  let hasSideEffects = 1;
 }
 
 //===----------------------------------------------------------------------===//

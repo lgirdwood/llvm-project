@@ -244,7 +244,15 @@ unsigned XtensaInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   case TargetOpcode::BUNDLE:
     return getInstBundleSize(MI);
   default:
-    return MI.getDesc().getSize();
+    unsigned Size = MI.getDesc().getSize();
+    if (Size == 0) {
+      StringRef Name = getName(MI.getOpcode());
+      if (Name.starts_with("AE_")) {
+        return 8;
+      }
+      return 4;
+    }
+    return Size;
   }
 }
 

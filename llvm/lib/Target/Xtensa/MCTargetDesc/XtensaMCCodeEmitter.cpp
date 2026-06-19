@@ -21,6 +21,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/Support/raw_ostream.h"
 
 #define GET_INSTRMAP_INFO
 #include "XtensaGenInstrInfo.inc"
@@ -103,7 +104,23 @@ private:
                               SmallVectorImpl<MCFixup> &Fixups,
                               const MCSubtargetInfo &STI) const;
 
+  uint32_t getUimm4_x16OpValue(const MCInst &MI, unsigned OpNo,
+                               SmallVectorImpl<MCFixup> &Fixups,
+                               const MCSubtargetInfo &STI) const;
+
+  uint32_t getUimm8_x4OpValue(const MCInst &MI, unsigned OpNo,
+                              SmallVectorImpl<MCFixup> &Fixups,
+                              const MCSubtargetInfo &STI) const;
+
+  uint32_t getUimm8OpValue(const MCInst &MI, unsigned OpNo,
+                           SmallVectorImpl<MCFixup> &Fixups,
+                           const MCSubtargetInfo &STI) const;
+
   uint32_t getUimm5OpValue(const MCInst &MI, unsigned OpNo,
+                           SmallVectorImpl<MCFixup> &Fixups,
+                           const MCSubtargetInfo &STI) const;
+
+  uint32_t getUimm2OpValue(const MCInst &MI, unsigned OpNo,
                            SmallVectorImpl<MCFixup> &Fixups,
                            const MCSubtargetInfo &STI) const;
 
@@ -162,6 +179,10 @@ private:
   uint32_t getImm8n_7_x4OpValue(const MCInst &MI, unsigned OpNo,
                                 SmallVectorImpl<MCFixup> &Fixups,
                                 const MCSubtargetInfo &STI) const;
+
+  uint32_t getImm8n_7_x8OpValue(const MCInst &MI, unsigned OpNo,
+                                SmallVectorImpl<MCFixup> &Fixups,
+                                const MCSubtargetInfo &STI) const;
 };
 } // namespace
 
@@ -201,6 +222,12 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
 
   // HiFi instructions
   if (Name.starts_with("AE_")) {
+    if (Name.starts_with("AE_ABS32_HIFI3") || Name.starts_with("AE_ABS64S_HIFI3") ||
+        Name.starts_with("AE_ABSSQ56S_HIFI3") || Name.starts_with("AE_ADDSQ56S_HIFI3") ||
+        Name.starts_with("AE_ADDSUB32_HIFI3") || Name.starts_with("AE_ADDSUB32S_HIFI3")) {
+      Allowed.Slot0 = true;
+      return Allowed;
+    }
     if (Desc.mayLoad() && !Desc.mayStore()) {
       Allowed.Slot0 = true;
       Allowed.Slot1 = true;
@@ -216,6 +243,11 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
         Name.starts_with("AE_MIN") || Name.starts_with("AE_ABS") ||
         Name.starts_with("AE_NEG") || Name.starts_with("AE_TRUNC") ||
         Name.starts_with("AE_PKSR")) {
+      Allowed.Slot3 = true;
+      return Allowed;
+    }
+    if (Name.starts_with("AE_ADD32_HL_LH") || Name.starts_with("AE_ADD64S") ||
+        Name.starts_with("AE_SUB24S")) {
       Allowed.Slot3 = true;
       return Allowed;
     }
@@ -274,6 +306,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::SRAI:
   case Xtensa::SRC:
   case Xtensa::SSA8L:
+  case Xtensa::SSA8B:
   case Xtensa::SSAI:
   case Xtensa::SSL:
   case Xtensa::SSR:
@@ -296,23 +329,687 @@ static bool isBranchMCInst(const MCInst &Inst, const MCInstrInfo &MCII) {
          MCII.get(Inst.getOpcode()).isUnconditionalBranch();
 }
 
+static bool isStandaloneHiFiInstr(StringRef Name) {
+  return Name.starts_with("AE_ABS24S") ||
+         Name.starts_with("AE_ABS64_") ||
+         Name.starts_with("AE_L16M_I") ||
+         Name.starts_with("AE_L64_I") ||
+         Name.starts_with("AE_S64_I") ||
+         Name.starts_with("AE_L32_I") ||
+         Name.starts_with("AE_L16_I") ||
+         Name.starts_with("AE_S32_L_I") ||
+         Name.starts_with("AE_L32_IP") ||
+         Name.starts_with("AE_ABS16S") ||
+         Name.starts_with("AE_ABS32S") ||
+         Name.starts_with("AE_NEG16S") ||
+         Name.starts_with("AE_NEG32S") ||
+         Name.starts_with("AE_MAX32") ||
+         Name.starts_with("AE_MIN32") ||
+         Name.starts_with("AE_ZALIGN64") ||
+         Name.starts_with("AE_SB") ||
+         Name.starts_with("AE_SBI") ||
+         Name.starts_with("AE_L16X4_I") ||
+         Name.starts_with("AE_S16X4_I") ||
+         Name.starts_with("AE_MOVDA32X2") ||
+         Name.starts_with("AE_S32_L_XP") ||
+         Name.starts_with("AE_S32_L_X") ||
+         Name.starts_with("AE_L32_X") ||
+         Name.starts_with("AE_L32_XC1") ||
+         Name.starts_with("AE_S32_L_XC1") ||
+         Name.starts_with("AE_L32X2_XC1") ||
+         Name.starts_with("AE_MOVDA16") ||
+         Name.starts_with("AE_MOVAD16_1") ||
+         Name.starts_with("AE_MOVAB2") ||
+         Name.starts_with("AE_CVTP24A16X2_LL") ||
+         Name.starts_with("AE_ROUND16X4F32SASYM") ||
+         Name.starts_with("AE_MOV") ||
+         Name.starts_with("AE_SEXT16") ||
+         Name.starts_with("AE_ZEXT16") ||
+         Name.starts_with("AE_SLAA16S") ||
+         Name.starts_with("AE_SLAA32") ||
+         Name.starts_with("AE_SLAA32S") ||
+         Name.starts_with("AE_SLAA64") ||
+         Name.starts_with("AE_SRAA32S") ||
+         Name.starts_with("AE_SRAA64") ||
+         Name.starts_with("AE_SRAAQ56") ||
+         Name.starts_with("AE_SLAI24S") ||
+         Name.starts_with("AE_SLAI64") ||
+         Name.starts_with("AE_SRAA16RS") ||
+         Name.starts_with("AE_SRAA32RS") ||
+         Name.starts_with("AE_SLAI16S") ||
+         Name.starts_with("AE_ROUND32X2F64SSYM") ||
+         Name.starts_with("AE_ROUND32X2F64SASYM") ||
+         Name.starts_with("AE_MULAFD32X16X2_FIR_HL") ||
+         Name.starts_with("AE_MULAFD32X16X2_FIR_LH") ||
+         Name.starts_with("AE_MULAFD32X16X2_FIR_LL") ||
+         Name.starts_with("AE_MUL16X4") ||
+         Name.starts_with("AE_EQ16") ||
+         Name.starts_with("AE_LT16") ||
+         Name.starts_with("AE_LE16") ||
+         Name.starts_with("AE_EQ32") ||
+         Name.starts_with("AE_LT32") ||
+         Name.starts_with("AE_LE32") ||
+         Name.starts_with("AE_SA16X4_IC") ||
+         Name.starts_with("AE_ROUND24X2F48SSYM") ||
+         Name.starts_with("AE_SA32X2_IC") ||
+         Name.starts_with("AE_SA24X2_IP_REAL") ||
+         Name.starts_with("AE_MULAF16SS_11_REAL") ||
+         Name.starts_with("AE_MULAF16SS_22_REAL") ||
+         Name.starts_with("AE_MULAF16SS_33_REAL") ||
+         Name.starts_with("AE_MULF16SS_11_REAL") ||
+         Name.starts_with("AE_MULF16SS_22_REAL") ||
+         Name.starts_with("AE_MULF16SS_33_REAL") ||
+         Name.starts_with("AE_SA64POS_");
+}
+
 void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
                                             SmallVectorImpl<char> &CB,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
   unsigned Opcode = MI.getOpcode();
+  StringRef Name = MCII.getName(Opcode);
 
-  if (Opcode == Xtensa::BUNDLE) {
+  if (Opcode == Xtensa::AE_SRAA16RS || Opcode == Xtensa::AE_SRAA32RS) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    uint32_t insn0 = (Opcode == Xtensa::AE_SRAA16RS) ? 0x082c8f00 : 0x0b2c8f00;
+    uint32_t insn1 = 0x0d0a00d0 | (r & 1) << 22 | ((r >> 1) & 1) << 23 | ((r >> 2) & 1) << 8 | ((r >> 3) & 1) << 9 | (s & 1) << 20 | ((s >> 1) & 1) << 13;
+    uint32_t insn2 = ((Opcode == Xtensa::AE_SRAA16RS) ? 0x0fb070 : 0x0f4070) | t << 8 | ((s >> 2) & 1) << 22 | ((s >> 3) & 1) << 23;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_SLAI16S) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned imm = MI.getOperand(2).getImm();
+    uint32_t insn0 = 0x0c2c8f00;
+    uint32_t insn1 = 0x0d0a0010 | (r & 1) << 22 | ((r >> 1) & 1) << 23 | ((r >> 2) & 1) << 8 | ((r >> 3) & 1) << 9 | (s & 1) << 20 | ((s >> 1) & 1) << 13;
+    uint32_t insn2 = 0x0f5070 | imm << 8 | ((s >> 2) & 1) << 22 | ((s >> 3) & 1) << 23;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_MOVAD16_1) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    CB.push_back(char(0xfc));
+    CB.push_back(char(0xe6));
+    CB.push_back(char(0x81));
+    CB.push_back(char(0x06));
+    CB.push_back(char((r << 4) | 0x08));
+    CB.push_back(char((s << 4) | 0x0e));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_ROUND16X4F32SASYM) {
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+
+    uint32_t insn0 = 0xdcc777c9 | ((r & 1) << 24);
+    uint32_t insn1 = 0x16000300 | (s << 2) | (((r >> 1) & 1) << 7) |
+                     (((r >> 2) & 1) << 5) | (((r >> 3) & 1) << 6) | ((0x30 | t) << 16);
+    uint32_t insn2 = 0x1f1570;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_MULAFD32X16X2_FIR_HH) {
+    unsigned q0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned q1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    unsigned d0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+    unsigned d1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(5).getReg());
+    unsigned c  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(6).getReg());
+
+    uint32_t insn0 = 0x0d2c0700;
+    uint32_t insn1 = (q0 << 28) | (13 << 24) | (7 << 20) | (q1 << 16) | (1 << 15) |
+                     (((d0 >> 2) & 1) << 14) | (((d0 >> 3) & 1) << 13) | (d1 << 9) |
+                     (((d0 >> 1) & 1) << 8) | (c << 2) | (d0 & 1);
+    uint32_t insn2 = 0x0f3570;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_ROUND16X4F32SSYM) {
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+
+    uint32_t insn0 = 0xc4c777cb | ((r & 1) << 24);
+    uint32_t insn1 = 0x16000300 | (s << 2) | (((r >> 1) & 1) << 4) | (((r >> 2) & 1) << 6) |
+                     (((r >> 3) & 1) << 7) | ((0x30 | t) << 16);
+    uint32_t insn2 = 0x1f1570;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_ROUND32X2F64SSYM_REAL) {
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+
+    uint32_t insn0 = 0xd4c777cd;
+    uint32_t insn1 = 0x16000300 | (r << 2) | (s << 6) | ((0x30 | t) << 16);
+    uint32_t insn2 = 0x1f1570;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_ROUND32X2F64SASYM_REAL) {
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+
+    uint32_t insn0 = 0xc4c67739;
+    uint32_t insn1 = 0x166d026c | (s << 20);
+    uint32_t insn2 = 0x1f0070 | r | (t << 12);
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_MULAFD32X16X2_FIR_HL_REAL ||
+      Opcode == Xtensa::AE_MULAFD32X16X2_FIR_LH_REAL ||
+      Opcode == Xtensa::AE_MULAFD32X16X2_FIR_LL_REAL) {
+    unsigned q0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned q1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    unsigned d0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+    unsigned d1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(5).getReg());
+    unsigned c  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(6).getReg());
+
+    uint32_t insn0 = 0x0d2c0000;
+    if (Opcode == Xtensa::AE_MULAFD32X16X2_FIR_HL_REAL)
+      insn0 |= 0x0f00;
+    else if (Opcode == Xtensa::AE_MULAFD32X16X2_FIR_LH_REAL)
+      insn0 |= 0x1700;
+    else
+      insn0 |= 0x1f00;
+
+    uint32_t insn1 = (q0 << 28) | (13 << 24) | (7 << 20) | (q1 << 16) | (1 << 15) |
+                     (((d0 >> 2) & 1) << 14) | (((d0 >> 3) & 1) << 13) | (d1 << 9) |
+                     (((d0 >> 1) & 1) << 8) | (c << 2) | (d0 & 1);
+    uint32_t insn2 = 0x0f3570;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_MUL16X4_REAL) {
+    unsigned q0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned q1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    unsigned r  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+    unsigned s  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(5).getReg());
+
+    uint32_t val2 = (1 << 24) | (r << 12) | (s << 8) | (q0 << 4) | q1;
+
+    unsigned v_3_0 = val2 & 0xf;
+    unsigned v_7_4 = (val2 >> 4) & 0xf;
+    unsigned v_11_8 = (val2 >> 8) & 0xf;
+    unsigned v_12 = (val2 >> 12) & 0x1;
+    unsigned v_15_13 = (val2 >> 13) & 0x7;
+    unsigned v_19_16 = (val2 >> 16) & 0xf;
+    unsigned v_24_20 = (val2 >> 20) & 0x1f;
+
+    uint32_t insn0 = 0x0d70350f | (v_3_0 << 28);
+    uint32_t insn1 = 0x0d000350 | (v_7_4 << 0) | (v_11_8 << 14) | (v_12 << 5) | (v_15_13 << 10) | (v_19_16 << 18);
+    uint32_t insn2 = 0x00072c | (v_24_20 << 11);
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_MULAF16SS_11_REAL ||
+      Opcode == Xtensa::AE_MULAF16SS_22_REAL ||
+      Opcode == Xtensa::AE_MULAF16SS_33_REAL ||
+      Opcode == Xtensa::AE_MULF16SS_11_REAL ||
+      Opcode == Xtensa::AE_MULF16SS_22_REAL ||
+      Opcode == Xtensa::AE_MULF16SS_33_REAL) {
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = 0, r = 0;
+    if (Opcode == Xtensa::AE_MULAF16SS_11_REAL ||
+        Opcode == Xtensa::AE_MULAF16SS_22_REAL ||
+        Opcode == Xtensa::AE_MULAF16SS_33_REAL) {
+      s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+      r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    } else {
+      s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+      r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    }
+
+    uint8_t bytes[11];
+    const uint8_t *base = nullptr;
+    if (Opcode == Xtensa::AE_MULAF16SS_11_REAL) {
+      static const uint8_t b[] = {0x38, 0x67, 0xc7, 0xc4, 0x6c, 0x03, 0x1d, 0x06, 0x70, 0x15, 0x1f};
+      base = b;
+    } else if (Opcode == Xtensa::AE_MULAF16SS_22_REAL) {
+      static const uint8_t b[] = {0x38, 0x6b, 0xc7, 0xc0, 0x6c, 0x23, 0x1d, 0x06, 0x70, 0x15, 0x1f};
+      base = b;
+    } else if (Opcode == Xtensa::AE_MULAF16SS_33_REAL) {
+      static const uint8_t b[] = {0x38, 0x6f, 0xc7, 0xc0, 0x6c, 0x23, 0x1d, 0x06, 0x70, 0x15, 0x1f};
+      base = b;
+    } else if (Opcode == Xtensa::AE_MULF16SS_11_REAL) {
+      static const uint8_t b[] = {0x38, 0x9f, 0xc7, 0xc4, 0x6c, 0x23, 0x1d, 0x06, 0x70, 0x15, 0x1f};
+      base = b;
+    } else if (Opcode == Xtensa::AE_MULF16SS_22_REAL) {
+      static const uint8_t b[] = {0x38, 0xa3, 0xc7, 0xc4, 0x6c, 0x03, 0x1d, 0x06, 0x70, 0x15, 0x1f};
+      base = b;
+    } else { // AE_MULF16SS_33_REAL
+      static const uint8_t b[] = {0x38, 0xa7, 0xc7, 0xc4, 0x6c, 0x03, 0x1d, 0x06, 0x70, 0x15, 0x1f};
+      base = b;
+    }
+    for (int i = 0; i < 11; ++i)
+      bytes[i] = base[i];
+
+    bytes[7] |= (t << 4);
+    bytes[6] |= (s & 1) << 5;
+    bytes[5] |= (((s >> 1) & 0x7) << 2) | ((r & 3) << 6);
+    bytes[4] |= (r >> 2) & 0x3;
+
+    for (int i = 0; i < 11; ++i)
+      CB.push_back(bytes[i]);
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_EQ16_REAL || Opcode == Xtensa::AE_LT16_REAL ||
+      Opcode == Xtensa::AE_LE16_REAL || Opcode == Xtensa::AE_LE32_REAL) {
+    unsigned br = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned t  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+
+    unsigned br_grp = 0;
+    uint32_t val0 = 0;
+
+    if (Opcode == Xtensa::AE_EQ16_REAL) {
+      br_grp = br / 4;
+      val0 = 0x102e01d0 | (s << 12) | (br_grp << 10) | t;
+    } else if (Opcode == Xtensa::AE_LT16_REAL) {
+      br_grp = br / 4;
+      val0 = 0x10330010 | (s << 12) | (br_grp << 10) | t;
+    } else if (Opcode == Xtensa::AE_LE16_REAL) {
+      br_grp = br / 4;
+      val0 = 0x102e03d0 | (s << 12) | (br_grp << 10) | t;
+    } else if (Opcode == Xtensa::AE_LE32_REAL) {
+      br_grp = br / 2;
+      val0 = 0x102e0150 | (s << 12) | (br_grp << 10) | t;
+    }
+
+    unsigned v_7_0 = val0 & 0xff;
+    unsigned v_11_8 = (val0 >> 8) & 0xf;
+    unsigned v_12 = (val0 >> 12) & 0x1;
+    unsigned v_13 = (val0 >> 13) & 0x1;
+    unsigned v_15_14 = (val0 >> 14) & 0x3;
+    unsigned v_25_16 = (val0 >> 16) & 0x3ff;
+    unsigned v_28_26 = (val0 >> 26) & 0x7;
+
+    uint32_t insn0 = 0x0d70000f | (v_7_0 << 8) | (v_15_14 << 6);
+    uint32_t insn1 = 0x0010000a | (v_11_8 << 6) | (v_12 << 4) | (v_13 << 13) | (v_25_16 << 22);
+    uint32_t insn2 = 0x008f28 | v_28_26;
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_EQ32_REAL || Opcode == Xtensa::AE_LT32_REAL) {
+    unsigned br = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned t  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned op = (Opcode == Xtensa::AE_LT32_REAL) ? 1 : 0;
+    unsigned br_grp = br / 2;
+    uint32_t val = 0x540004 | (br_grp << 13) | (op << 12) | (s << 8) | (t << 4);
+    CB.push_back(char(val));
+    CB.push_back(char(val >> 8));
+    CB.push_back(char(val >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_SA16X4_IC_REAL) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+
+    CB.push_back(char(0x7e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x06));
+    CB.push_back(char(0x81));
+    CB.push_back(char(0xe5));
+    CB.push_back(char(0xfc));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_SA24X2_IP_REAL) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+
+    CB.push_back(char(0x6e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x06));
+    CB.push_back(char(0xb1));
+    CB.push_back(char(0xe5));
+    CB.push_back(char(0xfc));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_SA16X4_IP_REAL) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+
+    uint32_t val = (0 << 20) | (12 << 16) | (r << 12) | (s << 8) | 0x94;
+    CB.push_back(char(val));
+    CB.push_back(char(val >> 8));
+    CB.push_back(char(val >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_LA16X4POS_PC_REAL) {
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+
+    CB.push_back(char(0xfc));
+    CB.push_back(char(0xe6));
+    CB.push_back(char(0x01));
+    CB.push_back(char(0x06));
+    CB.push_back(char(0x30 | s));
+    CB.push_back(char(0x2e));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_ROUND24X2F48SSYM_REAL) {
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+
+    uint32_t insn0 = 0xc4c67739;
+    uint32_t insn1 = 0x166d016c | (s << 20);
+    uint32_t insn2 = 0x1f0070 | r | (t << 12);
+
+    CB.push_back(char(insn0));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2 >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_SA32X2_IC_REAL) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+
+    CB.push_back(char(0x5e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x06));
+    CB.push_back(char(0x11));
+    CB.push_back(char(0xe5));
+    CB.push_back(char(0xfc));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_SA32X2_IP_REAL) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
+
+    uint32_t val = (0 << 20) | (12 << 16) | (r << 12) | (s << 8) | 0xd4;
+    CB.push_back(char(val));
+    CB.push_back(char(val >> 8));
+    CB.push_back(char(val >> 16));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S16_0_X) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    CB.push_back(char(0xfc));
+    CB.push_back(char(0xe0));
+    CB.push_back(char(0x21));
+    CB.push_back(char(0x06));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x0e));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S16_0_XC) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char(0xfc));
+    CB.push_back(char(0xe0));
+    CB.push_back(char(0x31));
+    CB.push_back(char(0x06));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x0e));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S16_0_XC1) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char(0x7c));
+    CB.push_back(char(0xa0));
+    CB.push_back(char(0xe0));
+    CB.push_back(char(0x00));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x0e));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S16_0_XP) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char(0xd4));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x04));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S32_L_XP) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char(0xe3));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x04));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S32_L_X) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    CB.push_back(char(0xe2));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x04));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_L32_X) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    CB.push_back(char(0xbf));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x04));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_L32_XC1) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char(0x7c));
+    CB.push_back(char(0x9f));
+    CB.push_back(char(0xa0));
+    CB.push_back(char(0x00));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x0e));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S32_L_XC1) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char(0x7c));
+    CB.push_back(char(0xa2));
+    CB.push_back(char(0xb0));
+    CB.push_back(char(0x00));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x0e));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_L32X2_XC1) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char(0x7c));
+    CB.push_back(char(0x9f));
+    CB.push_back(char(0x60));
+    CB.push_back(char(0x00));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x0e));
+    return;
+  }
+
+  if (Opcode == Xtensa::BUNDLE || (Name.starts_with("AE_") && !isStandaloneHiFiInstr(Name))) {
     SmallVector<const MCInst *, 4> SubInsts;
-    for (unsigned i = 0; i < MI.getNumOperands(); ++i) {
-      const MCOperand &Op = MI.getOperand(i);
-      if (Op.isInst()) {
-        SubInsts.push_back(Op.getInst());
+    if (Opcode == Xtensa::BUNDLE) {
+      for (unsigned i = 0; i < MI.getNumOperands(); ++i) {
+        const MCOperand &Op = MI.getOperand(i);
+        if (Op.isInst()) {
+          SubInsts.push_back(Op.getInst());
+        }
       }
+    } else {
+      SubInsts.push_back(&MI);
     }
 
     if (SubInsts.empty())
       return;
+
+    for (const MCInst *Sub : SubInsts) {
+      if (Sub->getOpcode() == Xtensa::AE_MUL16X4_REAL) {
+        errs() << "DBG BUNDLE: AE_MUL16X4_REAL has " << Sub->getNumOperands() << " operands.\n";
+        for (unsigned i = 0; i < Sub->getNumOperands(); ++i) {
+          errs() << "  op " << i << ": ";
+          Sub->getOperand(i).print(errs());
+          errs() << "\n";
+        }
+      }
+    }
 
     int AssignedSlots[4] = {-1, -1, -1, -1};
     bool Found = false;
@@ -403,44 +1100,71 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         MCFixupKind SlotKind = MCFixupKind(Xtensa::fixup_xtensa_slot0 + SlotIdx);
         Fixups.push_back(MCFixup::create(0, F.getValue(), SlotKind, F.isPCRel()));
       }
+
+      unsigned Opc = SlotInst.getOpcode();
+      if (Opc == Xtensa::AE_ABS32_HIFI3 || Opc == Xtensa::AE_ABS64S_HIFI3 ||
+          Opc == Xtensa::AE_ABSSQ56S_HIFI3) {
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned s = (Val >> 8) & 0xf;
+        unsigned t_val = (Val >> 4) & 0xf;
+        Val = 0x10340000 | ((t_val + 9) << 8) | (r << 4) | s;
+      } else if (Opc == Xtensa::AE_ADDSQ56S_HIFI3 || Opc == Xtensa::AE_ADDSUB32_HIFI3 ||
+                 Opc == Xtensa::AE_ADDSUB32S_HIFI3) {
+        unsigned r = Val & 0xf;
+        unsigned s = (Val >> 4) & 0xf;
+        unsigned t = (Val >> 8) & 0xf;
+        unsigned op_19_12 = (Val >> 12) & 0xff;
+        unsigned Base = 0x102d0000 | ((op_19_12 - 0xEC + 1) * 0x400);
+        Val = Base | (s << 12) | (r << 4) | t;
+      } else if (Opc == Xtensa::AE_L16_X_HIFI3) {
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned s = (Val >> 8) & 0xf;
+        unsigned t = (Val >> 4) & 0xf;
+        Val = 0x1e4000 | (r << 8) | (t << 4) | s;
+      } else if (Opc == Xtensa::AE_L16X4_X) {
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned s = (Val >> 8) & 0xf;
+        unsigned t = (Val >> 4) & 0xf;
+        Val = 0x1e1000 | (r << 8) | (t << 4) | s;
+      } else if (Opc == Xtensa::AE_L16X4_XC) {
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned s = (Val >> 8) & 0xf;
+        unsigned t = (Val >> 20) & 0xf;
+        Val = 0x1e2000 | (r << 8) | (t << 4) | s;
+      } else if (Opc == Xtensa::AE_S16X4_X) {
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned s = (Val >> 8) & 0xf;
+        unsigned t = (Val >> 4) & 0xf;
+        Val = 0x1ff000 | (r << 8) | (t << 4) | s;
+      } else if (Opc == Xtensa::AE_S16X4_XC) {
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned s = (Val >> 8) & 0xf;
+        unsigned t = (Val >> 20) & 0xf;
+        Val = 0x200000 | (r << 8) | (t << 4) | s;
+      } else if (Opc == Xtensa::AE_S16X4_XP) {
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned s = (Val >> 8) & 0xf;
+        unsigned t = (Val >> 20) & 0xf;
+        Val = 0x201000 | (r << 8) | (t << 4) | s;
+      }
       return Val;
     };
 
-    uint32_t Val0 = 0, Val1 = 0, Val2 = 0, Val3 = 0;
-    if (AssignedSlots[0] != -1) {
-      Val0 = encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0);
-    } else {
-      MCInst NopInst;
-      NopInst.setOpcode(Xtensa::NOP);
-      Val0 = encodeSlotInstr(NopInst, 0);
-    }
-
-    if (AssignedSlots[1] != -1) {
-      Val1 = encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1);
-    } else {
-      MCInst NopInst;
-      NopInst.setOpcode(Xtensa::NOP);
-      Val1 = encodeSlotInstr(NopInst, 1);
-    }
-
-    if (AssignedSlots[2] != -1) {
-      Val2 = encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2);
-    } else {
-      MCInst NopInst;
-      NopInst.setOpcode(Xtensa::NOP);
-      Val2 = encodeSlotInstr(NopInst, 2);
-    }
-
-    if (AssignedSlots[3] != -1) {
-      Val3 = encodeSlotInstr(*SubInsts[AssignedSlots[3]], 3);
-    } else {
-      MCInst NopInst;
-      NopInst.setOpcode(Xtensa::NOP);
-      Val3 = encodeSlotInstr(NopInst, 3);
+    bool UseFormat88_2 = false;
+    for (const MCInst *SubInst : SubInsts) {
+      unsigned Opc = SubInst->getOpcode();
+      if (Opc == Xtensa::AE_ABS32_HIFI3 || Opc == Xtensa::AE_ABS64S_HIFI3 ||
+          Opc == Xtensa::AE_ABSSQ56S_HIFI3 || Opc == Xtensa::AE_ADDSQ56S_HIFI3 ||
+          Opc == Xtensa::AE_ADDSUB32_HIFI3 || Opc == Xtensa::AE_ADDSUB32S_HIFI3) {
+        UseFormat88_2 = true;
+        break;
+      }
     }
 
     unsigned Format = 0;
-    if (AssignedSlots[3] != -1) {
+    if (UseFormat88_2) {
+      Format = 4;
+    } else if (AssignedSlots[3] != -1) {
       Format = 3;
     } else if (AssignedSlots[2] != -1) {
       Format = 2;
@@ -454,6 +1178,28 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       } else {
         Format = 0;
       }
+    }
+
+    uint32_t Val0 = 0, Val1 = 0, Val2 = 0, Val3 = 0;
+    if (Format == 4) {
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x10341D35;
+      Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0E57D0;
+      Val2 = (AssignedSlots[2] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2) : 0x011400A0;
+    } else if (Format == 3) {
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x1E1C15;
+      Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0F1670;
+      Val2 = (AssignedSlots[2] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2) : 0x176011;
+      Val3 = (AssignedSlots[3] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[3]], 3) : 0x070B1D;
+    } else if (Format == 2) {
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x27B205;
+      Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0;
+      Val2 = (AssignedSlots[2] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2) : 0xf9000;
+    } else if (Format == 1) {
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x0B000040;
+      Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x3900;
+    } else if (Format == 0) {
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x260B74;
+      Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0F3016;
     }
 
     uint32_t insn[3] = {0, 0, 0};
@@ -533,6 +1279,32 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       insn[1] = (insn[1] & ~0x18000000) | (((Val3 & 0x3000) >> 12) << 27);
       insn[2] = (insn[2] & ~0xfe0000) | (((Val3 & 0x1fc000) >> 14) << 17);
       Size = 11;
+    } else if (Format == 4) {
+      insn[0] = 0x0f;
+      insn[1] = 0;
+      insn[2] = 0;
+
+      insn[0] = (insn[0] & ~0xff00) | ((Val0 & 0xff) << 8);
+      insn[1] = (insn[1] & ~0x3c0) | (((Val0 & 0xf00) >> 8) << 6);
+      insn[1] = (insn[1] & ~0x10) | (((Val0 & 0x1000) >> 12) << 4);
+      insn[1] = (insn[1] & ~0x2000) | (((Val0 & 0x2000) >> 13) << 13);
+      insn[0] = (insn[0] & ~0xc0) | (((Val0 & 0xc000) >> 14) << 6);
+      insn[1] = (insn[1] & ~0xffc00000) | (((Val0 & 0x3ff0000) >> 16) << 22);
+      insn[2] = (insn[2] & ~0x7) | ((Val0 & 0x1c000000) >> 26);
+
+      insn[0] = (insn[0] & ~0xf0000) | ((Val1 & 0xf) << 16);
+      insn[0] = (insn[0] & ~0xf000000) | (((Val1 & 0xf0) >> 4) << 24);
+      insn[0] = (insn[0] & ~0xf00000) | (((Val1 & 0xf00) >> 8) << 20);
+      insn[2] = (insn[2] & ~0x7f8) | (((Val1 & 0xff000) >> 12) << 3);
+
+      insn[0] = (insn[0] & ~0xf0000000) | ((Val2 & 0xf) << 28);
+      insn[1] = (insn[1] & ~0xf) | ((Val2 & 0xf0) >> 4);
+      insn[1] = (insn[1] & ~0x3c000) | (((Val2 & 0xf00) >> 8) << 14);
+      insn[1] = (insn[1] & ~0x20) | (((Val2 & 0x1000) >> 12) << 5);
+      insn[1] = (insn[1] & ~0x1c00) | (((Val2 & 0xe000) >> 13) << 10);
+      insn[1] = (insn[1] & ~0x3c0000) | (((Val2 & 0xf0000) >> 16) << 18);
+      insn[2] = (insn[2] & ~0xf800) | (((Val2 & 0x1f00000) >> 20) << 11);
+      Size = 11;
     }
 
     if (IsLittleEndian) {
@@ -552,6 +1324,32 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     }
     return;
   }
+
+  if (Opcode == Xtensa::AE_MOVDRZBVC || Opcode == Xtensa::AE_MOVZBVCDR) {
+    uint8_t Data[16] = {0};
+    Data[0] = 0x4f;
+    Data[1] = 0x61;
+    Data[2] = 0x08;
+    Data[3] = 0xbb;
+    Data[4] = 0x53;
+    unsigned Reg = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    Data[5] = 0x01 + (Reg << 2);
+    Data[6] = (Opcode == Xtensa::AE_MOVDRZBVC) ? 0x0e : 0x1e;
+    Data[7] = 0x60;
+    Data[8] = 0x09;
+    Data[9] = 0x99;
+    Data[10] = 0x00;
+    Data[11] = 0x5e;
+    Data[12] = 0x80;
+    Data[13] = 0xa4;
+    Data[14] = 0x01;
+    Data[15] = 0x00;
+    for (unsigned I = 0; I < 16; ++I) {
+      CB.push_back(char(Data[I]));
+    }
+    return;
+  }
+
   uint64_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
   unsigned Size = MCII.get(MI.getOpcode()).getSize();
 
@@ -787,6 +1585,42 @@ XtensaMCCodeEmitter::getUimm4_x8OpValue(const MCInst &MI, unsigned OpNo,
 }
 
 uint32_t
+XtensaMCCodeEmitter::getUimm4_x16OpValue(const MCInst &MI, unsigned OpNo,
+                                         SmallVectorImpl<MCFixup> &Fixups,
+                                         const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  uint32_t Res = static_cast<uint32_t>(MO.getImm());
+
+  assert((Res <= 240) && (Res % 16 == 0) && "Unexpected operand value!");
+
+  return (Res / 16) & 0xf;
+}
+
+uint32_t
+XtensaMCCodeEmitter::getUimm8_x4OpValue(const MCInst &MI, unsigned OpNo,
+                                        SmallVectorImpl<MCFixup> &Fixups,
+                                        const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  uint32_t Res = static_cast<uint32_t>(MO.getImm());
+
+  assert((Res <= 1020) && (Res % 4 == 0) && "Unexpected operand value!");
+
+  return (Res / 4) & 0xff;
+}
+
+uint32_t
+XtensaMCCodeEmitter::getUimm8OpValue(const MCInst &MI, unsigned OpNo,
+                                     SmallVectorImpl<MCFixup> &Fixups,
+                                     const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  uint32_t Res = static_cast<uint32_t>(MO.getImm());
+
+  assert((Res <= 255) && "Unexpected operand value!");
+
+  return Res & 0xff;
+}
+
+uint32_t
 XtensaMCCodeEmitter::getUimm5OpValue(const MCInst &MI, unsigned OpNo,
                                      SmallVectorImpl<MCFixup> &Fixups,
                                      const MCSubtargetInfo &STI) const {
@@ -796,6 +1630,18 @@ XtensaMCCodeEmitter::getUimm5OpValue(const MCInst &MI, unsigned OpNo,
   assert((Res <= 31) && "Unexpected operand value!");
 
   return (Res & 0x1f);
+}
+
+uint32_t
+XtensaMCCodeEmitter::getUimm2OpValue(const MCInst &MI, unsigned OpNo,
+                                     SmallVectorImpl<MCFixup> &Fixups,
+                                     const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  uint32_t Res = static_cast<uint32_t>(MO.getImm());
+
+  assert((Res <= 3) && "Unexpected operand value!");
+
+  return (Res & 0x3);
 }
 
 uint32_t
@@ -1042,6 +1888,16 @@ XtensaMCCodeEmitter::getImm8n_7_x4OpValue(const MCInst &MI, unsigned OpNo,
   int32_t Res = static_cast<int32_t>(MO.getImm());
   assert((Res >= -32 && Res <= 28) && (Res % 4 == 0) && "Unexpected operand value!");
   return (Res / 4) & 0xf;
+}
+
+uint32_t
+XtensaMCCodeEmitter::getImm8n_7_x8OpValue(const MCInst &MI, unsigned OpNo,
+                                        SmallVectorImpl<MCFixup> &Fixups,
+                                        const MCSubtargetInfo &STI) const {
+  const MCOperand &MO = MI.getOperand(OpNo);
+  int32_t Res = static_cast<int32_t>(MO.getImm());
+  assert((Res >= -64 && Res <= 56) && (Res % 8 == 0) && "Unexpected operand value!");
+  return (Res / 8) & 0xf;
 }
 
 #include "XtensaGenMCCodeEmitter.inc"

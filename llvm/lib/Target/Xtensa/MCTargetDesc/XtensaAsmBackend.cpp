@@ -96,7 +96,7 @@ MCFixupKindInfo XtensaAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
 }
 
 static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
-                                 MCContext &Ctx) {
+                                 MCContext &Ctx, bool IsResolved) {
   unsigned Kind = Fixup.getKind();
   switch (Kind) {
   default:
@@ -126,7 +126,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     if (!Value)
       return 0;
     Value -= 4;
-    if (!isUInt<6>(Value))
+    if (IsResolved && !isUInt<6>(Value))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
     unsigned Hi2 = (Value >> 4) & 0x3;
     unsigned Lo4 = Value & 0xf;
@@ -134,29 +134,29 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   }
   case Xtensa::fixup_xtensa_branch_8:
     Value -= 4;
-    if (!isInt<8>(Value))
+    if (IsResolved && !isInt<8>(Value))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
     return (Value & 0xff);
   case Xtensa::fixup_xtensa_branch_12:
     Value -= 4;
-    if (!isInt<12>(Value))
+    if (IsResolved && !isInt<12>(Value))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
     return (Value & 0xfff);
   case Xtensa::fixup_xtensa_jump_18:
     Value -= 4;
-    if (!isInt<18>(Value))
+    if (IsResolved && !isInt<18>(Value))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
     return (Value & 0x3ffff);
   case Xtensa::fixup_xtensa_call_18:
     Value -= 4;
-    if (!isInt<20>(Value))
+    if (IsResolved && !isInt<20>(Value))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
-    if (Value & 0x3)
+    if (IsResolved && (Value & 0x3))
       Ctx.reportError(Fixup.getLoc(), "fixup value must be 4-byte aligned");
     return (Value & 0xffffc) >> 2;
   case Xtensa::fixup_xtensa_loop_8:
     Value -= 4;
-    if (!isUInt<8>(Value))
+    if (IsResolved && !isUInt<8>(Value))
       Ctx.reportError(Fixup.getLoc(), "loop fixup value out of range");
     return (Value & 0xff);
   case Xtensa::fixup_xtensa_l32r_16: {
@@ -165,11 +165,13 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     unsigned Offset = Fixup.getOffset();
     if (Offset & 0x3)
       Value -= 4;
-    if (!isInt<18>(Value) && (Value & 0x20000))
+    int64_t SVal = (int64_t)Value;
+    if (IsResolved && (SVal > -4 || SVal < -262144))
       Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
-    if (Value & 0x3)
+    if (IsResolved && (SVal & 0x3))
       Ctx.reportError(Fixup.getLoc(), "fixup value must be 4-byte aligned");
     return (Value & 0x3fffc) >> 2;
+  }
   }
 }
 
@@ -208,7 +210,7 @@ void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   MCContext &Ctx = getContext();
   MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
 
-  Value = adjustFixupValue(Fixup, Value, Ctx);
+  Value = adjustFixupValue(Fixup, Value, Ctx, IsResolved);
 
   // Shift the value into position.
   Value <<= Info.TargetOffset;
@@ -233,7 +235,7 @@ bool XtensaAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
     if (IsLittleEndian) {
       OS.write("\xf0", 1);
       OS.write("\x20", 1);
-      OS.write("\0x00", 1);
+      OS.write("\x00", 1);
     } else {
       report_fatal_error("Big-endian mode currently is not supported!");
     }
@@ -259,6 +261,8 @@ bool XtensaAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
 
 namespace llvm {
 extern cl::opt<bool> Trampolines;
+extern cl::opt<bool> AutoLitpools;
+extern cl::opt<int> AutoLitpoolLimit;
 }
 
 static bool isUnconditionalBranchOrReturn(const MCFragment &F) {
@@ -279,10 +283,19 @@ static bool isTrampolineEnabled(const MCInst &Inst) {
   return Trampolines;
 }
 
+static bool isAutoLitpoolsEnabled(const MCInst &Inst) {
+  unsigned Flags = Inst.getFlags();
+  if (Flags & Xtensa::XtensaL32RAutoLitpoolsEnabled)
+    return true;
+  if (Flags & Xtensa::XtensaL32RAutoLitpoolsDisabled)
+    return false;
+  return AutoLitpools;
+}
+
 bool XtensaAsmBackend::mayNeedRelaxation(unsigned Opcode,
                                          ArrayRef<MCOperand> Operands,
                                          const MCSubtargetInfo &STI) const {
-  if (Opcode == Xtensa::J) {
+  if (Opcode == Xtensa::J || Opcode == Xtensa::L32R) {
     return true;
   }
   if (Opcode == Xtensa::BEQZ_N || Opcode == Xtensa::BNEZ_N) {
@@ -320,9 +333,11 @@ void XtensaAsmBackend::relaxInstruction(MCInst &Inst,
     llvm_unreachable("Unexpected instruction to relax");
   }
 }
+
 bool XtensaAsmBackend::finishLayout() const {
   MCContext &Ctx = getContext();
   bool Changed = false;
+  DenseSet<const MCFragment *> AutoLitpools;
 
   for (unsigned Iter = 0; Iter < 100; ++Iter) {
     bool IterChanged = false;
@@ -606,6 +621,273 @@ bool XtensaAsmBackend::finishLayout() const {
       if (IterChanged)
         break;
     }
+
+    if (!IterChanged) {
+      // Check automatic literal pools
+      for (MCSection &Sec : *Asm) {
+        if (!Sec.isText())
+          continue;
+
+        for (MCSection::iterator I = Sec.begin(), E = Sec.end(); I != E; ++I) {
+          MCFragment &F = *I;
+          if (F.getKind() != MCFragment::FT_Relaxable)
+            continue;
+
+          MCInst Inst = F.getInst();
+          if (Inst.getOpcode() != Xtensa::L32R)
+            continue;
+
+          if (!isAutoLitpoolsEnabled(Inst))
+            continue;
+
+          auto Fixups = F.getVarFixups();
+          if (Fixups.empty())
+            continue;
+
+          const MCFixup &Fixup = Fixups[0];
+          if (Fixup.getKind() != (MCFixupKind)Xtensa::fixup_xtensa_l32r_16)
+            continue;
+
+          const MCExpr *Expr = Fixup.getValue();
+          if (!Expr)
+            continue;
+
+          MCValue TargetVal;
+          if (!Expr->evaluateAsRelocatable(TargetVal, Asm))
+            continue;
+
+          const MCSymbol *TargetSym = TargetVal.getAddSym();
+          if (!TargetSym)
+            continue;
+
+          if (!TargetSym->isDefined() || !TargetSym->getFragment())
+            continue;
+
+          if (TargetSym->getFragment()->getParent() != &Sec)
+            continue;
+
+          uint64_t TargetOffset = Asm->getSymbolOffset(*TargetSym) + TargetVal.getConstant();
+          uint64_t SourceOffset = Asm->getFragmentOffset(F) + Fixup.getOffset();
+          uint64_t BaseOffset = (SourceOffset + 3) & ~3;
+          int64_t RelOffset = (int64_t)TargetOffset - (int64_t)BaseOffset;
+
+          int64_t Limit = AutoLitpoolLimit;
+          if (RelOffset >= -Limit && RelOffset <= -4)
+            continue;
+
+          // Out of range L32R! Let's insert/reuse a literal pool.
+          MCFragment *PrevFrag = nullptr;
+          for (MCFragment &Frag : Sec) {
+            if (Frag.getNext() == &F) {
+              PrevFrag = &Frag;
+              break;
+            }
+          }
+
+          MCFragment *TrampolineInsertAfter = nullptr;
+          bool UseUnreachable = false;
+
+          uint64_t FOffset = Asm->getFragmentOffset(F);
+          MCFragment *Curr = Sec.curFragList()->Head;
+          MCFragment *FurthestUnreachable = nullptr;
+          MCFragment *FurthestPossible = nullptr;
+
+          while (Curr && Curr != &F) {
+            uint64_t CurrOffset = Asm->getFragmentOffset(*Curr);
+            int64_t Dist = (int64_t)FOffset - (int64_t)CurrOffset;
+            if (Dist <= Limit - 100) {
+              if (!FurthestPossible) {
+                FurthestPossible = Curr;
+              }
+              MCFragment *Next = Curr->getNext();
+              if (Next && Next != &F) {
+                if (isUnconditionalBranchOrReturn(*Curr) && !LabeledFragments.count(Next)) {
+                  if (!FurthestUnreachable) {
+                    FurthestUnreachable = Curr;
+                  }
+                }
+              }
+            }
+            Curr = Curr->getNext();
+          }
+
+          if (FurthestUnreachable) {
+            TrampolineInsertAfter = FurthestUnreachable;
+            UseUnreachable = true;
+          } else if (FurthestPossible) {
+            TrampolineInsertAfter = FurthestPossible;
+            UseUnreachable = false;
+          } else {
+            TrampolineInsertAfter = PrevFrag;
+            UseUnreachable = false;
+          }
+          if (!TrampolineInsertAfter) {
+            TrampolineInsertAfter = &F;
+          }
+
+
+
+          MCFragment *PoolData = nullptr;
+          MCFragment *Next = TrampolineInsertAfter->getNext();
+
+          if (Next && Next->getKind() == MCFragment::FT_Align) {
+            MCFragment *P = Next->getNext();
+            if (P && AutoLitpools.count(P)) {
+              PoolData = P;
+            }
+          } else if (Next && Next->getKind() == MCFragment::FT_Relaxable && Next->getInst().getOpcode() == Xtensa::J) {
+            MCFragment *AlignFrag = Next->getNext();
+            if (AlignFrag && AlignFrag->getKind() == MCFragment::FT_Align) {
+              MCFragment *P = AlignFrag->getNext();
+              if (P && AutoLitpools.count(P)) {
+                PoolData = P;
+              }
+            }
+          }
+
+          if (PoolData) {
+            ArrayRef<char> LitContents = TargetSym->getFragment()->getContents();
+            uint64_t LitOffset = TargetSym->getOffset();
+            StringRef LitBytes(LitContents.data() + LitOffset, 4);
+
+            ArrayRef<char> CurrContents = PoolData->getVarContents();
+            ArrayRef<MCFixup> CurrFixups = PoolData->getVarFixups();
+
+            std::vector<char> NewContents(CurrContents.begin(), CurrContents.end());
+            std::vector<MCFixup> NewFixups(CurrFixups.begin(), CurrFixups.end());
+
+            uint64_t OldSize = NewContents.size();
+            NewContents.insert(NewContents.end(), LitBytes.begin(), LitBytes.end());
+
+            for (const MCFixup &Flf : TargetSym->getFragment()->getFixups()) {
+              if (Flf.getOffset() >= LitOffset && Flf.getOffset() < LitOffset + 4) {
+                MCFixup NewF = MCFixup::create(Flf.getOffset() - LitOffset + OldSize, Flf.getValue(), Flf.getKind(), Flf.isPCRel());
+                NewFixups.push_back(NewF);
+              }
+            }
+
+            PoolData->setVarContents(NewContents);
+            PoolData->setVarFixups(NewFixups);
+
+            MCSymbol *TrampSym = Ctx.createTempSymbol();
+            TrampSym->setFragment(PoolData);
+            TrampSym->setOffset(OldSize);
+            const_cast<MCAssembler *>(Asm)->registerSymbol(*TrampSym);
+
+            MCInst NewInst = F.getInst();
+            NewInst.getOperand(1).setExpr(MCSymbolRefExpr::create(TrampSym, Ctx));
+            F.setInst(NewInst);
+
+            const MCSubtargetInfo &STI = *F.getSubtargetInfo();
+            SmallVector<char, 16> DataF;
+            SmallVector<MCFixup, 1> FixupsF;
+            Asm->getEmitter().encodeInstruction(NewInst, DataF, FixupsF, STI);
+            F.setVarContents(DataF);
+            F.setVarFixups(FixupsF);
+          } else {
+            MCSymbol *TrampSym = Ctx.createTempSymbol();
+            const MCSubtargetInfo &STI = *F.getSubtargetInfo();
+
+            ArrayRef<char> LitContents = TargetSym->getFragment()->getContents();
+            uint64_t LitOffset = TargetSym->getOffset();
+            StringRef LitBytes(LitContents.data() + LitOffset, 4);
+
+            std::vector<char> NewContents(LitBytes.begin(), LitBytes.end());
+            std::vector<MCFixup> NewFixups;
+            for (const MCFixup &Flf : TargetSym->getFragment()->getFixups()) {
+              if (Flf.getOffset() >= LitOffset && Flf.getOffset() < LitOffset + 4) {
+                MCFixup NewF = MCFixup::create(Flf.getOffset() - LitOffset, Flf.getValue(), Flf.getKind(), Flf.isPCRel());
+                NewFixups.push_back(NewF);
+              }
+            }
+
+            PoolData = new (Ctx.allocate(sizeof(MCFragment))) MCFragment(MCFragment::FT_Data);
+            PoolData->setParent(&Sec);
+            PoolData->setVarContents(NewContents);
+            PoolData->setVarFixups(NewFixups);
+            AutoLitpools.insert(PoolData);
+
+            MCFragment *AlignFrag = new (Ctx.allocate(sizeof(MCFragment))) MCFragment(MCFragment::FT_Align);
+            AlignFrag->setParent(&Sec);
+            AlignFrag->makeAlign(Align(4), 0, 1, 4);
+            Sec.ensureMinAlignment(Align(4));
+
+            if (UseUnreachable) {
+              PoolData->setNext(TrampolineInsertAfter->getNext());
+              AlignFrag->setNext(PoolData);
+              TrampolineInsertAfter->setNext(AlignFrag);
+
+              if (Sec.curFragList()->Tail == TrampolineInsertAfter) {
+                Sec.curFragList()->Tail = PoolData;
+              }
+            } else {
+              MCSymbol *ResumeSym = Ctx.createTempSymbol();
+
+              MCFragment *JmpResume = new (Ctx.allocate(sizeof(MCFragment))) MCFragment(MCFragment::FT_Relaxable);
+              JmpResume->setHasInstructions(STI);
+              JmpResume->setParent(&Sec);
+
+              MCInst JmpResumeInst;
+              JmpResumeInst.setOpcode(Xtensa::J);
+              JmpResumeInst.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(ResumeSym, Ctx)));
+              JmpResumeInst.setFlags(Xtensa::XtensaJJumpTrampolinesDisabled);
+
+              SmallVector<char, 16> Data1;
+              SmallVector<MCFixup, 1> Fixups1;
+              Asm->getEmitter().encodeInstruction(JmpResumeInst, Data1, Fixups1, STI);
+              JmpResume->setVarContents(Data1);
+              JmpResume->setInst(JmpResumeInst);
+              JmpResume->setVarFixups(Fixups1);
+
+              MCFragment *Resume = new (Ctx.allocate(sizeof(MCFragment))) MCFragment();
+              Resume->setParent(&Sec);
+
+              Resume->setNext(TrampolineInsertAfter->getNext());
+              PoolData->setNext(Resume);
+              AlignFrag->setNext(PoolData);
+              JmpResume->setNext(AlignFrag);
+              TrampolineInsertAfter->setNext(JmpResume);
+
+              if (Sec.curFragList()->Tail == TrampolineInsertAfter) {
+                Sec.curFragList()->Tail = Resume;
+              }
+
+              ResumeSym->setFragment(Resume);
+              ResumeSym->setOffset(0);
+              const_cast<MCAssembler *>(Asm)->registerSymbol(*ResumeSym);
+            }
+
+            TrampSym->setFragment(PoolData);
+            TrampSym->setOffset(0);
+            const_cast<MCAssembler *>(Asm)->registerSymbol(*TrampSym);
+
+            MCInst NewInst = F.getInst();
+            NewInst.getOperand(1).setExpr(MCSymbolRefExpr::create(TrampSym, Ctx));
+            F.setInst(NewInst);
+
+            SmallVector<char, 16> DataF;
+            SmallVector<MCFixup, 1> FixupsF;
+            Asm->getEmitter().encodeInstruction(NewInst, DataF, FixupsF, STI);
+            F.setVarContents(DataF);
+            F.setVarFixups(FixupsF);
+          }
+
+          unsigned LayoutOrder = 0;
+          for (MCFragment &Frag : Sec) {
+            Frag.setLayoutOrder(LayoutOrder++);
+          }
+
+          const_cast<MCAssembler *>(Asm)->layoutSection(Sec);
+
+          IterChanged = true;
+          Changed = true;
+          break;
+        }
+        if (IterChanged)
+          break;
+      }
+    }
+
     if (!IterChanged)
       break;
   }

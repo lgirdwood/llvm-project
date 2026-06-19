@@ -58,9 +58,9 @@ enum FLIXSlot {
   FLIX_HiFiSetup,    // HiFi setup (ae_zalign*, ae_la64.pp, ae_sa64pos.fp, ae_cbegin/cend)
 };
 
-static bool isHiFiOpcode(unsigned Opc) {
-  // HiFi opcodes span from AE_ADD16S_PSEUDO to AE_ZEXT16_PSEUDO
-  return Opc >= Xtensa::AE_ADD16S_PSEUDO && Opc <= Xtensa::AE_ZEXT16_PSEUDO;
+static bool isHiFiOpcode(unsigned Opc, const TargetInstrInfo &TII) {
+  StringRef Name = TII.getName(Opc);
+  return Name.starts_with("AE_");
 }
 
 /// Classify an Xtensa instruction for FLIX slot assignment.
@@ -107,7 +107,7 @@ static FLIXSlot classifyInstr(const MachineInstr &MI,
     return FLIX_Branch;
 
   // HiFi instructions — classify by execution unit for multi-HiFi bundling
-  if (isHiFiOpcode(Opc)) {
+  if (isHiFiOpcode(Opc, TII)) {
     // Loads go to Slot 0/1 (can dual-issue)
     if (MI.mayLoad() && !MI.mayStore())
       return FLIX_HiFiMem;
@@ -180,6 +180,7 @@ static FLIXSlot classifyInstr(const MachineInstr &MI,
   case Xtensa::SRAI:
   case Xtensa::SRC:
   case Xtensa::SSA8L:
+  case Xtensa::SSA8B:
   case Xtensa::SSAI:
   case Xtensa::SSL:
   case Xtensa::SSR:

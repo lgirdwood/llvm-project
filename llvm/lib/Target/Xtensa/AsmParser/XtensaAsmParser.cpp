@@ -28,6 +28,11 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Alignment.h"
+#include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCSectionELF.h"
+
 using namespace llvm;
 
 namespace llvm {
@@ -67,7 +72,23 @@ cl::opt<bool> NoTrampolines(
     "no-trampolines",
     cl::desc("Disable trampolines relaxation"),
     cl::init(false));
+
+cl::opt<bool> AutoLitpools(
+    "auto-litpools",
+    cl::desc("Enable automatic literal pools"),
+    cl::init(false));
+
+cl::opt<bool> NoAutoLitpools(
+    "no-auto-litpools",
+    cl::desc("Disable automatic literal pools"),
+    cl::init(false));
+
+cl::opt<int> AutoLitpoolLimit(
+    "auto-litpool-limit",
+    cl::desc("Set limit for automatic literal pools"),
+    cl::init(262144));
 }
+
 #define DEBUG_TYPE "xtensa-asm-parser"
 
 struct XtensaOperand;
@@ -84,6 +105,8 @@ class XtensaAsmParser : public MCTargetAsmParser {
   std::vector<bool> TransformStack;
   bool TrampolinesEnabled;
   std::vector<bool> TrampolinesStack;
+  bool AutoLitpoolsEnabled;
+  std::vector<bool> AutoLitpoolsStack;
 
   enum XtensaRegisterType { Xtensa_Generic, Xtensa_SR, Xtensa_UR };
   SMLoc getLoc() const { return getParser().getTok().getLoc(); }
@@ -103,6 +126,8 @@ class XtensaAsmParser : public MCTargetAsmParser {
                                bool MatchingInlineAsm) override;
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
+  void onLabelParsed(MCSymbol *Symbol) override;
+  uint64_t getSectionCurrentOffset(const MCSection *Sec);
 
   bool processInstruction(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
                           const MCSubtargetInfo *STI);
@@ -152,8 +177,16 @@ public:
         StructUniqueID(0),
         InBrackets(false),
         TransformEnabled(Transform && !NoTransform),
-        TrampolinesEnabled(Trampolines && !NoTrampolines) {
+        TrampolinesEnabled(Trampolines && !NoTrampolines),
+        AutoLitpoolsEnabled(AutoLitpools && !NoAutoLitpools) {
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
+    if (auto *TS = Parser.getStreamer().getTargetStreamer()) {
+      static_cast<XtensaTargetStreamer *>(TS)->setAbsoluteLiterals(AbsoluteLiterals);
+    }
+    Parser.addAliasForDirective(".word", ".4byte");
+    Parser.addAliasForDirective(".short", ".2byte");
+    Parser.addAliasForDirective(".hword", ".2byte");
+    Parser.addAliasForDirective(".half", ".2byte");
   }
 
   bool hasWindowed() const {
@@ -256,14 +289,28 @@ public:
            ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
   }
 
+  bool isUimm2() const { return isImm(0, 3); }
   bool isUimm4() const { return isImm(0, 15); }
   bool isUimm4_x8() const {
     return isImm(0, 120) &&
            ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
   }
 
+  bool isUimm4_x16() const {
+    return isImm(0, 240) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 16) == 0);
+  }
+
+  bool isUimm8_x4() const {
+    return isImm(0, 1020) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 4) == 0);
+  }
+
+
+
   bool isUimm5() const { return isImm(0, 31); }
   bool isUimm6() const { return isImm(0, 63); }
+  bool isUimm8() const { return isImm(0, 255); }
 
   bool isImm8n_7() const { return isImm(-8, 7); }
 
@@ -282,6 +329,11 @@ public:
   bool isImm8n_7_x4() const {
     return isImm(-32, 28) &&
            ((cast<MCConstantExpr>(getImm())->getValue() % 4) == 0);
+  }
+
+  bool isImm8n_7_x8() const {
+    return isImm(-64, 56) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
   }
 
   bool isImm16_31() const { return isImm(16, 31); }
@@ -484,6 +536,11 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
     break;
   }
   case Xtensa::L32R: {
+    if (AutoLitpoolsEnabled) {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+    } else {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+    }
     const MCSymbolRefExpr *OpExpr =
         static_cast<const MCSymbolRefExpr *>(Inst.getOperand(1).getExpr());
     Inst.getOperand(1).setExpr(OpExpr);
@@ -493,36 +550,112 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
     XtensaTargetStreamer &TS = this->getTargetStreamer();
 
     // Expand MOVI operand
-    if (!Inst.getOperand(1).isExpr()) {
-      uint64_t ImmOp64 = Inst.getOperand(1).getImm();
-      int32_t Imm = ImmOp64;
-      if (!isInt<12>(Imm)) {
-        XtensaTargetStreamer &TS = this->getTargetStreamer();
+    if (TransformEnabled) {
+      if (!Inst.getOperand(1).isExpr()) {
+        uint64_t ImmOp64 = Inst.getOperand(1).getImm();
+        int32_t Imm = ImmOp64;
+        if (!isInt<12>(Imm)) {
+          XtensaTargetStreamer &TS = this->getTargetStreamer();
+          MCInst TmpInst;
+          TmpInst.setLoc(IDLoc);
+          TmpInst.setOpcode(Xtensa::L32R);
+          if (AutoLitpoolsEnabled) {
+            TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+          } else {
+            TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+          }
+          const MCExpr *Value = MCConstantExpr::create(ImmOp64, getContext());
+          MCSymbol *Sym = getContext().createTempSymbol();
+          const MCExpr *Expr = MCSymbolRefExpr::create(Sym, getContext());
+          TmpInst.addOperand(Inst.getOperand(0));
+          MCOperand Op1 = MCOperand::createExpr(Expr);
+          TmpInst.addOperand(Op1);
+          TS.emitLiteral(Sym, Value, true, IDLoc);
+          Inst = TmpInst;
+        }
+      } else {
         MCInst TmpInst;
         TmpInst.setLoc(IDLoc);
         TmpInst.setOpcode(Xtensa::L32R);
-        const MCExpr *Value = MCConstantExpr::create(ImmOp64, getContext());
+        if (AutoLitpoolsEnabled) {
+          TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+        } else {
+          TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+        }
+        const MCExpr *Value = Inst.getOperand(1).getExpr();
         MCSymbol *Sym = getContext().createTempSymbol();
         const MCExpr *Expr = MCSymbolRefExpr::create(Sym, getContext());
         TmpInst.addOperand(Inst.getOperand(0));
         MCOperand Op1 = MCOperand::createExpr(Expr);
         TmpInst.addOperand(Op1);
-        TS.emitLiteral(Sym, Value, true, IDLoc);
         Inst = TmpInst;
+        TS.emitLiteral(Sym, Value, true, IDLoc);
       }
     } else {
-      MCInst TmpInst;
-      TmpInst.setLoc(IDLoc);
-      TmpInst.setOpcode(Xtensa::L32R);
-      const MCExpr *Value = Inst.getOperand(1).getExpr();
+      if (!Inst.getOperand(1).isExpr()) {
+        uint64_t ImmOp64 = Inst.getOperand(1).getImm();
+        int32_t Imm = ImmOp64;
+        if (!isInt<12>(Imm)) {
+          return Error(IDLoc, "operand out of range");
+        }
+      } else {
+        return Error(IDLoc, "operand must be immediate when transform is disabled");
+      }
+    }
+    break;
+  }
+  case Xtensa::CALL0:
+  case Xtensa::CALL4:
+  case Xtensa::CALL8:
+  case Xtensa::CALL12: {
+    if (LongcallsEnabled) {
+      unsigned Reg;
+      unsigned CallXOpcode;
+      if (Opcode == Xtensa::CALL0) {
+        Reg = Xtensa::A0;
+        CallXOpcode = Xtensa::CALLX0;
+      } else if (Opcode == Xtensa::CALL4) {
+        Reg = Xtensa::A4;
+        CallXOpcode = Xtensa::CALLX4;
+      } else if (Opcode == Xtensa::CALL8) {
+        Reg = Xtensa::A8;
+        CallXOpcode = Xtensa::CALLX8;
+      } else {
+        Reg = Xtensa::A12;
+        CallXOpcode = Xtensa::CALLX12;
+      }
+
+      XtensaTargetStreamer &TS = this->getTargetStreamer();
+      const MCExpr *Value = Inst.getOperand(0).getExpr();
       MCSymbol *Sym = getContext().createTempSymbol();
       const MCExpr *Expr = MCSymbolRefExpr::create(Sym, getContext());
-      TmpInst.addOperand(Inst.getOperand(0));
-      MCOperand Op1 = MCOperand::createExpr(Expr);
-      TmpInst.addOperand(Op1);
-      Inst = TmpInst;
+
+      MCInst L32RInst;
+      L32RInst.setLoc(IDLoc);
+      L32RInst.setOpcode(Xtensa::L32R);
+      if (AutoLitpoolsEnabled) {
+        L32RInst.setFlags(L32RInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+      } else {
+        L32RInst.setFlags(L32RInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+      }
+      L32RInst.addOperand(MCOperand::createReg(Reg));
+      L32RInst.addOperand(MCOperand::createExpr(Expr));
+      Out.emitInstruction(L32RInst, *STI);
+
       TS.emitLiteral(Sym, Value, true, IDLoc);
+
+      MCInst CallXInst;
+      CallXInst.setLoc(IDLoc);
+      CallXInst.setOpcode(CallXOpcode);
+      CallXInst.addOperand(MCOperand::createReg(Reg));
+      Inst = CallXInst;
     }
+    break;
+  }
+  case Xtensa::LOOP:
+  case Xtensa::LOOPNEZ:
+  case Xtensa::LOOPGTZ: {
+    Out.emitValueToAlignment(Align(4));
     break;
   }
   default:
@@ -535,6 +668,28 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   }
 
   return true;
+}
+
+static bool isStandaloneHiFiInstr(StringRef Name) {
+  return Name.starts_with("AE_ABS24S") ||
+         Name.starts_with("AE_ABS64_") ||
+         Name.starts_with("AE_L16M_I") ||
+         Name.starts_with("AE_L32_I") ||
+         Name.starts_with("AE_L16_I") ||
+         Name.starts_with("AE_S32_L_I") ||
+         Name.starts_with("AE_L32_IP") ||
+         Name.starts_with("AE_ABS16S") ||
+         Name.starts_with("AE_ABS32S") ||
+         Name.starts_with("AE_NEG16S") ||
+         Name.starts_with("AE_NEG32S") ||
+         Name.starts_with("AE_MAX32") ||
+         Name.starts_with("AE_MIN32") ||
+         Name.starts_with("AE_ZALIGN64") ||
+         Name.starts_with("AE_SB") ||
+         Name.starts_with("AE_SBI") ||
+         Name.starts_with("AE_L16X4_I") ||
+         Name.starts_with("AE_S16X4_I") ||
+         Name.starts_with("AE_MOVDA32X2");
 }
 
 bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
@@ -563,6 +718,54 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     return false;
   }
 
+  if (FirstOperand.isToken() && FirstOperand.getToken() == "addi" && Operands.size() == 4) {
+    XtensaOperand &Op1 = static_cast<XtensaOperand &>(*Operands[1]);
+    XtensaOperand &Op2 = static_cast<XtensaOperand &>(*Operands[2]);
+    XtensaOperand &Op3 = static_cast<XtensaOperand &>(*Operands[3]);
+    if (Op1.isReg() && Op2.isReg() && Op3.isImm()) {
+      const MCExpr *Expr = Op3.getImm();
+      int64_t Value;
+      if (Expr->evaluateAsAbsolute(Value)) {
+        if (Value < -128 || Value > 127) {
+          int64_t ValSh8 = ((Value + 128) >> 8) << 8;
+          int64_t ValRem = Value - ValSh8;
+          if (ValSh8 >= -32768 && ValSh8 <= 32512 && ValRem >= -128 && ValRem <= 127) {
+            MCInst Inst1;
+            Inst1.setOpcode(Xtensa::ADDMI);
+            Inst1.addOperand(MCOperand::createReg(Op1.getReg()));
+            Inst1.addOperand(MCOperand::createReg(Op2.getReg()));
+            Inst1.addOperand(MCOperand::createImm(ValSh8));
+            Inst1.setLoc(IDLoc);
+            if (InBrackets) {
+              MCInst *SubInst = getParser().getContext().createMCInst();
+              *SubInst = Inst1;
+              CurrentBundle.addOperand(MCOperand::createInst(SubInst));
+            } else {
+              Out.emitInstruction(Inst1, getSTI());
+            }
+
+            if (ValRem != 0) {
+              MCInst Inst2;
+              Inst2.setOpcode(Xtensa::ADDI);
+              Inst2.addOperand(MCOperand::createReg(Op1.getReg()));
+              Inst2.addOperand(MCOperand::createReg(Op1.getReg()));
+              Inst2.addOperand(MCOperand::createImm(ValRem));
+              Inst2.setLoc(IDLoc);
+              if (InBrackets) {
+                MCInst *SubInst = getParser().getContext().createMCInst();
+                *SubInst = Inst2;
+                CurrentBundle.addOperand(MCOperand::createInst(SubInst));
+              } else {
+                Out.emitInstruction(Inst2, getSTI());
+              }
+            }
+            return false;
+          }
+        }
+      }
+    }
+  }
+
   MCInst Inst;
   auto Result =
       MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
@@ -578,7 +781,8 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
       *SubInst = Inst;
       CurrentBundle.addOperand(MCOperand::createInst(SubInst));
     } else {
-      if (MII.getName(Inst.getOpcode()).starts_with("AE_")) {
+      if (MII.getName(Inst.getOpcode()).starts_with("AE_") &&
+          !isStandaloneHiFiInstr(MII.getName(Inst.getOpcode()))) {
         MCInst StandaloneBundle;
         StandaloneBundle.setOpcode(Xtensa::BUNDLE);
         StandaloneBundle.setLoc(IDLoc);
@@ -648,12 +852,21 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidUimm4:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 15]");
+  case Match_InvalidUimm4_x16:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 240] and multiple of 16");
+  case Match_InvalidUimm8_x4:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 1020] and multiple of 4");
   case Match_InvalidUimm5:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 31]");
   case Match_InvalidUimm6:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 63]");
+  case Match_InvalidUimm8:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 255]");
   case Match_InvalidOffset8m8:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 255]");
@@ -804,18 +1017,10 @@ ParseStatus XtensaAsmParser::parseImmediate(OperandVector &Operands) {
   case AsmToken::Tilde:
   case AsmToken::Integer:
   case AsmToken::String:
+  case AsmToken::Identifier:
     if (getParser().parseExpression(Res))
       return ParseStatus::Failure;
     break;
-  case AsmToken::Identifier: {
-    StringRef Identifier;
-    if (getParser().parseIdentifier(Identifier))
-      return ParseStatus::Failure;
-
-    MCSymbol *Sym = getContext().getOrCreateSymbol(Identifier);
-    Res = MCSymbolRefExpr::create(Sym, getContext());
-    break;
-  }
   case AsmToken::Percent:
     return parseOperandWithModifier(Operands);
   }
@@ -923,6 +1128,11 @@ bool XtensaAsmParser::ParseInstructionWithSR(ParseInstructionInfo &Info,
 bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
                                        StringRef Name, SMLoc NameLoc,
                                        OperandVector &Operands) {
+  if (Name.starts_with("_"))
+    Name = Name.drop_front(1);
+  if (Name.ends_with(".l") || Name.ends_with(".w"))
+    Name = Name.drop_back(2);
+
   if (Name == "{" || Name == "}") {
     Operands.push_back(XtensaOperand::createToken(Name, NameLoc));
     return false;
@@ -1093,6 +1303,18 @@ ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
         TrampolinesEnabled = false;
         return parseEOL();
       }
+      if (FullArg == "auto-litpools") {
+        AutoLitpoolsStack.push_back(AutoLitpoolsEnabled);
+        AutoLitpoolsEnabled = true;
+        getTargetStreamer().setAutoLitpools(true);
+        return parseEOL();
+      }
+      if (FullArg == "no-auto-litpools") {
+        AutoLitpoolsStack.push_back(AutoLitpoolsEnabled);
+        AutoLitpoolsEnabled = false;
+        getTargetStreamer().setAutoLitpools(false);
+        return parseEOL();
+      }
       if (FullArg == "schedule") {
         return parseEOL();
       }
@@ -1147,6 +1369,15 @@ ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
         }
         return parseEOL();
       }
+      if (FullArg == "auto-litpools" || FullArg == "no-auto-litpools") {
+        if (!AutoLitpoolsStack.empty()) {
+          bool Prev = AutoLitpoolsStack.back();
+          AutoLitpoolsStack.pop_back();
+          AutoLitpoolsEnabled = Prev;
+          getTargetStreamer().setAutoLitpools(Prev);
+        }
+        return parseEOL();
+      }
       if (FullArg == "schedule") {
         return parseEOL();
       }
@@ -1154,7 +1385,50 @@ ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
     }
     return ParseStatus::NoMatch;
   }
+
   return ParseStatus::NoMatch;
+}
+void XtensaAsmParser::onLabelParsed(MCSymbol *Symbol) {
+  MCSection *CurSec = getParser().getStreamer().getCurrentSectionOnly();
+  if (CurSec && CurSec->getName() == ".struct") {
+    uint64_t Offset = getSectionCurrentOffset(CurSec);
+    Symbol->setVariableValue(MCConstantExpr::create(Offset, getContext()));
+  }
+}
+
+uint64_t XtensaAsmParser::getSectionCurrentOffset(const MCSection *Sec) {
+  uint64_t Offset = 0;
+  for (const MCFragment &F : *Sec) {
+    switch (F.getKind()) {
+    case MCFragment::FT_Data:
+    case MCFragment::FT_Relaxable:
+    case MCFragment::FT_LEB:
+    case MCFragment::FT_Dwarf:
+    case MCFragment::FT_DwarfFrame:
+    case MCFragment::FT_SFrame:
+      Offset += F.getContents().size() + F.getVarContents().size();
+      break;
+    case MCFragment::FT_Align: {
+      Align Alignment = F.getAlignment();
+      uint64_t Padding = offsetToAlignment(Offset, Alignment);
+      if (Padding > F.getAlignMaxBytesToEmit())
+        Padding = 0;
+      Offset += Padding;
+      break;
+    }
+    case MCFragment::FT_Fill: {
+      const MCFillFragment &FF = cast<MCFillFragment>(F);
+      int64_t NumValues = 0;
+      if (FF.getNumValues().evaluateAsAbsolute(NumValues)) {
+        Offset += NumValues * FF.getValueSize();
+      }
+      break;
+    }
+    default:
+      break;
+    }
+  }
+  return Offset;
 }
 
 // Force static initialization.

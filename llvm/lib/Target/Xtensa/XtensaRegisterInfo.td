@@ -95,6 +95,13 @@ def WINDOWBASE : SRReg<72, "windowbase", ["WINDOWBASE", "72"]>;
 def WINDOWSTART : SRReg<73, "windowstart", ["WINDOWSTART", "73"]>;
 
 // Instuction breakpoint enable register
+// MMU Option Registers
+def PTEVADDR : SRReg<83, "ptevaddr", ["PTEVADDR", "83"]>;
+def MMID : SRReg<89, "mmid", ["MMID", "89"]>;
+def RASID : SRReg<90, "rasid", ["RASID", "90"]>;
+def ITLBCFG : SRReg<91, "itlbcfg", ["ITLBCFG", "91"]>;
+def DTLBCFG : SRReg<92, "dtlbcfg", ["DTLBCFG", "92"]>;
+
 def IBREAKENABLE : SRReg<96, "ibreakenable", ["IBREAKENABLE", "96"]>;
 
 // Memory Control Register
@@ -242,7 +249,8 @@ def SR :  RegisterClass<"Xtensa", [i32], 32, (add
   EPC6, EPC7, DEPC, EPS2, EPS3, EPS4, EPS5, EPS6, EPS7, CONFIGID1, EXCSAVE1, EXCSAVE2,
   EXCSAVE3, EXCSAVE4, EXCSAVE5, EXCSAVE6, EXCSAVE7, CPENABLE, INTERRUPT, INTSET, INTCLEAR, INTENABLE,
   PS, VECBASE, EXCCAUSE, DEBUGCAUSE, CCOUNT, PRID, ICOUNT, ICOUNTLEVEL, EXCVADDR, CCOMPARE0,
-  CCOMPARE1, CCOMPARE2, MISC0, MISC1, MISC2, MISC3)>;
+  CCOMPARE1, CCOMPARE2, MISC0, MISC1, MISC2, MISC3,
+  PTEVADDR, MMID, RASID, ITLBCFG, DTLBCFG)>;
 
 //===----------------------------------------------------------------------===//
 // HiFi Audio Engine registers
@@ -283,6 +291,9 @@ def U1 : URAlignReg<1, "u1">;
 def U2 : URAlignReg<2, "u2">;
 def U3 : URAlignReg<3, "u3">;
 
+// Alignment registers class.
+def URAlign : RegisterClass<"Xtensa", [i32], 32, (add U0, U1, U2, U3)>;
+
 // Legacy name for use in hasSideEffects Defs lists; U0 IS the hardware u0
 // alignment register.  Any Defs = [AE_VALIGN] in instruction definitions
 // should use U0 directly.
@@ -315,14 +326,24 @@ def F64R_LO : URReg<234, "f64r_lo", ["F64R_LO"]>;
 def F64R_HI : URReg<235, "f64r_hi", ["F64R_HI"]>;
 def F64S : URReg<236, "f64s", ["F64S"]>;
 
+def AE_OVF_SAR      : URReg<240, "ae_ovf_sar", ["AE_OVF_SAR"]>;
+def AE_BITHEAD      : URReg<241, "ae_bithead", ["AE_BITHEAD"]>;
+def AE_TS_FTS_BU_BP : URReg<242, "ae_ts_fts_bu_bp", ["AE_TS_FTS_BU_BP"]>;
+def AE_CW_SD_NO     : URReg<243, "ae_cw_sd_no", ["AE_CW_SD_NO"]>;
+
 def AE_CBEGIN0 : URReg<246, "ae_cbegin0", ["AE_CBEGIN0"]>;
 def AE_CEND0   : URReg<247, "ae_cend0", ["AE_CEND0"]>;
 def AE_CBEGIN1 : URReg<248, "ae_cbegin1", ["AE_CBEGIN1"]>;
 def AE_CEND1   : URReg<249, "ae_cend1", ["AE_CEND1"]>;
+def AE_CBEGIN2 : URReg<250, "ae_cbegin2", ["AE_CBEGIN2"]>;
+def AE_CEND2   : URReg<251, "ae_cend2", ["AE_CEND2"]>;
 
 def UR :  RegisterClass<"Xtensa", [i32], 32, (add
   THREADPTR, FCR, FSR, F64R_LO, F64R_HI, F64S,
-  AE_CBEGIN0, AE_CEND0, AE_CBEGIN1, AE_CEND1)>;
+  AE_OVF_SAR, AE_BITHEAD, AE_TS_FTS_BU_BP, AE_CW_SD_NO,
+  AE_CBEGIN0, AE_CEND0, AE_CBEGIN1, AE_CEND1,
+  AE_CBEGIN2, AE_CEND2)>;
+
 
 //===----------------------------------------------------------------------===//
 // Floating-Point registers
@@ -358,11 +379,17 @@ def FPR : RegisterClass<"Xtensa", [f32], 32, (add
 //===----------------------------------------------------------------------===//
 // Boolean registers
 //===----------------------------------------------------------------------===//
-class BReg<bits<4> num, string n> : XtensaReg<n> {
+class BReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n> {
   let HWEncoding{3-0} = num;
+  let AltNames = alt;
 }
 
-foreach i = 0-15 in {
+def B0 : BReg<0, "b0", ["aep0", "AEP0"]>;
+def B1 : BReg<1, "b1", ["aep1", "AEP1"]>;
+def B2 : BReg<2, "b2", ["aep2", "AEP2"]>;
+def B3 : BReg<3, "b3", ["aep3", "AEP3"]>;
+
+foreach i = 4-15 in {
   def B#i  : BReg<i, "b"#i>;
 }
 
@@ -371,3 +398,9 @@ def BR : RegisterClass<"Xtensa", [v1i1], 8, (add B0, B1,
   B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15)> {
   let Size = 8;
 }
+
+// Boolean sub-register class for AEP (b0-b3)
+def BR_AEP : RegisterClass<"Xtensa", [v1i1], 8, (add B0, B1, B2, B3)> {
+  let Size = 8;
+}
+

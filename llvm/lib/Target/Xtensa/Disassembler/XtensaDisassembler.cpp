@@ -41,6 +41,9 @@ public:
       : MCDisassembler(STI, Ctx), IsLittleEndian(isLE) {}
 
   bool hasDensity() const { return STI.hasFeature(Xtensa::FeatureDensity); }
+  bool hasHIFI3() const { return STI.hasFeature(Xtensa::FeatureHIFI3); }
+  bool hasHIFI4() const { return STI.hasFeature(Xtensa::FeatureHIFI4); }
+  bool hasHIFI5() const { return STI.hasFeature(Xtensa::FeatureHIFI5); }
 
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
@@ -172,10 +175,11 @@ const DecodeRegister SRDecoderTable[] = {
     {Xtensa::SCOMPARE1, 12},   {Xtensa::ACCLO, 16},
     {Xtensa::ACCHI, 17},       {Xtensa::M0, 32},
     {Xtensa::M1, 33},          {Xtensa::M2, 34},
-    {Xtensa::M3, 35},          {Xtensa::WINDOWBASE, 72},
-    {Xtensa::WINDOWSTART, 73}, {Xtensa::IBREAKENABLE, 96},
-    {Xtensa::MEMCTL, 97},      {Xtensa::ATOMCTL, 99},
-    {Xtensa::DDR, 104},        {Xtensa::IBREAKA0, 128},
+    {Xtensa::M3, 35},          {Xtensa::PREFCTL, 40},
+    {Xtensa::WINDOWBASE, 72},  {Xtensa::WINDOWSTART, 73},
+    {Xtensa::IBREAKENABLE, 96}, {Xtensa::MEMCTL, 97},
+    {Xtensa::ATOMCTL, 99},     {Xtensa::DDR, 104},
+    {Xtensa::MESAVE, 108},     {Xtensa::IBREAKA0, 128},
     {Xtensa::IBREAKA1, 129},   {Xtensa::DBREAKA0, 144},
     {Xtensa::DBREAKA1, 145},   {Xtensa::DBREAKC0, 160},
     {Xtensa::DBREAKC1, 161},   {Xtensa::CONFIGID0, 176},
@@ -255,6 +259,26 @@ static DecodeStatus DecodeVALIGNRegisterClass(MCInst &Inst, uint64_t RegNo,
   if (RegNo >= 4)
     return MCDisassembler::Fail;
   Inst.addOperand(MCOperand::createReg(VALIGNDecoderTable[RegNo]));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeURAlignRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                               uint64_t Address,
+                                               const void *Decoder) {
+  if (RegNo >= 4)
+    return MCDisassembler::Fail;
+  Inst.addOperand(MCOperand::createReg(VALIGNDecoderTable[RegNo]));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeBR_AEPRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                              uint64_t Address,
+                                              const void *Decoder) {
+  if (RegNo > 3)
+    return MCDisassembler::Fail;
+
+  MCPhysReg Reg = Xtensa::B0 + RegNo;
+  Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }
 
@@ -358,9 +382,39 @@ static DecodeStatus decodeUimm4_x8Operand(MCInst &Inst, uint64_t Imm,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus decodeUimm4_x16Operand(MCInst &Inst, uint64_t Imm,
+                                           int64_t Address, const void *Decoder) {
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm * 16));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeUimm8_x4Operand(MCInst &Inst, uint64_t Imm,
+                                          int64_t Address, const void *Decoder) {
+  assert(isUInt<8>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm * 4));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeUimm8Operand(MCInst &Inst, uint64_t Imm,
+                                       int64_t Address, const void *Decoder) {
+  assert(isUInt<8>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm));
+  return MCDisassembler::Success;
+}
+
+
+
 static DecodeStatus decodeUimm5Operand(MCInst &Inst, uint64_t Imm,
                                        int64_t Address, const void *Decoder) {
   assert(isUInt<5>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeUimm2Operand(MCInst &Inst, uint64_t Imm,
+                                       int64_t Address, const void *Decoder) {
+  assert(isUInt<2>(Imm) && "Invalid immediate");
   Inst.addOperand(MCOperand::createImm(Imm));
   return MCDisassembler::Success;
 }
@@ -484,6 +538,14 @@ static DecodeStatus decodeImm8n_7_x4Operand(MCInst &Inst, uint64_t Imm,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus decodeImm8n_7_x8Operand(MCInst &Inst, uint64_t Imm,
+                                          int64_t Address, const void *Decoder) {
+  int64_t SignedImm = SignExtend64<4>(Imm);
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(SignedImm * 8));
+  return MCDisassembler::Success;
+}
+
 static DecodeStatus decodeMem8Operand(MCInst &Inst, uint64_t Imm,
                                       int64_t Address, const void *Decoder) {
   assert(isUInt<12>(Imm) && "Invalid immediate");
@@ -555,6 +617,42 @@ static DecodeStatus readInstruction24(ArrayRef<uint8_t> Bytes, uint64_t Address,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus readInstruction48(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                      uint64_t &Size, uint64_t &Insn,
+                                      bool IsLittleEndian) {
+  if (Bytes.size() < 6) {
+    Size = 0;
+    return MCDisassembler::Fail;
+  }
+  if (!IsLittleEndian) {
+    report_fatal_error("Big-endian mode currently is not supported!");
+  } else {
+    Insn = 0;
+    for (unsigned i = 0; i < 6; ++i) {
+      Insn |= (uint64_t(Bytes[i]) << (i * 8));
+    }
+  }
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus readInstruction64(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                      uint64_t &Size, uint64_t &Insn,
+                                      bool IsLittleEndian) {
+  if (Bytes.size() < 8) {
+    Size = 0;
+    return MCDisassembler::Fail;
+  }
+  if (!IsLittleEndian) {
+    report_fatal_error("Big-endian mode currently is not supported!");
+  } else {
+    Insn = 0;
+    for (unsigned i = 0; i < 8; ++i) {
+      Insn |= (uint64_t(Bytes[i]) << (i * 8));
+    }
+  }
+  return MCDisassembler::Success;
+}
+
 #include "XtensaGenDisassemblerTables.inc"
 
 DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
@@ -563,6 +661,23 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                                                 raw_ostream &CS) const {
   uint64_t Insn;
   DecodeStatus Result;
+
+  // Manual disassembly of 128-bit instructions (AE_MOVDRZBVC, AE_MOVZBVCDR)
+  if (hasHIFI5() && Bytes.size() >= 16) {
+    if (Bytes[0] == 0x4f && Bytes[1] == 0x61 && Bytes[2] == 0x08 && Bytes[3] == 0xbb &&
+        Bytes[4] == 0x53 && (Bytes[5] & 0x03) == 0x01 && Bytes[5] <= 0x3d &&
+        (Bytes[6] == 0x0e || Bytes[6] == 0x1e) && Bytes[7] == 0x60 && Bytes[8] == 0x09 &&
+        Bytes[9] == 0x99 && Bytes[10] == 0x00 && Bytes[11] == 0x5e && Bytes[12] == 0x80 &&
+        Bytes[13] == 0xa4 && Bytes[14] == 0x01 && Bytes[15] == 0x00) {
+      unsigned Opcode = (Bytes[6] == 0x0e) ? Xtensa::AE_MOVDRZBVC : Xtensa::AE_MOVZBVCDR;
+      unsigned RegVal = (Bytes[5] - 1) >> 2;
+      MI.setOpcode(Opcode);
+      unsigned Reg = Xtensa::AED0 + RegVal;
+      MI.addOperand(MCOperand::createReg(Reg));
+      Size = 16;
+      return MCDisassembler::Success;
+    }
+  }
 
   // VLIW / FLIX bundle decoding
   if (Bytes.size() >= 6 && (Bytes[0] & 0x0f) == 0x0e) {
@@ -730,6 +845,33 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
       }
     }
   }
+
+  // Parse 64-bit instructions
+  if (hasHIFI3()) {
+    Result = readInstruction64(Bytes, Address, Size, Insn, IsLittleEndian);
+    if (Result != MCDisassembler::Fail) {
+      LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI3 64-bit instruction table :\n");
+      Result = decodeInstruction(DecoderTableXtensaHIFI364, MI, Insn, Address, this, STI);
+      if (Result != MCDisassembler::Fail) {
+        Size = 8;
+        return Result;
+      }
+    }
+  }
+
+  // Parse 48-bit instructions
+  if (hasHIFI5()) {
+    Result = readInstruction48(Bytes, Address, Size, Insn, IsLittleEndian);
+    if (Result != MCDisassembler::Fail) {
+      LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI5 48-bit instruction table :\n");
+      Result = decodeInstruction(DecoderTableXtensaHIFI548, MI, Insn, Address, this, STI);
+      if (Result != MCDisassembler::Fail) {
+        Size = 6;
+        return Result;
+      }
+    }
+  }
+
   // Parse 16-bit instructions
   if (hasDensity()) {
     Result = readInstruction16(Bytes, Address, Size, Insn, IsLittleEndian);
@@ -743,16 +885,52 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
   }
 
-  // Parse Core 24-bit instructions
+  // Parse 24-bit instructions
   Result = readInstruction24(Bytes, Address, Size, Insn, IsLittleEndian);
   if (Result == MCDisassembler::Fail)
     return MCDisassembler::Fail;
+
+  // Try HiFi tables first
+  if (hasHIFI5()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI5 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFI524, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      Size = 3;
+      return Result;
+    }
+  }
+  if (hasHIFI4()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI4 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFI424, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      Size = 3;
+      return Result;
+    }
+  }
+  if (hasHIFI3()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI3 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFI324, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      Size = 3;
+      return Result;
+    }
+  }
+  if (hasHIFI3() || hasHIFI4()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFIX 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFIX24, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      Size = 3;
+      return Result;
+    }
+  }
+
   LLVM_DEBUG(dbgs() << "Trying Xtensa 24-bit instruction table :\n");
   Result = decodeInstruction(DecoderTable24, MI, Insn, Address, this, STI);
   if (Result != MCDisassembler::Fail) {
     Size = 3;
     return Result;
   }
+
   return Result;
 }
 
@@ -766,9 +944,129 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
     return true;
   }
 
+  // Check manual remapped instructions
+  // 1. AE_L16X4_X
+  if ((Val & 0xfff000) == 0x1e1000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L16X4_X);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 2. AE_L16X4_XC
+  if ((Val & 0xfff000) == 0x1e2000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L16X4_XC);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 3. AE_S16X4_X
+  if ((Val & 0xfff000) == 0x1ff000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S16X4_X);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 4. AE_S16X4_XC
+  if ((Val & 0xfff000) == 0x200000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S16X4_XC);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 5. AE_S16X4_XP
+  if ((Val & 0xfff000) == 0x201000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S16X4_XP);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 6. AE_L16_X_HIFI3
+  if ((Val & 0xfff000) == 0x1e4000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L16_X_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 7. AE_ABS32_HIFI3, AE_ABS64S_HIFI3, AE_ABSSQ56S_HIFI3
+  if ((Val & 0xffff0000) == 0x10340000) {
+    unsigned t_val_plus_9 = (Val >> 8) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    unsigned t_val = t_val_plus_9 - 9;
+    if (t_val == 2) MI.setOpcode(Xtensa::AE_ABS32_HIFI3);
+    else if (t_val == 5) MI.setOpcode(Xtensa::AE_ABS64S_HIFI3);
+    else if (t_val == 6) MI.setOpcode(Xtensa::AE_ABSSQ56S_HIFI3);
+    else return false;
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+  // 8. AE_ADDSQ56S_HIFI3, AE_ADDSUB32_HIFI3, AE_ADDSUB32S_HIFI3
+  if ((Val & 0xfffffc00) == 0x102d0400) { // op_19_12 = 0xEC
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned t = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_ADDSQ56S_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+  if ((Val & 0xfffffc00) == 0x102d0800) { // op_19_12 = 0xED
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned t = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_ADDSUB32_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+  if ((Val & 0xfffffc00) == 0x102d0C00) { // op_19_12 = 0xEE
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned t = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_ADDSUB32S_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
   // Fallback: try standard decoding tables, searching for the correct bits 23-20
   for (unsigned mask = 0; mask < 16; ++mask) {
     uint32_t CandidateVal = (Val & ~(0xf << 20)) | (mask << 20);
+    if (decodeInstruction(DecoderTableXtensaHIFI524, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+    if (decodeInstruction(DecoderTableXtensaHIFI424, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+    if (decodeInstruction(DecoderTableXtensaHIFI324, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+    if (decodeInstruction(DecoderTableXtensaHIFIX24, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
     if (decodeInstruction(DecoderTable24, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
   }
 

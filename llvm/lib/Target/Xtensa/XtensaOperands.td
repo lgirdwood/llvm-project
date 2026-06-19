@@ -65,6 +65,13 @@ def imm12m : Immediate<i32, [{ return Imm >= -2048 && Imm <= 2047; }], "Imm12m_A
   let DecoderMethod = "decodeImm12Operand";
 }
 
+// uimm2 predicate - Immediate in the range [0,3]
+def Uimm2_AsmOperand : ImmAsmOperand<"Uimm2">;
+def uimm2 : Immediate<i32, [{ return Imm >= 0 && Imm <= 3; }], "Uimm2_AsmOperand"> {
+  let EncoderMethod = "getUimm2OpValue";
+  let DecoderMethod = "decodeUimm2Operand";
+}
+
 // uimm4 predicate - Immediate in the range [0,15]
 def Uimm4_AsmOperand : ImmAsmOperand<"Uimm4">;
 def uimm4 : Immediate<i32, [{ return Imm >= 0 && Imm <= 15; }], "Uimm4_AsmOperand"> {
@@ -79,6 +86,14 @@ def uimm4_x8 : Immediate<i32, [{ return Imm >= 0 && Imm <= 120 && (Imm % 8 == 0)
   let DecoderMethod = "decodeUimm4_x8Operand";
 }
 
+// uimm4_x16 predicate - Immediate in the range [0,240] mapped as 4 bits
+def Uimm4_x16_AsmOperand : ImmAsmOperand<"Uimm4_x16">;
+def uimm4_x16 : Immediate<i32, [{ return Imm >= 0 && Imm <= 240 && (Imm % 16 == 0); }], "Uimm4_x16_AsmOperand"> {
+  let EncoderMethod = "getUimm4_x16OpValue";
+  let DecoderMethod = "decodeUimm4_x16Operand";
+}
+
+
 // uimm5 predicate - Immediate in the range [0,31]
 def Uimm5_AsmOperand : ImmAsmOperand<"Uimm5">;
 def uimm5 : Immediate<i32, [{ return Imm >= 0 && Imm <= 31; }], "Uimm5_AsmOperand"> {
@@ -92,6 +107,21 @@ def uimm6 : Immediate<i32, [{ return Imm >= 0 && Imm <= 63; }], "Uimm6_AsmOperan
   let EncoderMethod = "getUimm6OpValue";
   let DecoderMethod = "decodeUimm6Operand";
 }
+
+// uimm8_x4 predicate - Immediate in the range [0,1020] mapped as 8 bits
+def Uimm8_x4_AsmOperand : ImmAsmOperand<"Uimm8_x4">;
+def uimm8_x4 : Immediate<i32, [{ return Imm >= 0 && Imm <= 1020 && (Imm % 4 == 0); }], "Uimm8_x4_AsmOperand"> {
+  let EncoderMethod = "getUimm8_x4OpValue";
+  let DecoderMethod = "decodeUimm8_x4Operand";
+}
+
+// uimm8 predicate - Immediate in the range [0,255]
+def Uimm8_AsmOperand : ImmAsmOperand<"Uimm8">;
+def uimm8 : Immediate<i32, [{ return Imm >= 0 && Imm <= 255; }], "Uimm8_AsmOperand"> {
+  let EncoderMethod = "getUimm8OpValue";
+  let DecoderMethod = "decodeUimm8Operand";
+}
+
 
 // Custom offsets for AE DSP operations
 def Imm8_x4_add8_AsmOperand : ImmAsmOperand<"Imm8_x4_add8">;
@@ -114,6 +144,14 @@ def imm8n_7_x4 : Immediate<i32, [{ return Imm >= -32 && Imm <= 28 && (Imm % 4 ==
   let EncoderMethod = "getImm8n_7_x4OpValue";
   let DecoderMethod = "decodeImm8n_7_x4Operand";
 }
+
+def Imm8n_7_x8_AsmOperand : ImmAsmOperand<"Imm8n_7_x8">;
+def imm8n_7_x8 : Immediate<i32, [{ return Imm >= -64 && Imm <= 56 && (Imm % 8 == 0); }], "Imm8n_7_x8_AsmOperand"> {
+  let PrintMethod = "printImm8n_7_x8_AsmOperand";
+  let EncoderMethod = "getImm8n_7_x8OpValue";
+  let DecoderMethod = "decodeImm8n_7_x8Operand";
+}
+
 
 // imm1_16 predicate - Immediate in the range [1,16]
 def Imm1_16_AsmOperand : ImmAsmOperand<"Imm1_16">;

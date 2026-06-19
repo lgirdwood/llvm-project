@@ -52,6 +52,8 @@ namespace Xtensa {
 enum {
   XtensaJJumpTrampolinesEnabled = 1 << 0,
   XtensaJJumpTrampolinesDisabled = 1 << 1,
+  XtensaL32RAutoLitpoolsEnabled = 1 << 2,
+  XtensaL32RAutoLitpoolsDisabled = 1 << 3,
 };
 
 // Check address offset for load/store instructions.
