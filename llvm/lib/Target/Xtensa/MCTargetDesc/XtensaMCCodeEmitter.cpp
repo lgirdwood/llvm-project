@@ -186,10 +186,372 @@ static void addFixup(SmallVectorImpl<MCFixup> &Fixups, uint32_t Offset,
   Fixups.push_back(MCFixup::create(Offset, Value, Kind, PCRel));
 }
 
+struct AllowedSlots {
+  bool Slot0 = false;
+  bool Slot1 = false;
+  bool Slot2 = false;
+  bool Slot3 = false;
+};
+
+static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII) {
+  unsigned Opc = Inst.getOpcode();
+  const MCInstrDesc &Desc = MCII.get(Opc);
+  StringRef Name = MCII.getName(Opc);
+  AllowedSlots Allowed;
+
+  // HiFi instructions
+  if (Name.starts_with("AE_")) {
+    if (Desc.mayLoad() && !Desc.mayStore()) {
+      Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
+      return Allowed;
+    }
+    if (Name.starts_with("AE_MUL")) {
+      Allowed.Slot2 = true;
+      return Allowed;
+    }
+    if (Name.starts_with("AE_ROUND") || Name.starts_with("AE_SAT") ||
+        Name.starts_with("AE_CVT") || Name.starts_with("AE_SLAI") ||
+        Name.starts_with("AE_SRAI") || Name.starts_with("AE_MAX") ||
+        Name.starts_with("AE_MIN") || Name.starts_with("AE_ABS") ||
+        Name.starts_with("AE_NEG") || Name.starts_with("AE_TRUNC") ||
+        Name.starts_with("AE_PKSR")) {
+      Allowed.Slot3 = true;
+      return Allowed;
+    }
+    if (Name.starts_with("AE_ADD") || Name.starts_with("AE_SUB") ||
+        Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
+        Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
+        Name.starts_with("AE_MOV") || Name.starts_with("AE_ZERO")) {
+      Allowed.Slot2 = true;
+      return Allowed;
+    }
+    Allowed.Slot0 = true;
+    return Allowed;
+  }
+
+  // Scalar instructions
+  switch (Opc) {
+  // Memory (Strictly Slot 0)
+  case Xtensa::L32I:
+  case Xtensa::S32I:
+  case Xtensa::L32R:
+  case Xtensa::L8UI:
+  case Xtensa::L16UI:
+  case Xtensa::L16SI:
+  case Xtensa::S8I:
+  case Xtensa::S16I:
+    Allowed.Slot0 = true;
+    break;
+
+  // ALU (Strictly Slot 1)
+  case Xtensa::ADD:
+  case Xtensa::ADDI:
+  case Xtensa::SUB:
+  case Xtensa::AND:
+  case Xtensa::OR:
+  case Xtensa::XOR:
+  case Xtensa::MOVI:
+  case Xtensa::NOP:
+  case Xtensa::NEG:
+  case Xtensa::ABS:
+  case Xtensa::EXTUI:
+  case Xtensa::SEXT:
+  case Xtensa::CLAMPS:
+  case Xtensa::MOVEQZ:
+  case Xtensa::MOVNEZ:
+  case Xtensa::MOVLTZ:
+  case Xtensa::MOVGEZ:
+  case Xtensa::ADDX2:
+  case Xtensa::ADDX4:
+  case Xtensa::ADDX8:
+  case Xtensa::MIN:
+  case Xtensa::MAX:
+  case Xtensa::MINU:
+  case Xtensa::MAXU:
+  case Xtensa::SLLI:
+  case Xtensa::SRLI:
+  case Xtensa::SRAI:
+  case Xtensa::SRC:
+  case Xtensa::SSA8L:
+  case Xtensa::SSAI:
+  case Xtensa::SSL:
+  case Xtensa::SSR:
+    Allowed.Slot1 = true;
+    break;
+
+  default:
+    if (Desc.isConditionalBranch() || Desc.isUnconditionalBranch()) {
+      Allowed.Slot0 = true;
+    } else {
+      Allowed.Slot0 = true;
+    }
+    break;
+  }
+  return Allowed;
+}
+
+static bool isBranchMCInst(const MCInst &Inst, const MCInstrInfo &MCII) {
+  return MCII.get(Inst.getOpcode()).isConditionalBranch() ||
+         MCII.get(Inst.getOpcode()).isUnconditionalBranch();
+}
+
 void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
                                             SmallVectorImpl<char> &CB,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
+  unsigned Opcode = MI.getOpcode();
+
+  if (Opcode == Xtensa::BUNDLE) {
+    SmallVector<const MCInst *, 4> SubInsts;
+    for (unsigned i = 0; i < MI.getNumOperands(); ++i) {
+      const MCOperand &Op = MI.getOperand(i);
+      if (Op.isInst()) {
+        SubInsts.push_back(Op.getInst());
+      }
+    }
+
+    if (SubInsts.empty())
+      return;
+
+    int AssignedSlots[4] = {-1, -1, -1, -1};
+    bool Found = false;
+    unsigned N = SubInsts.size();
+
+    if (N == 1) {
+      AllowedSlots A = getAllowedSlots(*SubInsts[0], MCII);
+      if (A.Slot0) { AssignedSlots[0] = 0; Found = true; }
+      else if (A.Slot1) { AssignedSlots[1] = 0; Found = true; }
+      else if (A.Slot2) { AssignedSlots[2] = 0; Found = true; }
+      else if (A.Slot3) { AssignedSlots[3] = 0; Found = true; }
+    } else if (N == 2) {
+      AllowedSlots A0 = getAllowedSlots(*SubInsts[0], MCII);
+      AllowedSlots A1 = getAllowedSlots(*SubInsts[1], MCII);
+      for (int s0 = 0; s0 < 4; ++s0) {
+        if ((s0 == 0 && !A0.Slot0) || (s0 == 1 && !A0.Slot1) || (s0 == 2 && !A0.Slot2) || (s0 == 3 && !A0.Slot3)) continue;
+        for (int s1 = 0; s1 < 4; ++s1) {
+          if (s1 == s0) continue;
+          if ((s1 == 0 && !A1.Slot0) || (s1 == 1 && !A1.Slot1) || (s1 == 2 && !A1.Slot2) || (s1 == 3 && !A1.Slot3)) continue;
+          AssignedSlots[s0] = 0;
+          AssignedSlots[s1] = 1;
+          Found = true;
+          break;
+        }
+        if (Found) break;
+      }
+    } else if (N == 3) {
+      AllowedSlots A0 = getAllowedSlots(*SubInsts[0], MCII);
+      AllowedSlots A1 = getAllowedSlots(*SubInsts[1], MCII);
+      AllowedSlots A2 = getAllowedSlots(*SubInsts[2], MCII);
+      for (int s0 = 0; s0 < 4; ++s0) {
+        if ((s0 == 0 && !A0.Slot0) || (s0 == 1 && !A0.Slot1) || (s0 == 2 && !A0.Slot2) || (s0 == 3 && !A0.Slot3)) continue;
+        for (int s1 = 0; s1 < 4; ++s1) {
+          if (s1 == s0) continue;
+          if ((s1 == 0 && !A1.Slot0) || (s1 == 1 && !A1.Slot1) || (s1 == 2 && !A1.Slot2) || (s1 == 3 && !A1.Slot3)) continue;
+          for (int s2 = 0; s2 < 4; ++s2) {
+            if (s2 == s0 || s2 == s1) continue;
+            if ((s2 == 0 && !A2.Slot0) || (s2 == 1 && !A2.Slot1) || (s2 == 2 && !A2.Slot2) || (s2 == 3 && !A2.Slot3)) continue;
+            AssignedSlots[s0] = 0;
+            AssignedSlots[s1] = 1;
+            AssignedSlots[s2] = 2;
+            Found = true;
+            break;
+          }
+          if (Found) break;
+        }
+        if (Found) break;
+      }
+    } else if (N == 4) {
+      AllowedSlots A0 = getAllowedSlots(*SubInsts[0], MCII);
+      AllowedSlots A1 = getAllowedSlots(*SubInsts[1], MCII);
+      AllowedSlots A2 = getAllowedSlots(*SubInsts[2], MCII);
+      AllowedSlots A3 = getAllowedSlots(*SubInsts[3], MCII);
+      for (int s0 = 0; s0 < 4; ++s0) {
+        if ((s0 == 0 && !A0.Slot0) || (s0 == 1 && !A0.Slot1) || (s0 == 2 && !A0.Slot2) || (s0 == 3 && !A0.Slot3)) continue;
+        for (int s1 = 0; s1 < 4; ++s1) {
+          if (s1 == s0) continue;
+          if ((s1 == 0 && !A1.Slot0) || (s1 == 1 && !A1.Slot1) || (s1 == 2 && !A1.Slot2) || (s1 == 3 && !A1.Slot3)) continue;
+          for (int s2 = 0; s2 < 4; ++s2) {
+            if (s2 == s0 || s2 == s1) continue;
+            if ((s2 == 0 && !A2.Slot0) || (s2 == 1 && !A2.Slot1) || (s2 == 2 && !A2.Slot2) || (s2 == 3 && !A2.Slot3)) continue;
+            for (int s3 = 0; s3 < 4; ++s3) {
+              if (s3 == s0 || s3 == s1 || s3 == s2) continue;
+              if ((s3 == 0 && !A3.Slot0) || (s3 == 1 && !A3.Slot1) || (s3 == 2 && !A3.Slot2) || (s3 == 3 && !A3.Slot3)) continue;
+              AssignedSlots[s0] = 0;
+              AssignedSlots[s1] = 1;
+              AssignedSlots[s2] = 2;
+              AssignedSlots[s3] = 3;
+              Found = true;
+              break;
+            }
+            if (Found) break;
+          }
+          if (Found) break;
+        }
+        if (Found) break;
+      }
+    }
+
+    if (!Found) {
+      report_fatal_error("Could not find a valid VLIW slot assignment for instructions in bundle!");
+    }
+
+    auto encodeSlotInstr = [&](const MCInst &SlotInst, unsigned SlotIdx) -> uint32_t {
+      SmallVector<MCFixup, 4> LocalFixups;
+      uint32_t Val = getBinaryCodeForInstr(SlotInst, LocalFixups, STI);
+      for (const auto &F : LocalFixups) {
+        MCFixupKind SlotKind = MCFixupKind(Xtensa::fixup_xtensa_slot0 + SlotIdx);
+        Fixups.push_back(MCFixup::create(0, F.getValue(), SlotKind, F.isPCRel()));
+      }
+      return Val;
+    };
+
+    uint32_t Val0 = 0, Val1 = 0, Val2 = 0, Val3 = 0;
+    if (AssignedSlots[0] != -1) {
+      Val0 = encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0);
+    } else {
+      MCInst NopInst;
+      NopInst.setOpcode(Xtensa::NOP);
+      Val0 = encodeSlotInstr(NopInst, 0);
+    }
+
+    if (AssignedSlots[1] != -1) {
+      Val1 = encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1);
+    } else {
+      MCInst NopInst;
+      NopInst.setOpcode(Xtensa::NOP);
+      Val1 = encodeSlotInstr(NopInst, 1);
+    }
+
+    if (AssignedSlots[2] != -1) {
+      Val2 = encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2);
+    } else {
+      MCInst NopInst;
+      NopInst.setOpcode(Xtensa::NOP);
+      Val2 = encodeSlotInstr(NopInst, 2);
+    }
+
+    if (AssignedSlots[3] != -1) {
+      Val3 = encodeSlotInstr(*SubInsts[AssignedSlots[3]], 3);
+    } else {
+      MCInst NopInst;
+      NopInst.setOpcode(Xtensa::NOP);
+      Val3 = encodeSlotInstr(NopInst, 3);
+    }
+
+    unsigned Format = 0;
+    if (AssignedSlots[3] != -1) {
+      Format = 3;
+    } else if (AssignedSlots[2] != -1) {
+      Format = 2;
+    } else {
+      bool HasBranch = false;
+      if (AssignedSlots[0] != -1 && isBranchMCInst(*SubInsts[AssignedSlots[0]], MCII)) {
+        HasBranch = true;
+      }
+      if (HasBranch) {
+        Format = 1;
+      } else {
+        Format = 0;
+      }
+    }
+
+    uint32_t insn[3] = {0, 0, 0};
+    unsigned Size = 6;
+
+    if (Format == 0) {
+      insn[0] = 0x0e;
+      insn[1] = 0xc000;
+      
+      insn[0] = (insn[0] & ~0xf00) | ((Val0 & 0xf) << 8);
+      insn[0] = (insn[0] & ~0xf0) | (((Val0 & 0xf0) >> 4) << 4);
+      insn[0] = (insn[0] & ~0xf000) | (((Val0 & 0xf00) >> 8) << 12);
+      insn[0] = (insn[0] & ~0xf0000000) | (((Val0 & 0xf000) >> 12) << 28);
+      insn[1] = (insn[1] & ~0x3f) | ((Val0 & 0x3f0000) >> 16);
+
+      insn[0] = (insn[0] & ~0xf0000) | ((Val1 & 0xf) << 16);
+      insn[0] = (insn[0] & ~0xf000000) | (((Val1 & 0xf0) >> 4) << 24);
+      insn[0] = (insn[0] & ~0xf00000) | (((Val1 & 0xf00) >> 8) << 20);
+      insn[1] = (insn[1] & ~0x3fc0) | (((Val1 & 0xff000) >> 12) << 6);
+      Size = 6;
+    } else if (Format == 1) {
+      insn[0] = 0x0e;
+      insn[1] = 0x8000;
+
+      insn[0] = (insn[0] & ~0xf00) | ((Val0 & 0xf) << 8);
+      insn[0] = (insn[0] & ~0xf0) | (((Val0 & 0xf0) >> 4) << 4);
+      insn[0] = (insn[0] & ~0xf000) | (((Val0 & 0xf00) >> 8) << 12);
+      insn[0] = (insn[0] & ~0xf0000000) | (((Val0 & 0xf000) >> 12) << 28);
+      insn[1] = (insn[1] & ~0xfff) | ((Val0 & 0xfff0000) >> 16);
+
+      insn[0] = (insn[0] & ~0xf0000) | ((Val1 & 0xf) << 16);
+      insn[0] = (insn[0] & ~0xf000000) | (((Val1 & 0xf0) >> 4) << 24);
+      insn[0] = (insn[0] & ~0xf00000) | (((Val1 & 0xf00) >> 8) << 20);
+      insn[1] = (insn[1] & ~0x3000) | (((Val1 & 0x3000) >> 12) << 12);
+      Size = 6;
+    } else if (Format == 2) {
+      insn[0] = 0x0e;
+      insn[1] = 0;
+
+      insn[0] = (insn[0] & ~0xf00) | ((Val0 & 0xf) << 8);
+      insn[0] = (insn[0] & ~0xf0) | (((Val0 & 0xf0) >> 4) << 4);
+      insn[0] = (insn[0] & ~0xf000) | (((Val0 & 0xf00) >> 8) << 12);
+      insn[0] = (insn[0] & ~0xf0000000) | (((Val0 & 0xf000) >> 12) << 28);
+      insn[1] = (insn[1] & ~0x3f) | ((Val0 & 0x3f0000) >> 16);
+
+      insn[1] = (insn[1] & ~0x40) | ((Val1 & 0x1) << 6);
+
+      insn[0] = (insn[0] & ~0xfff0000) | ((Val2 & 0xfff) << 16);
+      insn[1] = (insn[1] & ~0x7f80) | (((Val2 & 0xff000) >> 12) << 7);
+      Size = 6;
+    } else if (Format == 3) {
+      insn[0] = 0x1f;
+      insn[1] = 0;
+      insn[2] = 0;
+
+      insn[0] = (insn[0] & ~0xff00) | ((Val0 & 0xff) << 8);
+      insn[1] = (insn[1] & ~0x3c0) | (((Val0 & 0xf00) >> 8) << 6);
+      insn[1] = (insn[1] & ~0x10) | (((Val0 & 0x1000) >> 12) << 4);
+      insn[0] = (insn[0] & ~0xe0) | (((Val0 & 0xe000) >> 13) << 5);
+      insn[1] = (insn[1] & ~0xe0000000) | (((Val0 & 0x70000) >> 16) << 29);
+      insn[2] = (insn[2] & ~0x3) | ((Val0 & 0x180000) >> 19);
+
+      insn[0] = (insn[0] & ~0xfff0000) | ((Val1 & 0xfff) << 16);
+      insn[2] = (insn[2] & ~0x3fc) | (((Val1 & 0xff000) >> 12) << 2);
+
+      insn[0] = (insn[0] & ~0xf0000000) | ((Val2 & 0xf) << 28);
+      insn[1] = (insn[1] & ~0x20) | (((Val2 & 0x10) >> 4) << 5);
+      insn[1] = (insn[1] & ~0x1c00) | (((Val2 & 0xe0) >> 5) << 10);
+      insn[1] = (insn[1] & ~0x3c000) | (((Val2 & 0xf00) >> 8) << 14);
+      insn[1] = (insn[1] & ~0x2000) | (((Val2 & 0x1000) >> 12) << 13);
+      insn[1] = (insn[1] & ~0x4000000) | (((Val2 & 0x2000) >> 13) << 26);
+      insn[2] = (insn[2] & ~0x1fc00) | (((Val2 & 0x1fc000) >> 14) << 10);
+
+      insn[1] = (insn[1] & ~0xf) | (Val3 & 0xf);
+      insn[1] = (insn[1] & ~0x3c00000) | (((Val3 & 0xf0) >> 4) << 22);
+      insn[1] = (insn[1] & ~0x3c000) | (((Val3 & 0xf00) >> 8) << 18);
+      insn[1] = (insn[1] & ~0x18000000) | (((Val3 & 0x3000) >> 12) << 27);
+      insn[2] = (insn[2] & ~0xfe0000) | (((Val3 & 0x1fc000) >> 14) << 17);
+      Size = 11;
+    }
+
+    if (IsLittleEndian) {
+      unsigned ShiftValue = 0;
+      for (unsigned I = 0; I != Size; ++I) {
+        if (I < 4) {
+          CB.push_back(char(insn[0] >> ShiftValue));
+        } else if (I < 8) {
+          CB.push_back(char(insn[1] >> (ShiftValue - 32)));
+        } else {
+          CB.push_back(char(insn[2] >> (ShiftValue - 64)));
+        }
+        ShiftValue += 8;
+      }
+    } else {
+      report_fatal_error("Big-endian mode currently is not supported!");
+    }
+    return;
+  }
   uint64_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
   unsigned Size = MCII.get(MI.getOpcode()).getSize();
 

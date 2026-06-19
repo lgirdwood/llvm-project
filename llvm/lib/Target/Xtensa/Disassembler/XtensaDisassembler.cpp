@@ -45,6 +45,8 @@ public:
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const override;
+
+  bool decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Address) const;
 };
 } // end anonymous namespace
 
@@ -562,6 +564,172 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
   uint64_t Insn;
   DecodeStatus Result;
 
+  // VLIW / FLIX bundle decoding
+  if (Bytes.size() >= 6 && (Bytes[0] & 0x0f) == 0x0e) {
+    // 48-bit (6-byte) bundle: Format 0, 1, or 2
+    uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
+    uint32_t insn1 = Bytes[4] | (Bytes[5] << 8);
+    unsigned fmt_bits = Bytes[5] & 0xc0;
+
+    if (fmt_bits == 0xc0) {
+      // Format 0: 2 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xf) |
+                      (((insn0 >> 4) & 0xf) << 4) |
+                      (((insn0 >> 12) & 0xf) << 8) |
+                      (((insn0 >> 28) & 0xf) << 12) |
+                      ((insn1 & 0x3f) << 16);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xf) |
+                      (((insn0 >> 24) & 0xf) << 4) |
+                      (((insn0 >> 20) & 0xf) << 8) |
+                      (((insn1 >> 6) & 0xff) << 12);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) && decodeSlotVal(*SubMI1, val1, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        Size = 6;
+        return MCDisassembler::Success;
+      }
+    } else if (fmt_bits == 0x80) {
+      // Format 1: 2 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xf) |
+                      (((insn0 >> 4) & 0xf) << 4) |
+                      (((insn0 >> 12) & 0xf) << 8) |
+                      (((insn0 >> 28) & 0xf) << 12) |
+                      ((insn1 & 0xfff) << 16);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xf) |
+                      (((insn0 >> 24) & 0xf) << 4) |
+                      (((insn0 >> 20) & 0xf) << 8) |
+                      (((insn1 >> 12) & 0x3) << 12);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) && decodeSlotVal(*SubMI1, val1, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        Size = 6;
+        return MCDisassembler::Success;
+      }
+    } else if (fmt_bits == 0x00) {
+      // Format 2: 3 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xf) |
+                      (((insn0 >> 4) & 0xf) << 4) |
+                      (((insn0 >> 12) & 0xf) << 8) |
+                      (((insn0 >> 28) & 0xf) << 12) |
+                      ((insn1 & 0x3f) << 16);
+
+      uint32_t val1 = (insn1 >> 6) & 0x1;
+
+      uint32_t val2 = ((insn0 >> 16) & 0xfff) |
+                      (((insn1 >> 7) & 0xff) << 12);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      MCInst *SubMI2 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) &&
+          decodeSlotVal(*SubMI1, val1, Address) &&
+          decodeSlotVal(*SubMI2, val2, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        MI.addOperand(MCOperand::createInst(SubMI2));
+        Size = 6;
+        return MCDisassembler::Success;
+      }
+    }
+  }
+
+  if (Bytes.size() >= 11 && (Bytes[0] & 0x0f) == 0x0f) {
+    // 88-bit (11-byte) bundle: Format 3 (0x1F) or Format 4 (0x0F)
+    uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
+    uint32_t insn1 = Bytes[4] | (Bytes[5] << 8) | (Bytes[6] << 16) | (Bytes[7] << 24);
+    uint32_t insn2 = Bytes[8] | (Bytes[9] << 8) | (Bytes[10] << 16);
+
+    if (Bytes[0] == 0x1f) {
+      // Format 3: 4 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xff) |
+                      (((insn1 >> 6) & 0xf) << 8) |
+                      (((insn1 >> 4) & 0x1) << 12) |
+                      (((insn0 >> 5) & 0x7) << 13) |
+                      (((insn1 >> 29) & 0x7) << 16) |
+                      ((insn2 & 0x3) << 19);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xfff) |
+                      (((insn2 >> 2) & 0xff) << 12);
+
+      uint32_t val2 = ((insn0 >> 28) & 0xf) |
+                      (((insn1 >> 5) & 0x1) << 4) |
+                      (((insn1 >> 10) & 0x7) << 5) |
+                      (((insn1 >> 14) & 0xf) << 8) |
+                      (((insn1 >> 13) & 0x1) << 12) |
+                      (((insn1 >> 26) & 0x1) << 13) |
+                      (((insn2 >> 10) & 0x7f) << 14);
+
+      uint32_t val3 = (insn1 & 0xf) |
+                      (((insn1 >> 22) & 0xf) << 4) |
+                      (((insn1 >> 18) & 0xf) << 8) |
+                      (((insn1 >> 27) & 0x3) << 12) |
+                      (((insn2 >> 17) & 0x7f) << 14);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      MCInst *SubMI2 = getContext().createMCInst();
+      MCInst *SubMI3 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) &&
+          decodeSlotVal(*SubMI1, val1, Address) &&
+          decodeSlotVal(*SubMI2, val2, Address) &&
+          decodeSlotVal(*SubMI3, val3, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        MI.addOperand(MCOperand::createInst(SubMI2));
+        MI.addOperand(MCOperand::createInst(SubMI3));
+        Size = 11;
+        return MCDisassembler::Success;
+      }
+    } else if (Bytes[0] == 0x0f) {
+      // Format 4: 3 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xff) |
+                      (((insn1 >> 6) & 0xf) << 8) |
+                      (((insn1 >> 4) & 0x1) << 12) |
+                      (((insn1 >> 13) & 0x1) << 13) |
+                      (((insn0 >> 6) & 0x3) << 14) |
+                      (((insn1 >> 22) & 0x3ff) << 16) |
+                      ((insn2 & 0x7) << 26);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xf) |
+                      (((insn0 >> 24) & 0xf) << 4) |
+                      (((insn0 >> 20) & 0xf) << 8) |
+                      (((insn2 >> 3) & 0xff) << 12);
+
+      uint32_t val2 = ((insn0 >> 28) & 0xf) |
+                      ((insn1 & 0xf) << 4) |
+                      (((insn1 >> 14) & 0xf) << 8) |
+                      (((insn1 >> 5) & 0x1) << 12) |
+                      (((insn1 >> 10) & 0x7) << 13) |
+                      (((insn1 >> 18) & 0xf) << 16) |
+                      (((insn2 >> 11) & 0x1f) << 20);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      MCInst *SubMI2 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) &&
+          decodeSlotVal(*SubMI1, val1, Address) &&
+          decodeSlotVal(*SubMI2, val2, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        MI.addOperand(MCOperand::createInst(SubMI2));
+        Size = 11;
+        return MCDisassembler::Success;
+      }
+    }
+  }
   // Parse 16-bit instructions
   if (hasDensity()) {
     Result = readInstruction16(Bytes, Address, Size, Insn, IsLittleEndian);
@@ -586,4 +754,23 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     return Result;
   }
   return Result;
+}
+
+bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Address) const {
+  // First check if it is a slot NOP
+  if (Val == 0x260B74 || Val == 0x0F3016 || Val == 0x0B000040 || Val == 0x3900 ||
+      Val == 0x27B205 || Val == 0 || Val == 0xf9000 ||
+      Val == 0x1E1C15 || Val == 0x0F1670 || Val == 0x176011 || Val == 0x070B1D ||
+      Val == 0x10341D35 || Val == 0x0E57D0 || Val == 0x011400A0) {
+    MI.setOpcode(Xtensa::NOP);
+    return true;
+  }
+
+  // Fallback: try standard decoding tables, searching for the correct bits 23-20
+  for (unsigned mask = 0; mask < 16; ++mask) {
+    uint32_t CandidateVal = (Val & ~(0xf << 20)) | (mask << 20);
+    if (decodeInstruction(DecoderTable24, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+  }
+
+  return false;
 }

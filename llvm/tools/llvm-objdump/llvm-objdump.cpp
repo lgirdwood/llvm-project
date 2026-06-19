@@ -1112,6 +1112,8 @@ public:
   }
 };
 RISCVPrettyPrinter RISCVPrettyPrinterInst;
+class XtensaPrettyPrinter : public PrettyPrinter {};
+XtensaPrettyPrinter XtensaPrettyPrinterInst;
 
 PrettyPrinter &selectPrettyPrinter(Triple const &Triple) {
   switch (Triple.getArch()) {
@@ -1136,6 +1138,8 @@ PrettyPrinter &selectPrettyPrinter(Triple const &Triple) {
   case Triple::riscv32:
   case Triple::riscv64:
     return RISCVPrettyPrinterInst;
+  case Triple::xtensa:
+    return XtensaPrettyPrinterInst;
   }
 }
 

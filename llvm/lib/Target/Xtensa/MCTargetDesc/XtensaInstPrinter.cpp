@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "XtensaInstPrinter.h"
+#include "MCTargetDesc/XtensaMCTargetDesc.h"
 #include "MCTargetDesc/XtensaMCAsmInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -61,6 +62,22 @@ void XtensaInstPrinter::printOperand(const MCOperand &MC, raw_ostream &O) {
 void XtensaInstPrinter::printInst(const MCInst *MI, uint64_t Address,
                                   StringRef Annot, const MCSubtargetInfo &STI,
                                   raw_ostream &O) {
+  if (MI->getOpcode() == Xtensa::BUNDLE) {
+    O << "{ ";
+    bool First = true;
+    for (unsigned i = 0; i < MI->getNumOperands(); ++i) {
+      const MCOperand &Op = MI->getOperand(i);
+      if (Op.isInst()) {
+        if (!First)
+          O << "; ";
+        First = false;
+        printInst(Op.getInst(), Address, "", STI, O);
+      }
+    }
+    O << " }";
+    printAnnotation(O, Annot);
+    return;
+  }
   printInstruction(MI, Address, O);
   printAnnotation(O, Annot);
 }

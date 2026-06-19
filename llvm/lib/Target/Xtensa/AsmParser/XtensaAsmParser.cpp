@@ -107,6 +107,10 @@ class XtensaAsmParser : public MCTargetAsmParser {
   bool processInstruction(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
                           const MCSubtargetInfo *STI);
 
+  bool tokenIsStartOfStatement(AsmToken::TokenKind Token) override {
+    return Token == AsmToken::LCurly || Token == AsmToken::RCurly;
+  }
+
 // Auto-generated instruction matching functions
 #define GET_ASSEMBLER_HEADER
 #include "XtensaGenAsmMatcher.inc"
@@ -538,6 +542,27 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                               MCStreamer &Out,
                                               uint64_t &ErrorInfo,
                                               bool MatchingInlineAsm) {
+  XtensaOperand &FirstOperand = static_cast<XtensaOperand &>(*Operands[0]);
+  if (FirstOperand.isToken() && FirstOperand.getToken() == "{") {
+    if (InBrackets) {
+      return Error(IDLoc, "Already in a bundle");
+    }
+    InBrackets = true;
+    CurrentBundle.clear();
+    CurrentBundle.setOpcode(Xtensa::BUNDLE);
+    return false;
+  }
+  if (FirstOperand.isToken() && FirstOperand.getToken() == "}") {
+    if (!InBrackets) {
+      return Error(IDLoc, "Not in a bundle");
+    }
+    InBrackets = false;
+    CurrentBundle.setLoc(IDLoc);
+    Out.emitInstruction(CurrentBundle, getSTI());
+    CurrentBundle.clear();
+    return false;
+  }
+
   MCInst Inst;
   auto Result =
       MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
@@ -545,11 +570,28 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   switch (Result) {
   default:
     break;
-  case Match_Success:
+  case Match_Success: {
     processInstruction(Inst, IDLoc, Out, STI);
     Inst.setLoc(IDLoc);
-    Out.emitInstruction(Inst, getSTI());
+    if (InBrackets) {
+      MCInst *SubInst = getParser().getContext().createMCInst();
+      *SubInst = Inst;
+      CurrentBundle.addOperand(MCOperand::createInst(SubInst));
+    } else {
+      if (MII.getName(Inst.getOpcode()).starts_with("AE_")) {
+        MCInst StandaloneBundle;
+        StandaloneBundle.setOpcode(Xtensa::BUNDLE);
+        StandaloneBundle.setLoc(IDLoc);
+        MCInst *SubInst = getParser().getContext().createMCInst();
+        *SubInst = Inst;
+        StandaloneBundle.addOperand(MCOperand::createInst(SubInst));
+        Out.emitInstruction(StandaloneBundle, getSTI());
+      } else {
+        Out.emitInstruction(Inst, getSTI());
+      }
+    }
     return false;
+  }
   case Match_MissingFeature:
     return Error(IDLoc, "instruction use requires an option to be enabled");
   case Match_MnemonicFail:
@@ -881,6 +923,11 @@ bool XtensaAsmParser::ParseInstructionWithSR(ParseInstructionInfo &Info,
 bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
                                        StringRef Name, SMLoc NameLoc,
                                        OperandVector &Operands) {
+  if (Name == "{" || Name == "}") {
+    Operands.push_back(XtensaOperand::createToken(Name, NameLoc));
+    return false;
+  }
+
   if (Name.starts_with("wsr") || Name.starts_with("rsr") ||
       Name.starts_with("xsr") || Name.starts_with("rur") ||
       Name.starts_with("wur")) {
@@ -902,6 +949,10 @@ bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
   while (parseOptionalToken(AsmToken::Comma))
     if (parseOperand(Operands, Name))
       return true;
+
+  if (getLexer().is(AsmToken::RCurly)) {
+    return false;
+  }
 
   if (getLexer().isNot(AsmToken::EndOfStatement)) {
     SMLoc Loc = getLexer().getLoc();

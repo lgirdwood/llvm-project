@@ -71,6 +71,21 @@ MCFixupKindInfo XtensaAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"fixup_xtensa_call_18", 6, 18, 0},
       {"fixup_xtensa_l32r_16", 8, 16, 0},
       {"fixup_xtensa_loop_8", 16, 8, 0},
+      {"fixup_xtensa_slot0", 0, 32, 0},
+      {"fixup_xtensa_slot1", 0, 32, 0},
+      {"fixup_xtensa_slot2", 0, 32, 0},
+      {"fixup_xtensa_slot3", 0, 32, 0},
+      {"fixup_xtensa_slot4", 0, 32, 0},
+      {"fixup_xtensa_slot5", 0, 32, 0},
+      {"fixup_xtensa_slot6", 0, 32, 0},
+      {"fixup_xtensa_slot7", 0, 32, 0},
+      {"fixup_xtensa_slot8", 0, 32, 0},
+      {"fixup_xtensa_slot9", 0, 32, 0},
+      {"fixup_xtensa_slot10", 0, 32, 0},
+      {"fixup_xtensa_slot11", 0, 32, 0},
+      {"fixup_xtensa_slot12", 0, 32, 0},
+      {"fixup_xtensa_slot13", 0, 32, 0},
+      {"fixup_xtensa_slot14", 0, 32, 0},
   };
 
   if (Kind < FirstTargetFixupKind)
@@ -86,6 +101,22 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   switch (Kind) {
   default:
     llvm_unreachable("Unknown fixup kind!");
+  case Xtensa::fixup_xtensa_slot0:
+  case Xtensa::fixup_xtensa_slot1:
+  case Xtensa::fixup_xtensa_slot2:
+  case Xtensa::fixup_xtensa_slot3:
+  case Xtensa::fixup_xtensa_slot4:
+  case Xtensa::fixup_xtensa_slot5:
+  case Xtensa::fixup_xtensa_slot6:
+  case Xtensa::fixup_xtensa_slot7:
+  case Xtensa::fixup_xtensa_slot8:
+  case Xtensa::fixup_xtensa_slot9:
+  case Xtensa::fixup_xtensa_slot10:
+  case Xtensa::fixup_xtensa_slot11:
+  case Xtensa::fixup_xtensa_slot12:
+  case Xtensa::fixup_xtensa_slot13:
+  case Xtensa::fixup_xtensa_slot14:
+    return 0;
   case FK_Data_1:
   case FK_Data_2:
   case FK_Data_4:
