@@ -63,30 +63,21 @@ cl::opt<bool> NoTransform(
     cl::desc("Disable transform mode"),
     cl::init(false));
 
-cl::opt<bool> Trampolines(
-    "trampolines",
-    cl::desc("Enable trampolines relaxation"),
-    cl::init(true));
+extern cl::opt<bool> Trampolines;
 
 cl::opt<bool> NoTrampolines(
     "no-trampolines",
     cl::desc("Disable trampolines relaxation"),
     cl::init(false));
 
-cl::opt<bool> AutoLitpools(
-    "auto-litpools",
-    cl::desc("Enable automatic literal pools"),
-    cl::init(false));
+extern cl::opt<bool> AutoLitpools;
 
 cl::opt<bool> NoAutoLitpools(
     "no-auto-litpools",
     cl::desc("Disable automatic literal pools"),
     cl::init(false));
 
-cl::opt<int> AutoLitpoolLimit(
-    "auto-litpool-limit",
-    cl::desc("Set limit for automatic literal pools"),
-    cl::init(262144));
+extern cl::opt<int> AutoLitpoolLimit;
 }
 
 #define DEBUG_TYPE "xtensa-asm-parser"
@@ -652,9 +643,7 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
     }
     break;
   }
-  case Xtensa::LOOP:
-  case Xtensa::LOOPNEZ:
-  case Xtensa::LOOPGTZ: {
+  case Xtensa::LOOP: {
     Out.emitValueToAlignment(Align(4));
     break;
   }

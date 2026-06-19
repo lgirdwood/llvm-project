@@ -21,6 +21,24 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/CommandLine.h"
+
+namespace llvm {
+cl::opt<bool> Trampolines(
+    "trampolines",
+    cl::desc("Enable trampolines relaxation"),
+    cl::init(true));
+
+cl::opt<bool> AutoLitpools(
+    "auto-litpools",
+    cl::desc("Enable automatic literal pools"),
+    cl::init(false));
+
+cl::opt<int> AutoLitpoolLimit(
+    "auto-litpool-limit",
+    cl::desc("Set limit for automatic literal pools"),
+    cl::init(262144));
+}
 
 #define GET_INSTRINFO_MC_DESC
 #include "XtensaGenInstrInfo.inc"
