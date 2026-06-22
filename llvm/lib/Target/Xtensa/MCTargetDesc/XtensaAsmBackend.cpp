@@ -127,7 +127,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
       return 0;
     Value -= 4;
     if (IsResolved && !isUInt<6>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
+      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(Value) + " out of range for branch_6");
     unsigned Hi2 = (Value >> 4) & 0x3;
     unsigned Lo4 = Value & 0xf;
     return (Hi2 << 4) | (Lo4 << 12);
@@ -135,29 +135,29 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   case Xtensa::fixup_xtensa_branch_8:
     Value -= 4;
     if (IsResolved && !isInt<8>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
+      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(Value) + " out of range for branch_8");
     return (Value & 0xff);
   case Xtensa::fixup_xtensa_branch_12:
     Value -= 4;
     if (IsResolved && !isInt<12>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
+      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(Value) + " out of range for branch_12");
     return (Value & 0xfff);
   case Xtensa::fixup_xtensa_jump_18:
     Value -= 4;
     if (IsResolved && !isInt<18>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
+      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(Value) + " out of range for jump_18");
     return (Value & 0x3ffff);
   case Xtensa::fixup_xtensa_call_18:
     Value -= 4;
     if (IsResolved && !isInt<20>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
+      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(Value) + " out of range for call_18");
     if (IsResolved && (Value & 0x3))
       Ctx.reportError(Fixup.getLoc(), "fixup value must be 4-byte aligned");
     return (Value & 0xffffc) >> 2;
   case Xtensa::fixup_xtensa_loop_8:
     Value -= 4;
     if (IsResolved && !isUInt<8>(Value))
-      Ctx.reportError(Fixup.getLoc(), "loop fixup value out of range");
+      Ctx.reportError(Fixup.getLoc(), "loop fixup value " + Twine(Value) + " out of range");
     return (Value & 0xff);
   case Xtensa::fixup_xtensa_l32r_16: {
     if (!IsResolved)
@@ -167,7 +167,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
       Value -= 4;
     int64_t SVal = (int64_t)Value;
     if (IsResolved && (SVal > -4 || SVal < -262144))
-      Ctx.reportError(Fixup.getLoc(), "fixup value out of range");
+      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(SVal) + " out of range for l32r_16");
     if (IsResolved && (SVal & 0x3))
       Ctx.reportError(Fixup.getLoc(), "fixup value must be 4-byte aligned");
     return (Value & 0x3fffc) >> 2;
