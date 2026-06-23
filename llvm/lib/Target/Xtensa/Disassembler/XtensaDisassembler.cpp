@@ -44,6 +44,7 @@ public:
   bool hasHIFI3() const { return STI.hasFeature(Xtensa::FeatureHIFI3); }
   bool hasHIFI4() const { return STI.hasFeature(Xtensa::FeatureHIFI4); }
   bool hasHIFI5() const { return STI.hasFeature(Xtensa::FeatureHIFI5); }
+  bool hasFLIX() const { return STI.hasFeature(Xtensa::FeatureFLIX); }
 
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
@@ -680,7 +681,7 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
   }
 
   // VLIW / FLIX bundle decoding
-  if (Bytes.size() >= 6 && (Bytes[0] & 0x0f) == 0x0e) {
+  if (hasFLIX() && Bytes.size() >= 6 && (Bytes[0] & 0x0f) == 0x0e) {
     // 48-bit (6-byte) bundle: Format 0, 1, or 2
     uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
     uint32_t insn1 = Bytes[4] | (Bytes[5] << 8);
@@ -759,7 +760,7 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
   }
 
-  if (Bytes.size() >= 11 && (Bytes[0] & 0x0f) == 0x0f) {
+  if (hasFLIX() && Bytes.size() >= 11 && (Bytes[0] & 0x0f) == 0x0f) {
     // 88-bit (11-byte) bundle: Format 3 (0x1F) or Format 4 (0x0F)
     uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
     uint32_t insn1 = Bytes[4] | (Bytes[5] << 8) | (Bytes[6] << 16) | (Bytes[7] << 24);

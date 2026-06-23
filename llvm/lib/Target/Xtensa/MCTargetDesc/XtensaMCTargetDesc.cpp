@@ -444,7 +444,9 @@ static MCRegisterInfo *createXtensaMCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *
 createXtensaMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
-  return createXtensaMCSubtargetInfoImpl(TT, CPU, CPU, FS);
+  if (CPU.empty())
+    CPU = "generic";
+  return createXtensaMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 
 static MCTargetStreamer *
