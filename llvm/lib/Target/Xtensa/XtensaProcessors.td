@@ -19,7 +19,7 @@ def : Proc<"generic", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureL
                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
-                               FeatureCLAMPS, FeatureHIFI4]>;
+                               FeatureCLAMPS, FeatureHIFI4, FeatureHIFI5]>;
 
 //===----------------------------------------------------------------------===//
 // Cadence/Tensilica reference cores
