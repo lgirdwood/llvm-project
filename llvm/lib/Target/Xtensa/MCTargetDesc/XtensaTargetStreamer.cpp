@@ -207,6 +207,20 @@ void XtensaTargetELFStreamer::emitLiteral(MCSymbol *LblSym, const MCExpr *Value,
   MCStreamer &OutStreamer = getStreamer();
   if ((TextSectionLiterals || AutoLitpoolsEnabled) && SwitchLiteralSection) {
     MCSection *CurSection = OutStreamer.getCurrentSectionOnly();
+
+    // If this section has had a .literal_position directive, emit the literal
+    // directly into subsection 0 of the same section. Subsection 0 content
+    // appears before subsection 1 (code) in the final output, ensuring L32R
+    // can reach the literals (L32R can only load from lower addresses).
+    if (LiteralPositionSections.count(CurSection)) {
+      OutStreamer.pushSection();
+      OutStreamer.switchSection(CurSection, (uint32_t)0);
+      OutStreamer.emitLabel(LblSym, L);
+      OutStreamer.emitValue(Value, 4, L);
+      OutStreamer.popSection();
+      return;
+    }
+
     LiteralMap[CurSection].push_back({LblSym, Value, L});
     return;
   }
@@ -244,6 +258,8 @@ void XtensaTargetELFStreamer::emitLiteral(MCSymbol *LblSym, const MCExpr *Value,
 void XtensaTargetELFStreamer::emitLiteralPosition() {
   MCStreamer &OutStreamer = getStreamer();
   MCSection *CurSection = OutStreamer.getCurrentSectionOnly();
+
+  // Flush any already-accumulated literals inline at the current position.
   auto it = LiteralMap.find(CurSection);
   if (it != LiteralMap.end() && !it->second.empty()) {
     OutStreamer.emitValueToAlignment(Align(4));
@@ -252,6 +268,20 @@ void XtensaTargetELFStreamer::emitLiteralPosition() {
       OutStreamer.emitValue(Lit.Value, 4, Lit.Loc);
     }
     it->second.clear();
+  }
+
+  // Mark this section as having a .literal_position. Future literals for this
+  // section will be emitted directly into subsection 0 (before code in
+  // subsection 1), rather than being deferred to finish().
+  if (TextSectionLiterals || AutoLitpoolsEnabled) {
+    LiteralPositionSections.insert(CurSection);
+
+    // Switch to subsection 0 for literal pool alignment, then immediately
+    // switch to subsection 1 for subsequent code. Subsection 0 will appear
+    // before subsection 1 in the final output.
+    OutStreamer.switchSection(CurSection, (uint32_t)0);
+    OutStreamer.emitValueToAlignment(Align(4));
+    OutStreamer.switchSection(CurSection, (uint32_t)1);
   }
 }
 
@@ -290,25 +320,33 @@ void XtensaTargetELFStreamer::finish() {
   for (auto &Pair : LiteralMap) {
     MCSection *Sec = Pair.first;
     if (!Pair.second.empty()) {
+      // When text-section-literals mode is on, literals were deferred into
+      // LiteralMap keyed by the section they belong to. We must now emit them.
+      //
+      // L32R can only load from addresses *before* (lower than) the PC, so
+      // we cannot simply append the literal pool at the end of a .text section.
+      // Instead, emit them into a proper .literal section that the linker
+      // script will place before the corresponding .text section.
+      auto *ES = static_cast<MCSectionELF *>(Sec);
+      std::string SectionName =
+          getLiteralSectionName(ES->getName(), AbsoluteLiteralsEnabled);
+
+      unsigned Flags = ELF::SHF_ALLOC;
+      if (ES->getFlags() & ELF::SHF_EXECINSTR)
+        Flags |= ELF::SHF_EXECINSTR;
+
+      MCSection *LitSection =
+          Context.getELFSection(SectionName, ELF::SHT_PROGBITS, Flags);
+      LitSection->setAlignment(Align(4));
+
       OutStreamer.pushSection();
-      OutStreamer.switchSection(Sec);
-      
-      bool IsText = Sec->isText();
-      MCSymbol *PostLabel = nullptr;
-      if (IsText) {
-        PostLabel = Context.createTempSymbol();
-        MCInst Jmp;
-        Jmp.setOpcode(Xtensa::J);
-        Jmp.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(PostLabel, Context)));
-        OutStreamer.emitInstruction(Jmp, STI);
+      OutStreamer.switchSection(LitSection);
+      OutStreamer.emitValueToAlignment(Align(4));
+      for (const auto &Lit : Pair.second) {
+        OutStreamer.emitLabel(Lit.Sym, Lit.Loc);
+        OutStreamer.emitValue(Lit.Value, 4, Lit.Loc);
       }
-      
-      emitLiteralPosition();
-      
-      if (IsText) {
-        OutStreamer.emitLabel(PostLabel);
-      }
-      
+      Pair.second.clear();
       OutStreamer.popSection();
     }
   }

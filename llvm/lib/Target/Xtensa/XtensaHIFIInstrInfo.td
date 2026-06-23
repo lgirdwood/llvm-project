@@ -1138,12 +1138,14 @@ let mayLoad = 1 in {
   def AE_L64_I_HIFI3 : XtensaInst24<(outs AEDR:$t), (ins mem32:$addr),
                                   "ae_l64.i\t$t, $addr",
                                   [(set AEDR:$t, (v2i32 (load addr_ish8:$addr)))]> {
-    let Inst{23-20} = 0;
-    let Inst{19-16} = 0;
-    let Inst{15-12} = 0;
-    let Inst{11-8}  = 0;
-    let Inst{7-4}   = 0;
-    let Inst{3-0}   = 0;
+    bits<4> t;
+    bits<12> addr;
+    let Inst{23-20} = addr{7-4};
+    let Inst{19-16} = 4;
+    let Inst{15-12} = t;
+    let Inst{11-8}  = addr{3-0};
+    let Inst{7-0}   = 0x00;
+    let DecoderNamespace = "XtensaHIFI3";
     let isCodeGenOnly = 1;
   }
 
@@ -1210,7 +1212,11 @@ let mayStore = 1 in {
                                   [(store (v2i32 AEDR:$t), addr_ish8:$addr)]> {
     bits<4> t;
     bits<12> addr;
-    let Inst{3-0} = t; // dummy encoding
+    let Inst{23-20} = addr{7-4};
+    let Inst{19-16} = 4;
+    let Inst{15-12} = t;
+    let Inst{11-8}  = addr{3-0};
+    let Inst{7-0}   = 0x01;
     let DecoderNamespace = "XtensaHIFI3";
     let isCodeGenOnly = 1;
   }

@@ -9,6 +9,7 @@
 #ifndef LLVM_LIB_TARGET_XTENSA_XTENSATARGETSTREAMER_H
 #define LLVM_LIB_TARGET_XTENSA_XTENSATARGETSTREAMER_H
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/MC/MCELFStreamer.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/Support/SMLoc.h"
@@ -29,6 +30,7 @@ class XtensaTargetStreamer : public MCTargetStreamer {
 protected:
   std::map<MCSection *, std::vector<XtensaLiteral>> LiteralMap;
   std::vector<std::string> LiteralPrefixStack;
+  llvm::SmallPtrSet<MCSection *, 4> LiteralPositionSections;
   bool AbsoluteLiteralsEnabled = false;
   bool AutoLitpoolsEnabled = false;
 
