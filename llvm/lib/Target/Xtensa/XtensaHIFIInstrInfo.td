@@ -1031,11 +1031,12 @@ let mayLoad = 1 in {
                                   [(set AEDR:$t, (v2i32 (load addr_ish8:$addr)))]> {
     bits<4> t;
     bits<12> addr;
-    let Inst{23-20} = addr{7-4};
-    let Inst{19-16} = 4;
+    let Inst{23-20} = 0xc;
+    let Inst{19-16} = 0xf;
     let Inst{15-12} = t;
     let Inst{11-8}  = addr{3-0};
-    let Inst{7-0}   = 0x00;
+    let Inst{7-4}   = addr{7-4};
+    let Inst{3-0}   = 0x4;
     let DecoderNamespace = "XtensaHIFI3";
     let isCodeGenOnly = 1;
   }
@@ -1099,11 +1100,12 @@ let mayStore = 1 in {
                                   [(store (v2i32 AEDR:$t), addr_ish8:$addr)]> {
     bits<4> t;
     bits<12> addr;
-    let Inst{23-20} = addr{7-4};
-    let Inst{19-16} = 4;
+    let Inst{23-20} = 0x0;
+    let Inst{19-16} = 0x1;
     let Inst{15-12} = t;
     let Inst{11-8}  = addr{3-0};
-    let Inst{7-0}   = 0x01;
+    let Inst{7-4}   = addr{7-4};
+    let Inst{3-0}   = 0x4;
     let DecoderNamespace = "XtensaHIFI3";
     let isCodeGenOnly = 1;
   }
@@ -1991,11 +1993,12 @@ let mayLoad = 1 in {
     bits<4> s;
     bits<4> off;
 
-    let Inst{23-20} = off;
-    let Inst{19-16} = 4;
+    let Inst{23-20} = 0xc;
+    let Inst{19-16} = 0xf;
     let Inst{15-12} = t;
     let Inst{11-8}  = s;
-    let Inst{7-0}   = 0xcf;
+    let Inst{7-4}   = off;
+    let Inst{3-0}   = 0x4;
 
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
@@ -2009,11 +2012,12 @@ let mayStore = 1 in {
     bits<4> s;
     bits<4> off;
 
-    let Inst{23-20} = off;
-    let Inst{19-16} = 4;
+    let Inst{23-20} = 0x0;
+    let Inst{19-16} = 0x1;
     let Inst{15-12} = d;
     let Inst{11-8}  = s;
-    let Inst{7-0}   = 0x01;
+    let Inst{7-4}   = off;
+    let Inst{3-0}   = 0x4;
 
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
@@ -2362,19 +2366,24 @@ def AE_ZALIGN64 : AE_ZALIGN64_Inst<4, 8, 2, 1, 3, (outs), (ins URAlign:$align),
 // --- ae_lalign64.i / ae_salign64.i: load/store alignment state ---
 class AE_LALIGN64_I_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<2> r_high,
                          dag outs, dag ins, string asmstr, list<dag> pattern>
-  : XtensaInst24<outs, ins, asmstr, pattern> {
+  : XtensaInst48<outs, ins, asmstr, pattern> {
   bits<2> align;
   bits<4> s;
   bits<4> imm;
 
+  let Inst{47-40} = 0xfc;
+  let Inst{39-32} = 0xe6;
+  let Inst{31-30} = 1;
+  let Inst{29-28} = imm{3-2};
+  let Inst{27-24} = 1;
   let Inst{23-20} = op2;
   let Inst{19-16} = op1;
   let Inst{15-14} = r_high;
-  let Inst{13-12} = imm{3-2};
-  let Inst{11-8} = s;
-  let Inst{7-6} = align;
-  let Inst{5-4} = imm{1-0};
-  let Inst{3-0} = op0;
+  let Inst{13-12} = 0;
+  let Inst{11-8}  = s;
+  let Inst{7-6}   = align;
+  let Inst{5-4}   = imm{1-0};
+  let Inst{3-0}   = op0;
 }
 
 def AE_LALIGN64_I : AE_LALIGN64_I_Inst<14, 6, 0, 0, (outs), (ins URAlign:$align, AR:$s, uimm4_x8:$imm),
