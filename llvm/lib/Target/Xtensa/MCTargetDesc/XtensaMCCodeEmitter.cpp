@@ -331,10 +331,10 @@ static bool isStandaloneHiFiInstr(StringRef Name) {
          Name.starts_with("AE_MULAFD32X16X2_FIR_LH") ||
          Name.starts_with("AE_MULAFD32X16X2_FIR_LL") ||
          Name.starts_with("AE_MUL16X4") ||
-         Name.starts_with("AE_MULAAAAFQ32X16_PSEUDO") ||
-         Name.starts_with("AE_MULAAF2D32RA_HH_LL_PSEUDO") ||
-         Name.starts_with("AE_MULA2Q32X16_FIR_H5_PSEUDO") ||
-         Name.starts_with("AE_S32_H_I_PSEUDO") ||
+         Name.starts_with("AE_MULAAAAFQ32X16") ||
+         Name.starts_with("AE_MULAAF2D32RA_HH_LL") ||
+         Name.starts_with("AE_MULA2Q32X16_FIR_H5") ||
+         Name.starts_with("AE_S32_H_I") ||
          Name.starts_with("AE_EQ16") ||
          Name.starts_with("AE_LT16") ||
          Name.starts_with("AE_LE16") ||
@@ -363,267 +363,17 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
 
 
-  if (Opcode == Xtensa::AE_L32X2X2_XC_PSEUDO) {
-    unsigned r0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned r1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    unsigned off = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
 
-    unsigned off_b0 = off & 1;
-    unsigned off_b1 = (off >> 1) & 1;
-    unsigned off_b2 = (off >> 2) & 1;
-    unsigned off_b3 = (off >> 3) & 1;
 
-    unsigned r0_b0 = r0 & 1;
-    unsigned r0_b1 = (r0 >> 1) & 1;
-    unsigned r0_b2 = (r0 >> 2) & 1;
-    unsigned r0_b3 = (r0 >> 3) & 1;
 
-    unsigned r1_b0 = r1 & 1;
-    unsigned r1_b1 = (r1 >> 1) & 1;
-    unsigned r1_b2 = (r1 >> 2) & 1;
-    unsigned r1_b3 = (r1 >> 3) & 1;
 
-    uint32_t w0 = 0x49810000;
-    uint32_t w1_base = 0x000F0654;
-    uint32_t w1 = w1_base | (off_b0 << 15) | (off_b1 << 8) | (off_b2 << 1);
 
-    uint32_t w2_base = 0x2203035A;
-    uint32_t w2 = w2_base | (r1_b2 << 16) | (r1_b3 << 17);
 
-    uint32_t w3 = 0x0F8000A0 | (s << 28) | (r0_b0 << 16) | (r0_b1 << 17) | (r0_b2 << 20) | (r0_b3 << 23) |
-                  (r1_b0 << 3) | (r1_b1 << 4) | (off_b3 << 21);
 
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
 
-  if (Opcode == Xtensa::AE_LA128_PP_PSEUDO) {
-    unsigned s_val = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    uint32_t w0 = 0x0C01015F;
-    uint32_t w1 = 0xC5008138;
-    uint32_t w2 = 0x0D4000D0 | (s_val << 12);
-    uint32_t w3 = 0x0EAD2570;
 
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
 
-  if (Opcode == Xtensa::AE_SA128POS_FP_PSEUDO) {
-    unsigned align = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    uint32_t w0 = 0x080100CF | (s << 16);
-    uint32_t w1 = 0xC4008138;
-    uint32_t w2 = 0x0D440CD0 | (align << 16);
-    uint32_t w3 = 0x0EAD257B;
 
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_LA32X2X2_IP_PSEUDO || Opcode == Xtensa::AE_LA32X2X2_IP_HIFI5 ||
-      Opcode == Xtensa::AE_LA16X4X2_IP_PSEUDO || Opcode == Xtensa::AE_LA16X4X2_IP_HIFI5) {
-    unsigned r0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned r1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    unsigned align = 0; // u0
-
-    uint32_t w0 = 0x0000800F | (s << 4) | (r0 << 8) | ((0xA0 | (r1 << 3)) << 24);
-    uint32_t w1 = 0x46031322;
-    uint32_t w2_base = (Opcode == Xtensa::AE_LA32X2X2_IP_PSEUDO || Opcode == Xtensa::AE_LA32X2X2_IP_HIFI5) ? 0x000F0057 : 0x000F0055;
-    uint32_t w2 = w2_base | ((0xC6 + align) << 8);
-    uint32_t w3 = 0x49810000;
-
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_SA32X2X2_IP_PSEUDO || Opcode == Xtensa::AE_SA32X2X2_IP_HIFI5 ||
-      Opcode == Xtensa::AE_SA16X4X2_IP_PSEUDO || Opcode == Xtensa::AE_SA16X4X2_IP_HIFI5) {
-    unsigned r0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned r1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    unsigned align = 1; // u1
-
-    uint32_t w0_base = (Opcode == Xtensa::AE_SA32X2X2_IP_PSEUDO || Opcode == Xtensa::AE_SA32X2X2_IP_HIFI5) ? 0x0000800F : 0x0000A00F;
-    uint32_t w0 = w0_base | (s << 4) | (r0 << 8) | ((0xA0 | (r1 << 3)) << 24);
-    uint32_t w1 = (Opcode == Xtensa::AE_SA32X2X2_IP_PSEUDO || Opcode == Xtensa::AE_SA32X2X2_IP_HIFI5) ? 0x48030322 : 0x46031322;
-    uint32_t w2_base = (Opcode == Xtensa::AE_SA32X2X2_IP_PSEUDO || Opcode == Xtensa::AE_SA32X2X2_IP_HIFI5) ? 0x000F0055 : 0x000F0057;
-    uint32_t w2 = w2_base | ((0xC6 + align) << 8);
-    uint32_t w3 = 0x49810000;
-
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_MULAAAAFQ32X16_PSEUDO) {
-    unsigned acc = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    unsigned v = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
-
-    uint32_t w0 = 0x0c01015f;
-    uint32_t w1 = 0x81000138 | (acc << 25) | (v << 13);
-    uint32_t w2 = 0x0d440c00 | (s << 3) | ((r & 3) << 19);
-    uint32_t w3 = 0x0ead217b | ((r >> 2) << 10);
-
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_MULAAF2D32RA_HH_LL_PSEUDO) {
-    unsigned t1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned t2 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned d0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
-    unsigned d1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(5).getReg());
-    unsigned d2 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(6).getReg());
-    unsigned d3 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(7).getReg());
-
-    uint32_t w0 = 0x0c01015f;
-    uint32_t w1 = 0x01000138 | (t1 << 25) | ((t2 & 3) << 30) | (d1 << 13) | (d3 << 18);
-    uint32_t w2 = 0x0d440c00 | (t2 >> 2) | (d0 << 3) | ((d2 & 3) << 19);
-    uint32_t w3 = 0x02ed217b | ((d2 >> 2) << 10);
-
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_MULA2Q32X16_FIR_H5_PSEUDO) {
-    unsigned t1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned t2 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned d0 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
-    unsigned d1 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(5).getReg());
-    unsigned d2 = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(6).getReg());
-    unsigned c  = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(7).getReg());
-
-    uint32_t w0 = 0x0c01015f;
-    uint32_t w1 = 0x01000138 | (t1 << 25) | ((t2 & 3) << 30) | (d1 << 13) | (c << 18);
-    uint32_t w2 = 0x0d440c00 | (t2 >> 2) | (d0 << 3) | ((d2 & 3) << 19);
-    uint32_t w3 = 0x01ed217b | ((d2 >> 2) << 10);
-
-    CB.push_back(char(w0));
-    CB.push_back(char(w0 >> 8));
-    CB.push_back(char(w0 >> 16));
-    CB.push_back(char(w0 >> 24));
-    CB.push_back(char(w1));
-    CB.push_back(char(w1 >> 8));
-    CB.push_back(char(w1 >> 16));
-    CB.push_back(char(w1 >> 24));
-    CB.push_back(char(w2));
-    CB.push_back(char(w2 >> 8));
-    CB.push_back(char(w2 >> 16));
-    CB.push_back(char(w2 >> 24));
-    CB.push_back(char(w3));
-    CB.push_back(char(w3 >> 8));
-    CB.push_back(char(w3 >> 16));
-    CB.push_back(char(w3 >> 24));
-    return;
-  }
 
   if (Opcode == Xtensa::AE_S32_H_I_PSEUDO) {
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
