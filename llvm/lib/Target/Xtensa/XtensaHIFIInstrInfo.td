@@ -420,14 +420,6 @@ class FLIX_MAC_Inst_Base<bits<8> byte0, bits<8> byte1, bits<8> byte2, dag outs, 
 class FLIX_MAC_Inst<bits<8> byte0, bits<8> byte2, dag outs, dag ins, string asmstr, list<dag> pattern>
   : FLIX_MAC_Inst_Base<byte0, 0x83, byte2, outs, ins, asmstr, pattern>;
 
-  def AE_MULAFD32X16X2_FIR_HH_HIFI3 : Pseudo<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
-                                      "ae_mulafd32x16x2.fir.hh\t$q0, $q1, $d0, $d1, $c",
-                                      [(set AEDR:$t1, AEDR:$t2, (int_xtensa_ae_mulafd32x16x2_fir_hh AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c))]> {
-    let Constraints = "$q0 = $t1, $q1 = $t2";
-    let DecoderNamespace = "XtensaHIFI3";
-    let Predicates = [HasHIFI3];
-  }
-
   def AE_MULAFD32X16X2_FIR_HH : XtensaInst64<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
                                              "ae_mulafd32x16x2.fir.hh\t$q0, $q1, $d0, $d1, $c", []> {
     let isCodeGenOnly = 1;
@@ -447,22 +439,6 @@ class FLIX_MAC_Inst<bits<8> byte0, bits<8> byte2, dag outs, dag ins, string asms
     let Inst{23-20} = d1;
     let Inst{27-24} = c;
     let Inst{63-28} = 0x123456789;
-  }
-  
-  def AE_MULAFD32X16X2_FIR_HL_HIFI3 : Pseudo<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
-                                      "ae_mulafd32x16x2.fir.hl\t$q0, $q1, $d0, $d1, $c",
-                                      [(set AEDR:$t1, AEDR:$t2, (int_xtensa_ae_mulafd32x16x2_fir_hl AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c))]> {
-    let Constraints = "$q0 = $t1, $q1 = $t2";
-    let DecoderNamespace = "XtensaHIFI3";
-    let Predicates = [HasHIFI3];
-  }
-  
-  def AE_MULAFD32X16X2_FIR_LH_HIFI3 : Pseudo<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
-                                      "ae_mulafd32x16x2.fir.lh\t$q0, $q1, $d0, $d1, $c",
-                                      [(set AEDR:$t1, AEDR:$t2, (int_xtensa_ae_mulafd32x16x2_fir_lh AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c))]> {
-    let Constraints = "$q0 = $t1, $q1 = $t2";
-    let DecoderNamespace = "XtensaHIFI3";
-    let Predicates = [HasHIFI3];
   }
   
   // HiFi 5 Pseudos for Inline Assembly Support
@@ -539,23 +515,7 @@ class FLIX_MAC_Inst<bits<8> byte0, bits<8> byte2, dag outs, dag ins, string asms
 
 
   
-  def AE_MULAFD32X16X2_FIR_LL_HIFI3 : Pseudo<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
-                                      "ae_mulafd32x16x2.fir.ll\t$q0, $q1, $d0, $d1, $c",
-                                      [(set AEDR:$t1, AEDR:$t2, (int_xtensa_ae_mulafd32x16x2_fir_ll AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c))]> {
-    let Constraints = "$q0 = $t1, $q1 = $t2";
-    let DecoderNamespace = "XtensaHIFI3";
-    let Predicates = [HasHIFI3];
-  }
-  
-  def AE_MUL16X4_HIFI3 : Pseudo<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$r, AEDR:$s),
-                                "ae_mul16x4\t$q0, $q1, $r, $s",
-                                [(set AEDR:$t1, AEDR:$t2, (int_xtensa_ae_mul16x4 AEDR:$q0, AEDR:$q1, AEDR:$r, AEDR:$s))]> {
-    let Constraints = "$q0 = $t1, $q1 = $t2";
-    let DecoderNamespace = "XtensaHIFI3";
-    let Predicates = [HasHIFI3];
-  }
-
-class AE_Unary_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> s_val,
+  class AE_Unary_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> s_val,
                      dag outs, dag ins, string asmstr, list<dag> pattern>
   : XtensaInst24<outs, ins, asmstr, pattern> {
   bits<4> r;
@@ -1753,11 +1713,6 @@ def AE_MULAF32R_LH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
                             [(set AEDR:$acc, (int_xtensa_ae_mulaf32r_lh AEDR:$t, AEDR:$s, AEDR:$r))]> {
   let Constraints = "$acc = $t";
 }
-def AE_MULAF32S_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                            "# ae_mulaf32s.hh",
-                            [(set AEDR:$acc, (int_xtensa_ae_mulaf32s_hh AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
 def AE_MULAF32RA_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
                             "# ae_mulaf32ra.ll",
                             [(set AEDR:$acc, (int_xtensa_ae_mulaf32ra_ll AEDR:$t, AEDR:$s, AEDR:$r))]> {
@@ -1773,51 +1728,7 @@ def AE_MULAF32RA_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
                             [(set AEDR:$acc, (int_xtensa_ae_mulaf32ra_hh AEDR:$t, AEDR:$s, AEDR:$r))]> {
   let Constraints = "$acc = $t";
 }
-def AE_MULSF32S_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                            "# ae_mulsf32s.ll",
-                            [(set AEDR:$acc, (int_xtensa_ae_mulsf32s_ll AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-def AE_MULSF32S_LH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                            "# ae_mulsf32s.lh",
-                            [(set AEDR:$acc, (int_xtensa_ae_mulsf32s_lh AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-def AE_MULSF32S_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                            "# ae_mulsf32s.hh",
-                            [(set AEDR:$acc, (int_xtensa_ae_mulsf32s_hh AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-
-  def AE_MULF32S_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32s.ll",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32s_ll AEDR:$s, AEDR:$r))]>;
-def AE_MULF32S_LH : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32s.lh",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32s_lh AEDR:$s, AEDR:$r))]>;
-def AE_MULF32R_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32r.ll",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32r_ll AEDR:$s, AEDR:$r))]>;
-def AE_MULF32S_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32s.hh",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32s_hh AEDR:$s, AEDR:$r))]>;
-def AE_MULF32R_LH : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32r.lh",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32r_lh AEDR:$s, AEDR:$r))]>;
-def AE_MULF32R_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32r.hh",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32r_hh AEDR:$s, AEDR:$r))]>;
-def AE_MULF32RA_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32ra.ll",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32ra_ll AEDR:$s, AEDR:$r))]>;
-def AE_MULF32RA_LH : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32ra.lh",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32ra_lh AEDR:$s, AEDR:$r))]>;
-def AE_MULF32RA_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "# ae_mulf32ra.hh",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulf32ra_hh AEDR:$s, AEDR:$r))]>;
-
-  def AE_MULF32S_LL_REAL : RRR_Slot3_Inst<0x0f, 0x05, 0x00, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+def AE_MULF32S_LL_REAL : RRR_Slot3_Inst<0x0f, 0x05, 0x00, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                "ae_mulf32s.ll\t$r, $s, $t", []> {
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
@@ -2014,78 +1925,8 @@ def AE_MULS32_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
 }
 
 // Multiply-subtract fractional rounding: ae_mulsf32r_{hh,lh,ll}
-def AE_MULSF32R_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                             "# ae_mulsf32r.hh",
-                             [(set AEDR:$acc, (int_xtensa_ae_mulsf32r_hh AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-def AE_MULSF32R_LH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                             "# ae_mulsf32r.lh",
-                             [(set AEDR:$acc, (int_xtensa_ae_mulsf32r_lh AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-def AE_MULSF32R_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                             "# ae_mulsf32r.ll",
-                             [(set AEDR:$acc, (int_xtensa_ae_mulsf32r_ll AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-
 // Multiply-subtract fractional rounding asymmetric: ae_mulsf32ra_{hh,lh,ll}
-def AE_MULSF32RA_HH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                              "# ae_mulsf32ra.hh",
-                              [(set AEDR:$acc, (int_xtensa_ae_mulsf32ra_hh AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-def AE_MULSF32RA_LH : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                              "# ae_mulsf32ra.lh",
-                              [(set AEDR:$acc, (int_xtensa_ae_mulsf32ra_lh AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-def AE_MULSF32RA_LL : Pseudo<(outs AEDR:$acc), (ins AEDR:$t, AEDR:$s, AEDR:$r),
-                              "# ae_mulsf32ra.ll",
-                              [(set AEDR:$acc, (int_xtensa_ae_mulsf32ra_ll AEDR:$t, AEDR:$s, AEDR:$r))]> {
-  let Constraints = "$acc = $t";
-}
-
-def AE_MULFP16X4RAS : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                             "ae_mulfp16x4ras\t$acc, $s, $r",
-                             [(set AEDR:$acc, (int_xtensa_ae_mulfp16x4ras AEDR:$s, AEDR:$r))]> {
-}
-def AE_MULFP16X4RS : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                             "ae_mulfp16x4rs\t$acc, $s, $r",
-                             [(set AEDR:$acc, (int_xtensa_ae_mulfp16x4rs AEDR:$s, AEDR:$r))]> {
-}
-def AE_MULFP16X4S : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "ae_mulfp16x4s\t$acc, $s, $r",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulfp16x4s AEDR:$s, AEDR:$r))]> {
-}
-
-def AE_MULFP32X16X2RAS_H : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                                  "ae_mulfp32x16x2ras.h\t$acc, $s, $r",
-                                  [(set AEDR:$acc, (int_xtensa_ae_mulfp32x16x2ras_h AEDR:$s, AEDR:$r))]> {
-}
-def AE_MULFP32X16X2RAS_L : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                                  "ae_mulfp32x16x2ras.l\t$acc, $s, $r",
-                                  [(set AEDR:$acc, (int_xtensa_ae_mulfp32x16x2ras_l AEDR:$s, AEDR:$r))]> {
-}
-def AE_MULFP32X16X2RS_H : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                                 "ae_mulfp32x16x2rs.h\t$acc, $s, $r",
-                                 [(set AEDR:$acc, (int_xtensa_ae_mulfp32x16x2rs_h AEDR:$s, AEDR:$r))]> {
-}
-def AE_MULFP32X16X2RS_L : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                                 "ae_mulfp32x16x2rs.l\t$acc, $s, $r",
-                                 [(set AEDR:$acc, (int_xtensa_ae_mulfp32x16x2rs_l AEDR:$s, AEDR:$r))]> {
-}
-def AE_MULFP32X2RS : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                            "ae_mulfp32x2rs\t$acc, $s, $r",
-                            [(set AEDR:$acc, (int_xtensa_ae_mulfp32x2rs AEDR:$s, AEDR:$r))]> {
-}
-def AE_MULFP24X2R : Pseudo<(outs AEDR:$acc), (ins AEDR:$s, AEDR:$r),
-                           "ae_mulfp24x2r\t$acc, $s, $r",
-                           [(set AEDR:$acc, (int_xtensa_ae_mulfp24x2r AEDR:$s, AEDR:$r))]> {
-}
-
-  // 16x16 symmetric multiplies
+// 16x16 symmetric multiplies
   
   
   
@@ -3359,3 +3200,38 @@ def : Pat<(int_xtensa_ae_add32_hl_lh AEDR:$s, AEDR:$t), (AE_ADD32_HL_LH_REAL $s,
 def : Pat<(int_xtensa_ae_add64s AEDR:$s, AEDR:$t), (AE_ADD64S_REAL $s, $t)>;
 def : Pat<(int_xtensa_ae_sub16s AEDR:$s, AEDR:$t), (AE_SUB16S $s, $t)>;
 def : Pat<(int_xtensa_ae_sub24s AEDR:$s, AEDR:$t), (AE_SUB24S_REAL $s, $t)>;
+
+
+// Migrated Additional Patterns
+def : Pat<(int_xtensa_ae_mulf32s_ll AEDR:$s, AEDR:$t), (AE_MULF32S_LL_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32s_lh AEDR:$s, AEDR:$t), (AE_MULF32S_LH_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32s_hh AEDR:$s, AEDR:$t), (AE_MULF32S_HH_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32r_ll AEDR:$s, AEDR:$t), (AE_MULF32R_LL_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32r_lh AEDR:$s, AEDR:$t), (AE_MULF32R_LH_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32r_hh AEDR:$s, AEDR:$t), (AE_MULF32R_HH_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32ra_ll AEDR:$s, AEDR:$t), (AE_MULF32RA_LL_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32ra_lh AEDR:$s, AEDR:$t), (AE_MULF32RA_LH_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulf32ra_hh AEDR:$s, AEDR:$t), (AE_MULF32RA_HH_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulsf32s_ll AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32S_LL_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32s_lh AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32S_LH_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32s_hh AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32S_HH_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32r_ll AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32R_LL_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32r_lh AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32R_LH_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32r_hh AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32R_HH_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32ra_ll AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32RA_LL_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32ra_lh AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32RA_LH_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulsf32ra_hh AEDR:$acc, AEDR:$s, AEDR:$r), (AE_MULSF32RA_HH_REAL $acc, $s, $r)>;
+def : Pat<(int_xtensa_ae_mulfp16x4ras AEDR:$s, AEDR:$t), (AE_MULFP16X4RAS_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp16x4s AEDR:$s, AEDR:$t), (AE_MULFP16X4S_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp16x4rs AEDR:$s, AEDR:$t), (AE_MULFP16X4RS_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp32x16x2ras_h AEDR:$s, AEDR:$t), (AE_MULFP32X16X2RAS_H_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp32x16x2ras_l AEDR:$s, AEDR:$t), (AE_MULFP32X16X2RAS_L_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp32x16x2rs_h AEDR:$s, AEDR:$t), (AE_MULFP32X16X2RS_H_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp32x16x2rs_l AEDR:$s, AEDR:$t), (AE_MULFP32X16X2RS_L_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp32x2rs AEDR:$s, AEDR:$t), (AE_MULFP32X2RS_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulfp24x2r AEDR:$s, AEDR:$t), (AE_MULFP24X2R_REAL $s, $t)>;
+def : Pat<(int_xtensa_ae_mulafd32x16x2_fir_hh AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c), (AE_MULAFD32X16X2_FIR_HH $q0, $q1, $d0, $d1, $c)>;
+def : Pat<(int_xtensa_ae_mulafd32x16x2_fir_hl AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c), (AE_MULAFD32X16X2_FIR_HL_REAL $q0, $q1, $d0, $d1, $c)>;
+def : Pat<(int_xtensa_ae_mulafd32x16x2_fir_lh AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c), (AE_MULAFD32X16X2_FIR_LH_REAL $q0, $q1, $d0, $d1, $c)>;
+def : Pat<(int_xtensa_ae_mulafd32x16x2_fir_ll AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c), (AE_MULAFD32X16X2_FIR_LL_REAL $q0, $q1, $d0, $d1, $c)>;
+def : Pat<(int_xtensa_ae_mul16x4 AEDR:$q0, AEDR:$q1, AEDR:$r, AEDR:$s), (AE_MUL16X4_REAL $q0, $q1, $r, $s)>;

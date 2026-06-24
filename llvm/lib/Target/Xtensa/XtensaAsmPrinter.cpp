@@ -90,43 +90,10 @@ static unsigned getHIFIPseudoExpansion(unsigned Opc) {
 
 
 
-  case Xtensa::AE_MULF32S_LL: return Xtensa::AE_MULF32S_LL_REAL;
-  case Xtensa::AE_MULF32S_LH: return Xtensa::AE_MULF32S_LH_REAL;
-  case Xtensa::AE_MULF32S_HH: return Xtensa::AE_MULF32S_HH_REAL;
-  case Xtensa::AE_MULF32R_LL: return Xtensa::AE_MULF32R_LL_REAL;
-  case Xtensa::AE_MULF32R_LH: return Xtensa::AE_MULF32R_LH_REAL;
-  case Xtensa::AE_MULF32R_HH: return Xtensa::AE_MULF32R_HH_REAL;
-  case Xtensa::AE_MULF32RA_LL: return Xtensa::AE_MULF32RA_LL_REAL;
-  case Xtensa::AE_MULF32RA_LH: return Xtensa::AE_MULF32RA_LH_REAL;
-  case Xtensa::AE_MULF32RA_HH: return Xtensa::AE_MULF32RA_HH_REAL;
-  case Xtensa::AE_MULSF32S_LL: return Xtensa::AE_MULSF32S_LL_REAL;
-  case Xtensa::AE_MULSF32S_LH: return Xtensa::AE_MULSF32S_LH_REAL;
-  case Xtensa::AE_MULSF32S_HH: return Xtensa::AE_MULSF32S_HH_REAL;
-  case Xtensa::AE_MULSF32R_LL: return Xtensa::AE_MULSF32R_LL_REAL;
-  case Xtensa::AE_MULSF32R_LH: return Xtensa::AE_MULSF32R_LH_REAL;
-  case Xtensa::AE_MULSF32R_HH: return Xtensa::AE_MULSF32R_HH_REAL;
-  case Xtensa::AE_MULSF32RA_LL: return Xtensa::AE_MULSF32RA_LL_REAL;
-  case Xtensa::AE_MULSF32RA_LH: return Xtensa::AE_MULSF32RA_LH_REAL;
-  case Xtensa::AE_MULSF32RA_HH: return Xtensa::AE_MULSF32RA_HH_REAL;
 
   case Xtensa::AE_S64_I_PSEUDO: return Xtensa::AE_S64_I_REAL;
-  case Xtensa::AE_MULAF32S_HH: return Xtensa::AE_MULAF32S_HH_HIFI3;
-  case Xtensa::AE_MULFP16X4RAS: return Xtensa::AE_MULFP16X4RAS_REAL;
-  case Xtensa::AE_MULFP16X4S: return Xtensa::AE_MULFP16X4S_REAL;
-  case Xtensa::AE_MULFP16X4RS: return Xtensa::AE_MULFP16X4RS_REAL;
-  case Xtensa::AE_MULFP32X16X2RAS_H: return Xtensa::AE_MULFP32X16X2RAS_H_REAL;
-  case Xtensa::AE_MULFP32X16X2RAS_L: return Xtensa::AE_MULFP32X16X2RAS_L_REAL;
-  case Xtensa::AE_MULFP32X16X2RS_H: return Xtensa::AE_MULFP32X16X2RS_H_REAL;
-  case Xtensa::AE_MULFP32X16X2RS_L: return Xtensa::AE_MULFP32X16X2RS_L_REAL;
-  case Xtensa::AE_MULFP32X2RS: return Xtensa::AE_MULFP32X2RS_REAL;
-  case Xtensa::AE_MULFP24X2R: return Xtensa::AE_MULFP24X2R_REAL;
-  case Xtensa::AE_MULAFD32X16X2_FIR_HH_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_HH;
 
   case Xtensa::AE_S16_0_X_PSEUDO: return Xtensa::AE_S16_0_X;
-  case Xtensa::AE_MULAFD32X16X2_FIR_HL_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_HL_REAL;
-  case Xtensa::AE_MULAFD32X16X2_FIR_LH_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_LH_REAL;
-  case Xtensa::AE_MULAFD32X16X2_FIR_LL_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_LL_REAL;
-  case Xtensa::AE_MUL16X4_HIFI3: return Xtensa::AE_MUL16X4_REAL;
   case Xtensa::AE_SA64POS_FP_PSEUDO: return Xtensa::AE_SA64POS_FP_REAL;
   case Xtensa::AE_LA16X4POS_PC_PSEUDO: return Xtensa::AE_LA16X4POS_PC_REAL;
   case Xtensa::AE_LA32X2POS_PC_PSEUDO: return Xtensa::AE_LA32X2POS_PC_REAL;
@@ -317,7 +284,6 @@ void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
     }
     return;
   }
-  case Xtensa::BR_JT:
     EmitToStreamer(
         *OutStreamer,
         MCInstBuilder(Xtensa::JX).addReg(MI->getOperand(0).getReg()));
