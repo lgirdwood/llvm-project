@@ -15,10 +15,15 @@ class ImmAsmOperand<string name> : AsmOperandClass {
   let DiagnosticType = !strconcat("Invalid", name);
 }
 
+def imm_as_i32 : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue(), SDLoc(N), MVT::i32);
+}]>;
+
 class Immediate<ValueType vt, code pred, string asmop>
   : Operand<vt>, ImmLeaf<vt, pred> {
   let PrintMethod = "print"#asmop;
   let ParserMatchClass = !cast<AsmOperandClass>(asmop);
+  let OperandType = "OPERAND_IMMEDIATE";
 }
 
 // imm8 predicate - Immediate in the range [-128,127]

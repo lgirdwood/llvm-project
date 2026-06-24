@@ -127,7 +127,7 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
       return 0;
     Value -= 4;
     if (IsResolved && !isUInt<6>(Value))
-      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(Value) + " out of range for branch_6");
+      Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(Value) + " out of range for branch_6! Opcode is unknown");
     unsigned Hi2 = (Value >> 4) & 0x3;
     unsigned Lo4 = Value & 0xf;
     return (Hi2 << 4) | (Lo4 << 12);
@@ -204,6 +204,10 @@ void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
                                   const MCValue &Target, uint8_t *Data,
                                   uint64_t Value, bool IsResolved) {
   if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_l32r_16) {
+    IsResolved = false;
+  }
+  if (Fixup.getKind() >= (MCFixupKind)Xtensa::fixup_xtensa_slot0 &&
+      Fixup.getKind() <= (MCFixupKind)Xtensa::fixup_xtensa_slot14) {
     IsResolved = false;
   }
   maybeAddReloc(F, Fixup, Target, Value, IsResolved);
@@ -295,10 +299,22 @@ static bool isAutoLitpoolsEnabled(const MCInst &Inst) {
 bool XtensaAsmBackend::mayNeedRelaxation(unsigned Opcode,
                                          ArrayRef<MCOperand> Operands,
                                          const MCSubtargetInfo &STI) const {
+  if (Opcode == Xtensa::BUNDLE) {
+    return false;
+  }
   if (Opcode == Xtensa::J || Opcode == Xtensa::L32R) {
     return true;
   }
   if (Opcode == Xtensa::BEQZ_N || Opcode == Xtensa::BNEZ_N) {
+    return true;
+  }
+  if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::L32I_N) {
+    return true;
+  }
+  if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
+      Opcode == Xtensa::CALL8 || Opcode == Xtensa::CALL12 ||
+      Opcode == Xtensa::CALLX0 || Opcode == Xtensa::CALLX4 ||
+      Opcode == Xtensa::CALLX8 || Opcode == Xtensa::CALLX12) {
     return true;
   }
   return false;
@@ -311,10 +327,12 @@ bool XtensaAsmBackend::fixupNeedsRelaxationAdvanced(const MCFragment &F,
                                                     bool Resolved) const {
   if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_branch_6) {
     if (!Resolved)
-      return false;
+      return true;
     int64_t SVal = (int64_t)Value;
     int64_t RelOffset = SVal - 4;
-    if (RelOffset >= 0 && RelOffset <= 63) {
+    // Use a conservative threshold (48 instead of 63) to prevent infinite
+    // layout loops caused by interactions with alignment fragments.
+    if (RelOffset >= 0 && RelOffset <= 48) {
       return false;
     }
     return true;
@@ -325,10 +343,30 @@ bool XtensaAsmBackend::fixupNeedsRelaxationAdvanced(const MCFragment &F,
 void XtensaAsmBackend::relaxInstruction(MCInst &Inst,
                                         const MCSubtargetInfo &STI) const {
   unsigned Opcode = Inst.getOpcode();
+  if (Opcode == Xtensa::BUNDLE) {
+    for (unsigned i = 0; i < Inst.getNumOperands(); ++i) {
+      MCOperand &Op = Inst.getOperand(i);
+      if (Op.isInst()) {
+        MCInst *SubInst = const_cast<MCInst *>(Op.getInst());
+        relaxInstruction(*SubInst, STI);
+      }
+    }
+    return;
+  }
   if (Opcode == Xtensa::BEQZ_N) {
     Inst.setOpcode(Xtensa::BEQZ);
   } else if (Opcode == Xtensa::BNEZ_N) {
     Inst.setOpcode(Xtensa::BNEZ);
+  } else if (Opcode == Xtensa::MOV_N) {
+    Inst.setOpcode(Xtensa::OR);
+    Inst.addOperand(Inst.getOperand(1)); // OR a11, a5, a5
+  } else if (Opcode == Xtensa::L32I_N) {
+    Inst.setOpcode(Xtensa::L32I);
+  } else if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
+             Opcode == Xtensa::CALL8 || Opcode == Xtensa::CALL12 ||
+             Opcode == Xtensa::CALLX0 || Opcode == Xtensa::CALLX4 ||
+             Opcode == Xtensa::CALLX8 || Opcode == Xtensa::CALLX12) {
+    // CALL instructions don't actually change opcode when relaxing, they just trigger the widening pass
   } else {
     llvm_unreachable("Unexpected instruction to relax");
   }
@@ -353,6 +391,63 @@ bool XtensaAsmBackend::finishLayout() const {
     for (MCSection &Sec : *Asm) {
       if (!Sec.isText())
         continue;
+
+      // ---- Target Alignment Widening Pass ----
+      SmallVector<MCFragment *, 8> PrevFragments;
+      for (MCSection::iterator I = Sec.begin(), E = Sec.end(); I != E; ++I) {
+        MCFragment &F = *I;
+        
+        if (F.getKind() == MCFragment::FT_Relaxable) {
+           unsigned Opcode = F.getInst().getOpcode();
+           if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::L32I_N) {
+             PrevFragments.push_back(&F);
+           } else if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
+                      Opcode == Xtensa::CALL8 || Opcode == Xtensa::CALL12 ||
+                      Opcode == Xtensa::CALLX0 || Opcode == Xtensa::CALLX4 ||
+                      Opcode == Xtensa::CALLX8 || Opcode == Xtensa::CALLX12) {
+             uint64_t Offset = Asm->getFragmentOffset(F);
+             // Xtensa hardware requires CALL instructions to NOT cross a 4-byte
+             // fetch boundary. Since CALL is 3 bytes, it must be placed at offset
+             // 4n or 4n+1. GAS specifically aligns return addresses to 4-byte boundaries,
+             // which means the CALL must end at 4n, so it must start at 4n+1.
+             // We align it to 4n+1 to perfectly match GAS output density.
+             uint64_t Mod = Offset % 4;
+             uint64_t Padding = 0;
+             if (Mod != 1) {
+               Padding = (5 - Mod) % 4;
+             }
+             
+             if (Padding > 0) {
+               uint64_t BytesToWiden = Padding;
+               while (BytesToWiden > 0 && !PrevFragments.empty()) {
+                 MCFragment *PF = PrevFragments.pop_back_val();
+                 MCInst Inst = PF->getInst();
+                 if (Inst.getOpcode() == Xtensa::MOV_N) {
+                   Inst.setOpcode(Xtensa::OR);
+                   Inst.addOperand(Inst.getOperand(1));
+                 } else if (Inst.getOpcode() == Xtensa::L32I_N) {
+                   Inst.setOpcode(Xtensa::L32I);
+                 }
+                 PF->setInst(Inst);
+                 
+                 SmallVector<char, 16> Data;
+                 SmallVector<MCFixup, 1> Fixups;
+                 Asm->getEmitter().encodeInstruction(Inst, Data, Fixups, *PF->getSubtargetInfo());
+                 PF->setVarContents(Data);
+                 PF->setVarFixups(Fixups);
+                 
+                 BytesToWiden -= 1; // All these narrow->wide expansions are 1 byte
+                 IterChanged = true;
+                 Changed = true;
+               }
+               // If BytesToWiden is still > 0, we can't widen enough instructions.
+               // We would need to insert NOPs. Currently we don't insert NOPs manually here,
+               // we just do best-effort widening to match GAS density.
+             }
+             PrevFragments.clear();
+           }
+        }
+      }
 
       for (MCSection::iterator I = Sec.begin(), E = Sec.end(); I != E; ++I) {
         MCFragment &F = *I;

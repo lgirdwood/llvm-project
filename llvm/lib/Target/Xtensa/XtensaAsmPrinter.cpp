@@ -284,6 +284,7 @@ void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
     }
     return;
   }
+  case Xtensa::BR_JT:
     EmitToStreamer(
         *OutStreamer,
         MCInstBuilder(Xtensa::JX).addReg(MI->getOperand(0).getReg()));
