@@ -3294,10 +3294,11 @@ let Predicates = [HasHIFI3] in {
     bits<4> br;
     bits<4> s;
     bits<4> t;
-    let Inst{3-0} = br;
-    let Inst{7-4} = s;
-    let Inst{11-8} = t;
-    let Inst{23-12} = 0;
+    let Inst{23-0} = 0x540004;
+    let Inst{15-13} = br{3-1};
+    let Inst{12} = 0;
+    let Inst{11-8} = s;
+    let Inst{7-4} = t;
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
@@ -3308,10 +3309,11 @@ let Predicates = [HasHIFI3] in {
     bits<4> br;
     bits<4> s;
     bits<4> t;
-    let Inst{3-0} = br;
-    let Inst{7-4} = s;
-    let Inst{11-8} = t;
-    let Inst{23-12} = 0;
+    let Inst{23-0} = 0x540004;
+    let Inst{15-13} = br{3-1};
+    let Inst{12} = 1;
+    let Inst{11-8} = s;
+    let Inst{7-4} = t;
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
@@ -3471,6 +3473,7 @@ let Predicates = [HasHIFI3] in {
   def AE_SA16X4_IP_REAL : XtensaInst24<(outs VALIGN:$align_out, AR:$s_out),
                                        (ins AEDR:$r, VALIGN:$align_in, AR:$s),
                                        "ae_sa16x4.ip\t$r, u1, $s", []> {
+    let isCodeGenOnly = 1;
     bits<4> r;
     bits<4> s;
     bits<1> align_in;
