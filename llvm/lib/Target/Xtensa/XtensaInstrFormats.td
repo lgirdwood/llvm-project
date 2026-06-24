@@ -25,6 +25,20 @@ class XtensaInst<int size, dag outs, dag ins, string asmstr, list<dag> pattern,
 
 }
 
+class XtensaInst96<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : Instruction {
+  field bits<96> Inst;
+  int Size = 11;
+
+  let Namespace = "Xtensa";
+  dag OutOperandList = outs;
+  dag InOperandList = ins;
+  let AsmString = asmstr;
+  let Pattern = pattern;
+  let Itinerary = itin;
+}
+
 // Base class for Xtensa 24 bit Format
 class XtensaInst24<dag outs, dag ins, string asmstr, list<dag> pattern,
                    InstrItinClass itin = NoItinerary>
@@ -52,6 +66,21 @@ class XtensaInst128<dag outs, dag ins, string asmstr, list<dag> pattern,
   : XtensaInst<16, outs, ins, asmstr, pattern, itin> {
   field bits<128> Inst;
 }
+
+// Base class for Xtensa 88 bit Format (11-byte macros)
+class XtensaInst88<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : XtensaInst<11, outs, ins, asmstr, pattern, itin> {
+  field bits<88> Inst;
+}
+
+// Base class for Xtensa 40 bit Format (5-byte macros)
+class XtensaInst40<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : XtensaInst<5, outs, ins, asmstr, pattern, itin> {
+  field bits<40> Inst;
+}
+
 
 
 // Base class for Xtensa 16 bit Format

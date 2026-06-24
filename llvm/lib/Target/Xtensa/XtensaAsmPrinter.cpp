@@ -85,25 +85,10 @@ static unsigned getHIFIZeroPseudoExpansion(unsigned Opc) {
 
 static unsigned getHIFIPseudoExpansion(unsigned Opc) {
   switch (Opc) {
-  case Xtensa::AE_MOVAD32_L_PSEUDO: return Xtensa::AE_MOVAD32_L;
-  case Xtensa::AE_MOVAD32_H_PSEUDO: return Xtensa::AE_MOVAD32_H;
-  case Xtensa::AE_MOVDA32_PSEUDO:   return Xtensa::AE_MOVDA32;
   case Xtensa::AE_MOVDA32X2_PSEUDO: return Xtensa::AE_MOVDA32X2;
-  case Xtensa::AE_MOVAD16_0_PSEUDO: return Xtensa::AE_MOVAD16_0;
-  case Xtensa::AE_MOVAD16_2_PSEUDO: return Xtensa::AE_MOVAD16_2;
-  case Xtensa::AE_MOVAD16_3_PSEUDO: return Xtensa::AE_MOVAD16_3;
-  case Xtensa::AE_MAXABS32S_Pseudo_HIFI3: return Xtensa::AE_MAXABS32S;
 
-  case Xtensa::AE_CVT32X2F16_10_PSEUDO:
-  case Xtensa::AE_SEXT32X2D16_10_PSEUDO: return Xtensa::AE_SEXT32X2D16_10;
-  case Xtensa::AE_CVT32X2F16_32_PSEUDO:
-  case Xtensa::AE_SEXT32X2D16_32_PSEUDO: return Xtensa::AE_SEXT32X2D16_32;
 
-  case Xtensa::AE_NSAZ32_L_Pseudo: return Xtensa::AE_NSAZ32_L;
-  case Xtensa::AE_S32_L_XC_PSEUDO: return Xtensa::AE_S32_L_XC;
 
-  case Xtensa::AE_SAT16X4_Pseudo_HIFI3: return Xtensa::AE_SAT16X4;
-  case Xtensa::AE_SAT24S_Pseudo_HIFI3: return Xtensa::AE_SAT24S;
 
   case Xtensa::AE_MULF32S_LL: return Xtensa::AE_MULF32S_LL_REAL;
   case Xtensa::AE_MULF32S_LH: return Xtensa::AE_MULF32S_LH_REAL;
@@ -124,26 +109,8 @@ static unsigned getHIFIPseudoExpansion(unsigned Opc) {
   case Xtensa::AE_MULSF32RA_LH: return Xtensa::AE_MULSF32RA_LH_REAL;
   case Xtensa::AE_MULSF32RA_HH: return Xtensa::AE_MULSF32RA_HH_REAL;
 
-  case Xtensa::AE_CVT48A32_PSEUDO: return Xtensa::AE_CVT48A32;
-  case Xtensa::AE_SRAA32_PSEUDO: return Xtensa::AE_SRAA32;
-  case Xtensa::AE_L16_XC_PSEUDO: return Xtensa::AE_L16_XC;
-  case Xtensa::AE_L16_XP_PSEUDO: return Xtensa::AE_L16_XP;
-  case Xtensa::AE_L32_XP_PSEUDO: return Xtensa::AE_L32_XP;
-  case Xtensa::AE_L16M_X_PSEUDO: return Xtensa::AE_L16M_X;
-  case Xtensa::AE_L16M_XU_PSEUDO: return Xtensa::AE_L16M_XU;
-  case Xtensa::AE_L32M_X_PSEUDO: return Xtensa::AE_L32M_X;
-  case Xtensa::AE_L32F24_XC_PSEUDO: return Xtensa::AE_L32F24_XC;
-  case Xtensa::AE_L64_I_PSEUDO: return Xtensa::AE_L64_I_REAL;
   case Xtensa::AE_S64_I_PSEUDO: return Xtensa::AE_S64_I_REAL;
-  case Xtensa::AE_MULAF32R_LL_PSEUDO: return Xtensa::AE_MULAF32R_LL_HIFI3;
-  case Xtensa::AE_MULAF32R_LH_PSEUDO: return Xtensa::AE_MULAF32R_LH_HIFI3;
-  case Xtensa::AE_MULAF32S_LL_PSEUDO: return Xtensa::AE_MULAF32S_LL_HIFI3;
-  case Xtensa::AE_MULAF32S_LH_PSEUDO: return Xtensa::AE_MULAF32S_LH_HIFI3;
-  case Xtensa::AE_MULAF32S_HL_PSEUDO: return Xtensa::AE_MULAF32S_LH_HIFI3;
   case Xtensa::AE_MULAF32S_HH: return Xtensa::AE_MULAF32S_HH_HIFI3;
-  case Xtensa::AE_MULF32S_LL_PSEUDO: return Xtensa::AE_MULF32S_LL_REAL;
-  case Xtensa::AE_MULF32S_LH_PSEUDO: return Xtensa::AE_MULF32S_LH_REAL;
-  case Xtensa::AE_ADD16S_PSEUDO: return Xtensa::AE_ADD16S;
   case Xtensa::AE_MULFP16X4RAS: return Xtensa::AE_MULFP16X4RAS_REAL;
   case Xtensa::AE_MULFP16X4S: return Xtensa::AE_MULFP16X4S_REAL;
   case Xtensa::AE_MULFP16X4RS: return Xtensa::AE_MULFP16X4RS_REAL;
@@ -153,52 +120,18 @@ static unsigned getHIFIPseudoExpansion(unsigned Opc) {
   case Xtensa::AE_MULFP32X16X2RS_L: return Xtensa::AE_MULFP32X16X2RS_L_REAL;
   case Xtensa::AE_MULFP32X2RS: return Xtensa::AE_MULFP32X2RS_REAL;
   case Xtensa::AE_MULFP24X2R: return Xtensa::AE_MULFP24X2R_REAL;
-  case Xtensa::AE_MULAAFD32RA_HH_LL_PSEUDO: return Xtensa::AE_MULAAFD32RA_HH_LL_HIFI3;
-  case Xtensa::AE_MULAAFD24_HH_LL_PSEUDO: return Xtensa::AE_MULAAFP24S_HH_LL_HIFI3;
   case Xtensa::AE_MULAFD32X16X2_FIR_HH_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_HH;
-  case Xtensa::AE_ROUND16X4F32SSYM_Pseudo_HIFI3: return Xtensa::AE_ROUND16X4F32SSYM;
-  case Xtensa::AE_MULFC24RA_PSEUDO: return Xtensa::AE_MULFC24RA_REAL;
 
   case Xtensa::AE_S16_0_X_PSEUDO: return Xtensa::AE_S16_0_X;
-  case Xtensa::AE_PKSR32_Pseudo_HIFI3: return Xtensa::AE_PKSR32_REAL;
-  case Xtensa::AE_MUL32_HH_PSEUDO: return Xtensa::AE_MUL32_HH_REAL;
   case Xtensa::AE_MULAFD32X16X2_FIR_HL_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_HL_REAL;
   case Xtensa::AE_MULAFD32X16X2_FIR_LH_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_LH_REAL;
   case Xtensa::AE_MULAFD32X16X2_FIR_LL_HIFI3: return Xtensa::AE_MULAFD32X16X2_FIR_LL_REAL;
   case Xtensa::AE_MUL16X4_HIFI3: return Xtensa::AE_MUL16X4_REAL;
-  case Xtensa::AE_MULAFP32X16X2RS_H_PSEUDO: return Xtensa::AE_MULAFP32X16X2RS_H_REAL;
-  case Xtensa::AE_MULAFP32X16X2RS_L_PSEUDO: return Xtensa::AE_MULAFP32X16X2RS_L_REAL;
-  case Xtensa::AE_MULAFP32X2RS_PSEUDO: return Xtensa::AE_MULAFP32X2RS_REAL;
-  case Xtensa::AE_ROUND32X2F64SSYM_Pseudo_HIFI3: return Xtensa::AE_ROUND32X2F64SSYM_REAL;
-  case Xtensa::AE_ROUND32X2F64SASYM_Pseudo_HIFI3: return Xtensa::AE_ROUND32X2F64SASYM_REAL;
-  case Xtensa::AE_MULAF16SS_00_PSEUDO: return Xtensa::AE_MULAF16SS_00_REAL;
-  case Xtensa::AE_MULAF16SS_11_PSEUDO: return Xtensa::AE_MULAF16SS_11_REAL;
-  case Xtensa::AE_MULAF16SS_22_PSEUDO: return Xtensa::AE_MULAF16SS_22_REAL;
-  case Xtensa::AE_MULAF16SS_33_PSEUDO: return Xtensa::AE_MULAF16SS_33_REAL;
-  case Xtensa::AE_MULF16SS_00_PSEUDO: return Xtensa::AE_MULF16SS_00_REAL;
-  case Xtensa::AE_MULF16SS_11_PSEUDO: return Xtensa::AE_MULF16SS_11_REAL;
-  case Xtensa::AE_MULF16SS_22_PSEUDO: return Xtensa::AE_MULF16SS_22_REAL;
-  case Xtensa::AE_MULF16SS_33_PSEUDO: return Xtensa::AE_MULF16SS_33_REAL;
-  case Xtensa::AE_SA16X4_IP_PSEUDO: return Xtensa::AE_SA16X4_IP_REAL;
-  case Xtensa::AE_SA16X4_IC_PSEUDO: return Xtensa::AE_SA16X4_IC_REAL;
-  case Xtensa::AE_ROUND24X2F48SSYM_Pseudo_HIFI3: return Xtensa::AE_ROUND24X2F48SSYM_REAL;
-  case Xtensa::AE_SA32X2_IP_PSEUDO: return Xtensa::AE_SA32X2_IP_REAL;
-  case Xtensa::AE_SA24X2_IP_PSEUDO: return Xtensa::AE_SA24X2_IP_REAL;
-  case Xtensa::AE_SA32X2_IC_PSEUDO: return Xtensa::AE_SA32X2_IC_REAL;
   case Xtensa::AE_SA64POS_FP_PSEUDO: return Xtensa::AE_SA64POS_FP_REAL;
   case Xtensa::AE_LA16X4POS_PC_PSEUDO: return Xtensa::AE_LA16X4POS_PC_REAL;
   case Xtensa::AE_LA32X2POS_PC_PSEUDO: return Xtensa::AE_LA32X2POS_PC_REAL;
-  case Xtensa::AE_LA24_IP_PSEUDO: return Xtensa::AE_LA24_IP_REAL;
-  case Xtensa::AE_LA24X2_IP_PSEUDO: return Xtensa::AE_LA24X2_IP_REAL;
-  case Xtensa::AE_S16_0_XC_PSEUDO: return Xtensa::AE_S16_0_XC;
-  case Xtensa::AE_S16_0_XC1_PSEUDO: return Xtensa::AE_S16_0_XC1;
-  case Xtensa::AE_S16_0_XP_PSEUDO: return Xtensa::AE_S16_0_XP;
 
-  case Xtensa::AE_S32_L_XP_PSEUDO: return Xtensa::AE_S32_L_XP;
   case Xtensa::AE_S32_L_X_PSEUDO: return Xtensa::AE_S32_L_X;
-  case Xtensa::AE_L32_X_PSEUDO: return Xtensa::AE_L32_X;
-  case Xtensa::AE_L32_XC1_PSEUDO: return Xtensa::AE_L32_XC1;
-  case Xtensa::AE_S32_L_XC1_PSEUDO: return Xtensa::AE_S32_L_XC1;
 
   case Xtensa::AE_L16X4_X_PSEUDO: return Xtensa::AE_L16X4_X;
   case Xtensa::AE_S32X2_X_PSEUDO: return Xtensa::AE_S32X2_X;
@@ -208,48 +141,9 @@ static unsigned getHIFIPseudoExpansion(unsigned Opc) {
   case Xtensa::AE_S32X2_IP_PSEUDO: return Xtensa::AE_S32X2_IP;
   case Xtensa::AE_S32X2F24_I_PSEUDO: return Xtensa::AE_S32X2F24_I;
   case Xtensa::AE_S32X2F24_IP_PSEUDO: return Xtensa::AE_S32X2F24_IP;
-  case Xtensa::AE_L32X2_I_PSEUDO: return Xtensa::AE_L32X2_I;
-  case Xtensa::AE_L32X2_IP_PSEUDO: return Xtensa::AE_L32X2_IP;
-  case Xtensa::AE_L32X2_XC_PSEUDO: return Xtensa::AE_L32X2_XC;
-  case Xtensa::AE_L32X2_XC1_PSEUDO: return Xtensa::AE_L32X2_XC1;
-  case Xtensa::AE_L32X2F24_IP_PSEUDO: return Xtensa::AE_L32X2F24_IP;
-  case Xtensa::AE_L32X2F24_XC_PSEUDO: return Xtensa::AE_L32X2F24_XC;
 
-  case Xtensa::AE_SEXT16_PSEUDO: return Xtensa::AE_SEXT16;
-  case Xtensa::AE_ZEXT16_PSEUDO: return Xtensa::AE_ZEXT16;
-  case Xtensa::AE_MOVDA16_PSEUDO: return Xtensa::AE_MOVDA16;
-  case Xtensa::AE_MOVAD16_1_PSEUDO: return Xtensa::AE_MOVAD16_1;
-  case Xtensa::AE_CVTP24A16X2_LL_PSEUDO: return Xtensa::AE_CVTP24A16X2_LL;
-  case Xtensa::AE_ROUND16X4F32SASYM_Pseudo_HIFI3: return Xtensa::AE_ROUND16X4F32SASYM;
-  case Xtensa::AE_CVT16X4_PSEUDO: return Xtensa::AE_ROUND16X4F32SASYM;
-  case Xtensa::AE_TRUNC16X4F32_PSEUDO: return Xtensa::AE_ROUND16X4F32SASYM;
-  case Xtensa::AE_CVTQ48A32S_PSEUDO: return Xtensa::AE_CVT48A32;
-  case Xtensa::AE_MOVF16X4_FROMINT64_PSEUDO:
-  case Xtensa::AE_MOVF24X2_FROMINT32X2_PSEUDO:
-  case Xtensa::AE_MOVINT16X4_FROMINT32X2_PSEUDO:
-  case Xtensa::AE_MOVINT24X2_FROMF24X2_PSEUDO:
-  case Xtensa::AE_MOVINT24X2_FROMF32X2_PSEUDO:
-  case Xtensa::AE_MOVINT32X2_FROMINT64_PSEUDO:
-  case Xtensa::AE_MOVINT64_FROMINT32X2_PSEUDO: return Xtensa::AE_MOV;
 
-  case Xtensa::AE_SLAA16S_PSEUDO: return Xtensa::AE_SLAA16S;
-  case Xtensa::AE_SLAA32_PSEUDO: return Xtensa::AE_SLAA32;
-  case Xtensa::AE_SLAA32S_PSEUDO: return Xtensa::AE_SLAA32S;
-  case Xtensa::AE_SLAA64_PSEUDO: return Xtensa::AE_SLAA64;
-  case Xtensa::AE_SLAI16S_PSEUDO: return Xtensa::AE_SLAI16S;
-  case Xtensa::AE_SLAI24S_PSEUDO: return Xtensa::AE_SLAI24S;
-  case Xtensa::AE_SLAI64_PSEUDO: return Xtensa::AE_SLAI64;
-  case Xtensa::AE_SRAA16RS_PSEUDO: return Xtensa::AE_SRAA16RS;
-  case Xtensa::AE_SRAA32RS_PSEUDO: return Xtensa::AE_SRAA32RS;
-  case Xtensa::AE_SRAA32S_PSEUDO: return Xtensa::AE_SRAA32S;
-  case Xtensa::AE_SRAA64_PSEUDO: return Xtensa::AE_SRAA64;
-  case Xtensa::AE_SRAAQ56_PSEUDO: return Xtensa::AE_SRAAQ56;
 
-  case Xtensa::AE_ADD24S_PSEUDO: return Xtensa::AE_ADD24S;
-  case Xtensa::AE_ADD32_HL_LH_PSEUDO: return Xtensa::AE_ADD32_HL_LH_REAL;
-  case Xtensa::AE_ADD64S_PSEUDO: return Xtensa::AE_ADD64S_REAL;
-  case Xtensa::AE_SUB16S_PSEUDO: return Xtensa::AE_SUB16S;
-  case Xtensa::AE_SUB24S_PSEUDO: return Xtensa::AE_SUB24S_REAL;
 
   default: return 0;
   }

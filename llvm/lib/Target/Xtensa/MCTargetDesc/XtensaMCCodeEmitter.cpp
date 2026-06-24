@@ -482,49 +482,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     return;
   }
 
-  if (Opcode == Xtensa::AE_SRAA16RS || Opcode == Xtensa::AE_SRAA32RS) {
-    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    uint32_t insn0 = (Opcode == Xtensa::AE_SRAA16RS) ? 0x082c8f00 : 0x0b2c8f00;
-    uint32_t insn1 = 0x0d0a00d0 | (r & 1) << 22 | ((r >> 1) & 1) << 23 | ((r >> 2) & 1) << 8 | ((r >> 3) & 1) << 9 | (s & 1) << 20 | ((s >> 1) & 1) << 13;
-    uint32_t insn2 = ((Opcode == Xtensa::AE_SRAA16RS) ? 0x0fb070 : 0x0f4070) | t << 8 | ((s >> 2) & 1) << 22 | ((s >> 3) & 1) << 23;
 
-    CB.push_back(char(insn0));
-    CB.push_back(char(insn0 >> 8));
-    CB.push_back(char(insn0 >> 16));
-    CB.push_back(char(insn0 >> 24));
-    CB.push_back(char(insn1));
-    CB.push_back(char(insn1 >> 8));
-    CB.push_back(char(insn1 >> 16));
-    CB.push_back(char(insn1 >> 24));
-    CB.push_back(char(insn2));
-    CB.push_back(char(insn2 >> 8));
-    CB.push_back(char(insn2 >> 16));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_SLAI16S) {
-    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned imm = MI.getOperand(2).getImm();
-    uint32_t insn0 = 0x0c2c8f00;
-    uint32_t insn1 = 0x0d0a0010 | (r & 1) << 22 | ((r >> 1) & 1) << 23 | ((r >> 2) & 1) << 8 | ((r >> 3) & 1) << 9 | (s & 1) << 20 | ((s >> 1) & 1) << 13;
-    uint32_t insn2 = 0x0f5070 | imm << 8 | ((s >> 2) & 1) << 22 | ((s >> 3) & 1) << 23;
-
-    CB.push_back(char(insn0));
-    CB.push_back(char(insn0 >> 8));
-    CB.push_back(char(insn0 >> 16));
-    CB.push_back(char(insn0 >> 24));
-    CB.push_back(char(insn1));
-    CB.push_back(char(insn1 >> 8));
-    CB.push_back(char(insn1 >> 16));
-    CB.push_back(char(insn1 >> 24));
-    CB.push_back(char(insn2));
-    CB.push_back(char(insn2 >> 8));
-    CB.push_back(char(insn2 >> 16));
-    return;
-  }
 
   if (Opcode == Xtensa::AE_MOVAD16_1) {
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
