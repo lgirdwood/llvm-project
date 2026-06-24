@@ -495,12 +495,37 @@ class FLIX_MAC_Inst<bits<8> byte0, bits<8> byte2, dag outs, dag ins, string asms
     let isCodeGenOnly = 0;
   }
 
-  def AE_S32X2X2_XC1_HIFI5 : Pseudo<(outs AR:$ptr_out), (ins AEDR:$t1, AEDR:$t2, AR:$ptr_in, imm8:$offset),
+  def AE_S32X2X2_XC1_HIFI5 : XtensaInst128<(outs AR:$ptr_out), (ins AEDR:$t1, AEDR:$t2, AR:$ptr_in, AR:$offset),
                                       "ae_s32x2x2.xc1\t$t1, $t2, $ptr_in, $offset",
-                                      []> {
+                                      [(set AR:$ptr_out,
+                                         (int_xtensa_ae_s32x2x2_xc1 AEDR:$t1, AEDR:$t2, AR:$ptr_in, AR:$offset))]> {
     let Predicates = [HasHIFI5];
     let Constraints = "$ptr_out = $ptr_in";
-    let isCodeGenOnly = 0;
+    let mayStore = 1;
+    
+    bits<4> t1;
+    bits<4> t2;
+    bits<4> ptr_in;
+    bits<4> offset;
+
+    let Inst{31-0} = 0xB600000F;
+    let Inst{63-32} = 0x602E0173;
+    let Inst{95-64} = 0x5E009909;
+    let Inst{127-96} = 0x0001A080;
+
+    let Inst{6} = t1{0};
+    let Inst{7} = t1{1};
+    let Inst{12} = t1{2};
+    let Inst{13} = t1{3};
+
+    let Inst{11-8} = ptr_in;
+
+    let Inst{16} = offset{0};
+    let Inst{21} = offset{1};
+    let Inst{22} = offset{2};
+    let Inst{23} = offset{3};
+
+    let Inst{107-104} = t2;
   }
 
   // AE_L32X2X2_XC1: circular load (buffer 1) with register offset
@@ -2661,15 +2686,6 @@ def AE_SA16X4X2_IP_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$d0, AEDR:$d1, AR
   let Predicates = [HasHIFI5];
   let mayStore = 1;
   // Uses VALIGN via explicit DAG operand
-}
-
-def AE_S32X2X2_XC1_PSEUDO : Pseudo<(outs AR:$s_out), (ins AEDR:$d0, AEDR:$d1, AR:$s, AR:$off),
-                                   "ae_s32x2x2.xc1\t$d0, $d1, $s, $off",
-                                   [(set AR:$s_out,
-                                         (int_xtensa_ae_s32x2x2_xc1 AEDR:$d0, AEDR:$d1, AR:$s, AR:$off))]> {
-  let Constraints = "$s = $s_out";
-  let Predicates = [HasHIFI5];
-  let mayStore = 1;
 }
 
 // =========================================================================
