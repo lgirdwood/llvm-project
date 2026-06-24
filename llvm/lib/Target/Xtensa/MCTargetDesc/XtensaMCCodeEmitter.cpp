@@ -908,16 +908,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     return;
   }
 
-  if (Opcode == Xtensa::AE_SA32X2_IP_REAL) {
-    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(4).getReg());
 
-    uint32_t val = (0 << 20) | (12 << 16) | (r << 12) | (s << 8) | 0xd4;
-    CB.push_back(char(val));
-    CB.push_back(char(val >> 8));
-    CB.push_back(char(val >> 16));
-    return;
-  }
 
   if (Opcode == Xtensa::AE_S16_0_X) {
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
@@ -955,26 +946,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     CB.push_back(char(0x00));
     CB.push_back(char((r << 4) | s));
     CB.push_back(char((t << 4) | 0x0e));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_S16_0_XP) {
-    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0xd4));
-    CB.push_back(char((r << 4) | s));
-    CB.push_back(char((t << 4) | 0x04));
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_S32_L_XP) {
-    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0xe3));
-    CB.push_back(char((r << 4) | s));
-    CB.push_back(char((t << 4) | 0x04));
     return;
   }
 
