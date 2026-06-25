@@ -663,6 +663,10 @@ static bool isStandaloneHiFiInstr(StringRef Name) {
   return Name.starts_with("AE_ABS24S") ||
          Name.starts_with("AE_ABS64_") ||
          Name.starts_with("AE_L16M_I") ||
+         Name.starts_with("AE_L64_I") ||
+         Name.starts_with("AE_S64_I") ||
+         Name.starts_with("AE_MOVFCRFSRV") ||
+         Name.starts_with("AE_MOVVFCRFSR") ||
          Name.starts_with("AE_L32_I") ||
          Name.starts_with("AE_L16_I") ||
          Name.starts_with("AE_S32_L_I") ||

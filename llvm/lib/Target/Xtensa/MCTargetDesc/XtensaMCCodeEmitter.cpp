@@ -197,6 +197,10 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       Allowed.Slot3 = true;
       return Allowed;
     }
+    if (Name.starts_with("AE_MOVEA") || Name.starts_with("AE_MOVAE")) {
+      Allowed.Slot0 = true;
+      return Allowed;
+    }
     if (Name.starts_with("AE_ADD") || Name.starts_with("AE_SUB") ||
         Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
         Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
@@ -281,6 +285,8 @@ static bool isStandaloneHiFiInstr(StringRef Name) {
          Name.starts_with("AE_L16M_I") ||
          Name.starts_with("AE_L64_I") ||
          Name.starts_with("AE_S64_I") ||
+         Name.starts_with("AE_MOVFCRFSRV") ||
+         Name.starts_with("AE_MOVVFCRFSR") ||
          Name.starts_with("AE_L32_I") ||
          Name.starts_with("AE_L16_I") ||
          Name.starts_with("AE_S32_L_I") ||
@@ -1101,6 +1107,21 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         unsigned op_19_12 = (Val >> 12) & 0xff;
         unsigned Base = 0x102d0000 | ((op_19_12 - 0xEC + 1) * 0x400);
         Val = Base | (s << 12) | (r << 4) | t;
+
+      } else if (Opc == Xtensa::AE_LALIGN64_I || Opc == Xtensa::AE_SALIGN64_I) {
+        unsigned u = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+        unsigned s = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+        unsigned i = SlotInst.getOperand(2).getImm() / 8;
+        unsigned isStore = (Opc == Xtensa::AE_SALIGN64_I) ? 1 : 0;
+        Val = 0x264000 | ((i >> 2) << 12) | (isStore ? 0x400 : 0) | (((u << 2) | (i & 3)) << 4) | s;
+      } else if (Opc == Xtensa::AE_MOVEA) {
+        unsigned b = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+        unsigned t = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+        Val = 0x260F04 | (t << 4) | b;
+      } else if (Opc == Xtensa::AE_MOVAE) {
+        unsigned t = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+        unsigned b = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+        Val = 0x260F00 | (t << 4) | b;
       } else if (Opc == Xtensa::AE_L16_X_HIFI3) {
         unsigned r = (Val >> 12) & 0xf;
         unsigned s = (Val >> 8) & 0xf;
@@ -1306,6 +1327,19 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       }
     } else {
       report_fatal_error("Big-endian mode currently is not supported!");
+    }
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_MOVVFCRFSR || Opcode == Xtensa::AE_MOVFCRFSRV) {
+    uint8_t Data[11] = {0x1f, 0x15, 0x70, 0x06, 0x3d, 0xe3, 0x6d, 0xc4, 0xc7, 0x7f, 0x39};
+    if (Opcode == Xtensa::AE_MOVFCRFSRV) {
+      Data[4] = 0x1d;
+    }
+    unsigned Reg = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    Data[3] |= (Reg << 4);
+    for (unsigned I = 0; I < 11; ++I) {
+      CB.push_back(char(Data[I]));
     }
     return;
   }
