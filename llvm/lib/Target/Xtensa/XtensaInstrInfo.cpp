@@ -215,8 +215,9 @@ void XtensaInstrInfo::loadImmediate(MachineBasicBlock &MBB,
     int Low = Value & 0xFF;
     int High = Value & ~0xFF;
 
-    BuildMI(MBB, MBBI, DL, get(Xtensa::MOVI), *Reg).addImm(Low);
-    BuildMI(MBB, MBBI, DL, get(Xtensa::ADDMI), *Reg).addReg(*Reg).addImm(High);
+    MCRegister Reg1 = RegInfo.createVirtualRegister(RC);
+    BuildMI(MBB, MBBI, DL, get(Xtensa::MOVI), Reg1).addImm(Low);
+    BuildMI(MBB, MBBI, DL, get(Xtensa::ADDMI), *Reg).addReg(Reg1).addImm(High);
   } else if (Value >= -4294967296LL && Value <= 4294967295LL) {
     // 32 bit arbitrary constant
     MachineConstantPool *MCP = MBB.getParent()->getConstantPool();

@@ -105,8 +105,8 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
       setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Custom);
       // Load/Store of these vector types is legal since they fit in AEDR regs
-      setOperationAction(ISD::LOAD, VT, Legal);
-      setOperationAction(ISD::STORE, VT, Legal);
+      setOperationAction(ISD::LOAD, VT, Expand);
+      setOperationAction(ISD::STORE, VT, Expand);
       setTruncStoreAction(VT, MVT::v2i16, Expand);
       setTruncStoreAction(VT, MVT::v4i8, Expand);
       setTruncStoreAction(VT, MVT::v2i8, Expand);
@@ -775,6 +775,12 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
   // Join the stores, which are independent of one another.
   if (!MemOpChains.empty())
     Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
+
+  if (Subtarget.isWindowedABI()) {
+    if (!StackPtr.getNode())
+      StackPtr = DAG.getCopyFromReg(Chain, DL, Xtensa::SP, PtrVT);
+    RegsToPass.push_back(std::make_pair(Xtensa::A9, StackPtr));
+  }
 
   // Build a sequence of copy-to-reg nodes, chained and glued together.
   SDValue Glue;

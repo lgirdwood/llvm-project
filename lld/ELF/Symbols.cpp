@@ -94,7 +94,9 @@ static uint64_t getSymVA(Ctx &ctx, const Symbol &sym, int64_t addend) {
           ms && offset >= ms->content().size()) {
         if (offset > ms->content().size())
           Err(ctx) << ms << ": offset 0x" << Twine::utohexstr(offset)
-                   << " is outside the section";
+                   << " is outside the section. Addend: 0x" << Twine::utohexstr(addend)
+                   << ", d.value: 0x" << Twine::utohexstr(d.value)
+                   << ", SymName: " << d.getName();
         return 0;
       }
     }

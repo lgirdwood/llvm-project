@@ -67,7 +67,7 @@ RelExpr Xtensa::getRelExpr(RelType type, const Symbol &s,
   case R_XTENSA_32_PCREL:
     return R_PC;
   case R_XTENSA_PLT:
-    return R_PLT;
+    return R_PLT_PC;
   case R_XTENSA_SLOT0_OP:
   case R_XTENSA_SLOT1_OP:
   case R_XTENSA_SLOT2_OP:

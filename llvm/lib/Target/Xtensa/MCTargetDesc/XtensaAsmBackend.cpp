@@ -162,15 +162,10 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   case Xtensa::fixup_xtensa_l32r_16: {
     if (!IsResolved)
       return 0;
-    unsigned Offset = Fixup.getOffset();
-    if (Offset & 0x3)
-      Value -= 4;
     int64_t SVal = (int64_t)Value;
     if (IsResolved && (SVal > -4 || SVal < -262144))
       Ctx.reportError(Fixup.getLoc(), "fixup value " + Twine(SVal) + " out of range for l32r_16");
-    if (IsResolved && (SVal & 0x3))
-      Ctx.reportError(Fixup.getLoc(), "fixup value must be 4-byte aligned");
-    return (Value & 0x3fffc) >> 2;
+    return (SVal >> 2) & 0xffff;
   }
   }
 }
@@ -187,32 +182,44 @@ static unsigned getSize(unsigned Kind) {
 }
 
 std::optional<bool> XtensaAsmBackend::evaluateFixup(const MCFragment &F,
-                                                    MCFixup &Fixup, MCValue &,
+                                                    MCFixup &Fixup, MCValue &Target,
                                                     uint64_t &Value) {
   // For a few PC-relative fixups, offsets need to be aligned down. We
-  // compensate here because the default handler's `Value` decrement doesn't
-  // account for this alignment.
   switch (Fixup.getKind()) {
   case Xtensa::fixup_xtensa_call_18:
-  case Xtensa::fixup_xtensa_l32r_16:
-    Value = (Asm->getFragmentOffset(F) + Fixup.getOffset()) % 4;
+    Value -= (Asm->getFragmentOffset(F) + Fixup.getOffset()) % 4;
+    break;
+  case Xtensa::fixup_xtensa_l32r_16: {
+    if (!Target.isAbsolute() && Target.getAddSym() && !Target.getSubSym()) {
+      const MCSymbol &Sym = *Target.getAddSym();
+      if (Sym.isDefined() && Sym.isInSection() &&
+          Sym.getSection().getName() == F.getParent()->getName()) {
+        uint64_t TargetOffset = Asm->getSymbolOffset(Sym) + Target.getConstant();
+        uint64_t SectionOffset = Asm->getFragmentOffset(F) + Fixup.getOffset();
+        Value = TargetOffset - ((SectionOffset + 3) & ~3);
+        return true;
+      }
+    }
+    return false;
+  }
   }
   return {};
 }
 
 void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
                                   const MCValue &Target, uint8_t *Data,
-                                  uint64_t Value, bool IsResolved) {
+                                  uint64_t OrigValue, bool IsResolved) {
   bool WasResolved = IsResolved;
-  uint64_t OrigValue = Value;
-  if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_l32r_16) {
-    IsResolved = false;
-  }
+  uint64_t Value = OrigValue;
   if (Fixup.getKind() >= (MCFixupKind)Xtensa::fixup_xtensa_slot0 &&
       Fixup.getKind() <= (MCFixupKind)Xtensa::fixup_xtensa_slot14) {
-    IsResolved = false;
+    // IsResolved = false; // Intentionally commented out.
   }
   maybeAddReloc(F, Fixup, Target, Value, IsResolved);
+
+  if (!WasResolved)
+    OrigValue = 0;
+
   MCContext &Ctx = getContext();
   MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
 

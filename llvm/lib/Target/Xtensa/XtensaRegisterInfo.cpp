@@ -118,13 +118,16 @@ bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     MCRegister Reg;
     const XtensaInstrInfo &TII = *static_cast<const XtensaInstrInfo *>(
         MBB.getParent()->getSubtarget().getInstrInfo());
+    MachineRegisterInfo &MRI = MBB.getParent()->getRegInfo();
 
     TII.loadImmediate(MBB, II, &Reg, Offset);
-    BuildMI(MBB, II, DL, TII.get(ADD), Reg)
+    
+    Register DestReg = MRI.createVirtualRegister(&Xtensa::ARRegClass);
+    BuildMI(MBB, II, DL, TII.get(ADD), DestReg)
         .addReg(FrameReg)
         .addReg(Reg, RegState::Kill);
 
-    FrameReg = Reg;
+    FrameReg = DestReg;
     Offset = 0;
     IsKill = true;
   }
