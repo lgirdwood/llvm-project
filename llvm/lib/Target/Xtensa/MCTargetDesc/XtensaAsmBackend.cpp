@@ -203,6 +203,8 @@ std::optional<bool> XtensaAsmBackend::evaluateFixup(const MCFragment &F,
 void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
                                   const MCValue &Target, uint8_t *Data,
                                   uint64_t Value, bool IsResolved) {
+  bool WasResolved = IsResolved;
+  uint64_t OrigValue = Value;
   if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_l32r_16) {
     IsResolved = false;
   }
@@ -214,7 +216,7 @@ void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   MCContext &Ctx = getContext();
   MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
 
-  Value = adjustFixupValue(Fixup, Value, Ctx, IsResolved);
+  Value = adjustFixupValue(Fixup, OrigValue, Ctx, WasResolved);
 
   // Shift the value into position.
   Value <<= Info.TargetOffset;
