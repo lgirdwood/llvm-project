@@ -193,7 +193,7 @@ std::optional<bool> XtensaAsmBackend::evaluateFixup(const MCFragment &F,
     if (!Target.isAbsolute() && Target.getAddSym() && !Target.getSubSym()) {
       const MCSymbol &Sym = *Target.getAddSym();
       if (Sym.isDefined() && Sym.isInSection() &&
-          Sym.getSection().getName() == F.getParent()->getName()) {
+          &Sym.getSection() == F.getParent()) {
         uint64_t TargetOffset = Asm->getSymbolOffset(Sym) + Target.getConstant();
         uint64_t SectionOffset = Asm->getFragmentOffset(F) + Fixup.getOffset();
         Value = TargetOffset - ((SectionOffset + 3) & ~3);
