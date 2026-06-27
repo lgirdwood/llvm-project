@@ -1904,3 +1904,14 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
     llvm_unreachable("Unexpected instr type to insert");
   }
 }
+
+bool XtensaTargetLowering::allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
+                                              unsigned AddrSpace, Align Alignment,
+                                              MachineMemOperand::Flags Flags,
+                                              unsigned *Fast) const {
+  if (VT.isVector())
+    return false;
+  return TargetLowering::allowsMemoryAccess(Context, DL, VT, AddrSpace, Alignment, Flags, Fast);
+}
+
+

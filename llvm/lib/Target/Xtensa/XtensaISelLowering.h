@@ -157,6 +157,11 @@ private:
 
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
+  bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
+                          unsigned AddrSpace = 0, Align Alignment = Align(1),
+                          MachineMemOperand::Flags Flags = MachineMemOperand::MONone,
+                          unsigned *Fast = nullptr) const override;
+
   SDValue getAddrPCRel(SDValue Op, SelectionDAG &DAG) const;
 
   CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool IsVarArg) const;
