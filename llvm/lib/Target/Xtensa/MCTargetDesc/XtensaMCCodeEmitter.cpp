@@ -22,6 +22,7 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define GET_INSTRMAP_INFO
@@ -198,10 +199,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       Allowed.Slot3 = true;
       return Allowed;
     }
-    if (Name.starts_with("AE_MOVEA") || Name.starts_with("AE_MOVAE")) {
-      Allowed.Slot0 = true;
-      return Allowed;
-    }
+
     if (Name.starts_with("AE_ADD") || Name.starts_with("AE_SUB") ||
         Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
         Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
@@ -280,7 +278,14 @@ static bool isBranchMCInst(const MCInst &Inst, const MCInstrInfo &MCII) {
          MCII.get(Inst.getOpcode()).isUnconditionalBranch();
 }
 
-static bool isStandaloneHiFiInstr(StringRef Name) {
+static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
+  if (STI.hasFeature(Xtensa::FeatureHIFI4) || STI.hasFeature(Xtensa::FeatureHIFI5)) {
+    if (Name.starts_with("AE_MOVAE") ||
+        Name.starts_with("AE_MOVEA") ||
+        Name.starts_with("AE_MOVFCRFSRV") ||
+        Name.starts_with("AE_MOVVFCRFSR"))
+      return false;
+  }
   return StringSwitch<bool>(Name)
       .StartsWith("AE_L32_I_HIFI4", true)
       .StartsWith("AE_L16_I_HIFI4", true)
@@ -493,6 +498,36 @@ static bool isStandaloneHiFiInstr(StringRef Name) {
       .StartsWith("AE_LA32X2POS_PC_REAL", true)
       .StartsWith("AE_LALIGN128_I", true)
       .StartsWith("AE_SALIGN128_I", true)
+      .StartsWith("AE_MOVDRZBVC", true)
+      .StartsWith("AE_MOVZBVCDR", true)
+      .StartsWith("AE_S32_H_I", true)
+      .StartsWith("AE_MULF2P32X16X4RS", true)
+      .StartsWith("AE_MULF2P32X4RS", true)
+      .StartsWith("AE_MULF32X2R_HH_LL", true)
+      .StartsWith("AE_MOVAD16_1", true)
+      .StartsWith("AE_ROUND16X4F32SASYM", true)
+      .StartsWith("AE_MULAFD32X16X2_FIR", true)
+      .StartsWith("AE_ROUND16X4F32SSYM", true)
+      .StartsWith("AE_ROUND32X2F64SSYM", true)
+      .StartsWith("AE_ROUND32X2F64SASYM", true)
+      .StartsWith("AE_MUL16X4", true)
+      .StartsWith("AE_MULAF16SS", true)
+      .StartsWith("AE_MULF16SS", true)
+      .StartsWith("AE_EQ16", true)
+      .StartsWith("AE_LT16", true)
+      .StartsWith("AE_LE16", true)
+      .StartsWith("AE_LE32", true)
+      .StartsWith("AE_SA16X4_IC", true)
+      .StartsWith("AE_SA24X2_IP", true)
+      .StartsWith("AE_LA16X4POS_PC", true)
+      .StartsWith("AE_ROUND24X2F48SSYM", true)
+      .StartsWith("AE_SA32X2_IC", true)
+      .StartsWith("AE_S16_0_X", true)
+      .StartsWith("AE_S32_L_X", true)
+      .StartsWith("AE_L32_X", true)
+      .StartsWith("AE_L32X2_XC1", true)
+      .StartsWith("AE_MOVVFCRFSR", true)
+      .StartsWith("AE_MOVFCRFSRV", true)
       .StartsWith("AE_MOVDRZBVC", true)
       .StartsWith("AE_MOVZBVCDR", true)
       .Default(false);
@@ -1110,7 +1145,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     return;
   }
 
-  if (Opcode == Xtensa::BUNDLE || (Name.starts_with("AE_") && !isStandaloneHiFiInstr(Name))) {
+  if (Opcode == Xtensa::BUNDLE || (Name.starts_with("AE_") && !isStandaloneHiFiInstr(Name, STI))) {
     SmallVector<const MCInst *, 4> SubInsts;
     if (Opcode == Xtensa::BUNDLE) {
       for (unsigned i = 0; i < MI.getNumOperands(); ++i) {
@@ -1223,6 +1258,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       SmallVector<MCFixup, 4> LocalFixups;
       APInt SlotInstBits(128, 0);
       APInt SlotScratch(128, 0);
+      llvm::dbgs() << "Encoding slot inst: " << MCII.getName(SlotInst.getOpcode()) << "\n";
       getBinaryCodeForInstr(SlotInst, LocalFixups, SlotInstBits, SlotScratch, STI);
       uint32_t Val = SlotInstBits.extractBitsAsZExtValue(32, 0);
       for (const auto &F : LocalFixups) {
@@ -1246,20 +1282,8 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         unsigned Base = 0x102d0000 | ((op_19_12 - 0xEC + 1) * 0x400);
         Val = Base | (s << 12) | (r << 4) | t;
 
-      } else if (Opc == Xtensa::AE_LALIGN64_I || Opc == Xtensa::AE_SALIGN64_I) {
-        unsigned u = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
-        unsigned s = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
-        unsigned i = SlotInst.getOperand(2).getImm() / 8;
-        unsigned isStore = (Opc == Xtensa::AE_SALIGN64_I) ? 1 : 0;
-        Val = 0x264000 | ((i >> 2) << 12) | (isStore ? 0x400 : 0) | (((u << 2) | (i & 3)) << 4) | s;
-      } else if (Opc == Xtensa::AE_MOVEA) {
-        unsigned b = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
-        unsigned t = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
-        Val = 0x260F04 | (t << 4) | b;
-      } else if (Opc == Xtensa::AE_MOVAE) {
-        unsigned t = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
-        unsigned b = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
-        Val = 0x260F00 | (t << 4) | b;
+
+
       } else if (Opc == Xtensa::AE_L16_X_HIFI3) {
         unsigned r = (Val >> 12) & 0xf;
         unsigned s = (Val >> 8) & 0xf;
