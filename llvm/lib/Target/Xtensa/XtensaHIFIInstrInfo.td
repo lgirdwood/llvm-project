@@ -1961,8 +1961,7 @@ def : Pat<(i32 (extractelt (v2i32 AEDR:$src), (i32 1))),
 // AE_MOVAD16_* intrinsics directly in the Clang builtins instead.
 
 // Truncating stores: store low 32 bits of v2i32
-def : Pat<(truncstorei32 (v2i32 AEDR:$src), addr_ish8:$addr),
-          (AE_S64_I_HIFI3 AEDR:$src, addr_ish8:$addr)>;
+// (Removed buggy truncstore mapping that mapped a 32-bit store to an 8-byte store)
 
 // ============================================================
 // Missing HiFi3 intrinsics (from xt-clang reference analysis)
@@ -2176,13 +2175,34 @@ def AE_L32X2X2_XC_HIFI5 : XtensaInst128<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (i
   let Inst{117} = off{3};
 }
 
-def AE_L32X2X2_XC1_PSEUDO : Pseudo<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (ins AR:$s, AR:$off),
+def AE_L32X2X2_XC1_PSEUDO : XtensaInst128<(outs AEDR:$r0, AEDR:$r1, AR:$s_out), (ins AR:$s, AR:$off),
                                    "ae_l32x2x2.xc1\t$r0, $r1, $s, $off",
                                    [(set AEDR:$r0, AEDR:$r1, AR:$s_out,
                                          (int_xtensa_ae_l32x2x2_xc1 AR:$s, AR:$off))]> {
   let Constraints = "$s = $s_out";
   let Predicates = [HasHIFI5];
   let mayLoad = 1;
+  bits<4> r0;
+  bits<4> r1;
+  bits<4> s;
+  bits<4> off;
+  let Inst{31-0}   = 0x49810000;
+  let Inst{63-32}  = 0x000F0655;
+  let Inst{95-64}  = 0x2204035A;
+  let Inst{127-96} = 0x0F8000A0;
+  let Inst{47} = off{0};
+  let Inst{40} = off{1};
+  let Inst{33} = off{2};
+  let Inst{80} = r1{2};
+  let Inst{81} = r1{3};
+  let Inst{127-124} = s;
+  let Inst{112} = r0{0};
+  let Inst{113} = r0{1};
+  let Inst{116} = r0{2};
+  let Inst{119} = r0{3};
+  let Inst{99} = r1{0};
+  let Inst{100} = r1{1};
+  let Inst{117} = off{3};
 }
 
 // =========================================================================
