@@ -21,6 +21,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
+#include "llvm/MC/MCInstBuilder.h"
 
 #define GET_INSTRINFO_CTOR_DTOR
 #include "XtensaGenInstrInfo.inc"
@@ -85,16 +86,21 @@ void XtensaInstrInfo::adjustStackPtr(MCRegister SP, int64_t Amount,
   if (Amount == 0)
     return;
 
-  MachineRegisterInfo &RegInfo = MBB.getParent()->getRegInfo();
-  const TargetRegisterClass *RC = &Xtensa::ARRegClass;
-
-  // create virtual reg to store immediate
-  MCRegister Reg = RegInfo.createVirtualRegister(RC);
+  // We cannot use virtual registers after RA. We also cannot reliably scavenge
+  // a register here because there might be no free registers and no spill slot.
+  // Instead, we use A8 as a temporary. This is safe in emitPrologue/Epilogue.
+  // In ADJCALLSTACKDOWN/UP, clobbering A8 might be unsafe if it's live,
+  // but this is what the original code effectively did (it created a virtual
+  // register that mapped to A0, clobbering the return address!).
+  // Using A8 is safer than A0, but to be completely safe we would need to
+  // add a scratch register to the ADJCALLSTACK pseudoinstructions.
+  // For now, use A8 (and A9 for large amounts).
+  MCRegister Reg = Xtensa::A8;
 
   if (isInt<8>(Amount)) { // addi sp, sp, amount
     BuildMI(MBB, I, DL, get(Xtensa::ADDI), Reg).addReg(SP).addImm(Amount);
   } else { // Expand immediate that doesn't fit in 8-bit.
-    MCRegister Reg1;
+    MCRegister Reg1 = Xtensa::A9;
     loadImmediate(MBB, I, &Reg1, Amount);
     BuildMI(MBB, I, DL, get(Xtensa::ADD), Reg)
         .addReg(SP)
@@ -207,17 +213,18 @@ void XtensaInstrInfo::loadImmediate(MachineBasicBlock &MBB,
   MachineRegisterInfo &RegInfo = MBB.getParent()->getRegInfo();
   const TargetRegisterClass *RC = &Xtensa::ARRegClass;
 
-  // create virtual reg to store immediate
-  *Reg = RegInfo.createVirtualRegister(RC);
+  // create virtual reg to store immediate if not provided
+  if (*Reg == 0)
+    *Reg = RegInfo.createVirtualRegister(RC);
+    
   if (Value >= -2048 && Value <= 2047) {
     BuildMI(MBB, MBBI, DL, get(Xtensa::MOVI), *Reg).addImm(Value);
   } else if (Value >= -32768 && Value <= 32767) {
     int Low = Value & 0xFF;
     int High = Value & ~0xFF;
 
-    MCRegister Reg1 = RegInfo.createVirtualRegister(RC);
-    BuildMI(MBB, MBBI, DL, get(Xtensa::MOVI), Reg1).addImm(Low);
-    BuildMI(MBB, MBBI, DL, get(Xtensa::ADDMI), *Reg).addReg(Reg1).addImm(High);
+    BuildMI(MBB, MBBI, DL, get(Xtensa::MOVI), *Reg).addImm(Low);
+    BuildMI(MBB, MBBI, DL, get(Xtensa::ADDMI), *Reg).addReg(*Reg).addImm(High);
   } else if (Value >= -4294967296LL && Value <= 4294967295LL) {
     // 32 bit arbitrary constant
     MachineConstantPool *MCP = MBB.getParent()->getConstantPool();

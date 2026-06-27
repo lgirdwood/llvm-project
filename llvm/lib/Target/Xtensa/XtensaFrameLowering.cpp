@@ -88,7 +88,9 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
     // diff_to_128_aligned_address = (128 - (SP & 127))
     // new_offset = SP + diff_to_128_aligned_address
     // This is safe to do because we increased the stack size by MaxAlignment.
-    MCRegister Reg, RegMisAlign;
+    MCRegister Reg = Xtensa::A8;
+    MCRegister RegMisAlign = Xtensa::A9;
+
     if (MaxAlignment > 32) {
       TII.loadImmediate(MBB, MBBI, &RegMisAlign, MaxAlignment - 1);
       TII.loadImmediate(MBB, MBBI, &Reg, MaxAlignment);
