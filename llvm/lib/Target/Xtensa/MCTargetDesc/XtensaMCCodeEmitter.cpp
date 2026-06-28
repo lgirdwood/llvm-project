@@ -1110,12 +1110,14 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0x7c));
-    CB.push_back(char(0x9f));
-    CB.push_back(char(0xa0));
-    CB.push_back(char(0x00));
-    CB.push_back(char((r << 4) | s));
+    // FLIX bundle bytes must be emitted little-endian (format/marker byte
+    // first); see AE_L32X2_XC1 below.
     CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0xa0));
+    CB.push_back(char(0x9f));
+    CB.push_back(char(0x7c));
     return;
   }
 
@@ -1123,12 +1125,14 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0x7c));
-    CB.push_back(char(0xa2));
-    CB.push_back(char(0xb0));
-    CB.push_back(char(0x00));
-    CB.push_back(char((r << 4) | s));
+    // FLIX bundle bytes must be emitted little-endian (format/marker byte
+    // first); see AE_L32X2_XC1 below.
     CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0xb0));
+    CB.push_back(char(0xa2));
+    CB.push_back(char(0x7c));
     return;
   }
 
@@ -1136,12 +1140,30 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0x7c));
-    CB.push_back(char(0x9f));
-    CB.push_back(char(0x60));
-    CB.push_back(char(0x00));
-    CB.push_back(char((r << 4) | s));
+    // FLIX bundle bytes must be emitted little-endian: the format/marker byte
+    // (low nibble 0xe) comes FIRST in memory. Emitting them in the opposite
+    // order makes the CPU decode the bundle as narrow instructions (e.g.
+    // movi.n) and dereference a garbage pointer -> load/store alignment fault.
     CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0x60));
+    CB.push_back(char(0x9f));
+    CB.push_back(char(0x7c));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S32X2_XC1) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    // Little-endian FLIX bundle bytes (see AE_L32X2_XC1).
+    CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0x70));
+    CB.push_back(char(0xa2));
+    CB.push_back(char(0x7c));
     return;
   }
 
