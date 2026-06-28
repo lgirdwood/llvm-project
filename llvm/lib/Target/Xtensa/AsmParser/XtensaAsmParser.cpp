@@ -645,7 +645,12 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
     break;
   }
   case Xtensa::LOOP: {
-    Out.emitValueToAlignment(Align(4));
+    // Align the loop so it is fetched correctly. Use code alignment so any
+    // padding is emitted as NOPs (nop.n / nop) instead of zero bytes, which
+    // would decode as an illegal instruction if executed. A residual 1-byte
+    // gap (not fillable with a NOP) is absorbed by the instruction-widening
+    // pass in XtensaAsmBackend::finishLayout().
+    Out.emitCodeAlignment(Align(4), STI);
     break;
   }
   default:

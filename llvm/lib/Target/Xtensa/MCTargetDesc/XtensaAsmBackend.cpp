@@ -240,33 +240,41 @@ void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
 
 bool XtensaAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count,
                                     const MCSubtargetInfo *STI) const {
-  uint64_t NumNops24b = Count / 3;
-
-  for (uint64_t i = 0; i != NumNops24b; ++i) {
-    // Currently just little-endian machine supported,
-    // but probably big-endian will be also implemented in future
-    if (IsLittleEndian) {
-      OS.write("\xf0", 1);
-      OS.write("\x20", 1);
-      OS.write("\x00", 1);
-    } else {
-      report_fatal_error("Big-endian mode currently is not supported!");
-    }
-    Count -= 3;
+  if (Count == 0) return true;
+  if (Count == 1) {
+    // If we reach here, it means we failed to widen an instruction before
+    // a 1-byte padding boundary. Write a 0 byte, which will cause an
+    // Illegal Instruction exception if executed, but keeps offsets correct.
+    OS.write("\0", 1);
+    return true;
   }
 
-  // TODO maybe function should return error if (Count > 0)
-  switch (Count) {
-  default:
-    break;
-  case 1:
-    OS.write("\0", 1);
-    break;
-  case 2:
-    // NOP.N instruction
-    OS.write("\x3d", 1);
-    OS.write("\xf0", 1);
-    break;
+  uint64_t Num2s = 0;
+  uint64_t Num3s = 0;
+
+  if (Count % 3 == 0) {
+    Num3s = Count / 3;
+  } else if (Count % 3 == 2) {
+    Num3s = (Count - 2) / 3;
+    Num2s = 1;
+  } else if (Count % 3 == 1) {
+    Num3s = (Count - 4) / 3;
+    Num2s = 2;
+  }
+
+  for (uint64_t i = 0; i != Num3s; ++i) {
+    if (IsLittleEndian) {
+      OS.write("\xf0\x20\x00", 3);
+    } else {
+      OS.write("\x00\x20\xf0", 3);
+    }
+  }
+  for (uint64_t i = 0; i != Num2s; ++i) {
+    if (IsLittleEndian) {
+      OS.write("\x3d\xf0", 2);
+    } else {
+      OS.write("\xf0\x3d", 2);
+    }
   }
 
   return true;
@@ -317,7 +325,7 @@ bool XtensaAsmBackend::mayNeedRelaxation(unsigned Opcode,
   if (Opcode == Xtensa::BEQZ_N || Opcode == Xtensa::BNEZ_N) {
     return true;
   }
-  if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::L32I_N) {
+  if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::MOVI_N || Opcode == Xtensa::L32I_N) {
     return true;
   }
   if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
@@ -369,6 +377,8 @@ void XtensaAsmBackend::relaxInstruction(MCInst &Inst,
   } else if (Opcode == Xtensa::MOV_N) {
     Inst.setOpcode(Xtensa::OR);
     Inst.addOperand(Inst.getOperand(1)); // OR a11, a5, a5
+  } else if (Opcode == Xtensa::MOVI_N) {
+    Inst.setOpcode(Xtensa::MOVI);
   } else if (Opcode == Xtensa::L32I_N) {
     Inst.setOpcode(Xtensa::L32I);
   } else if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
@@ -408,7 +418,7 @@ bool XtensaAsmBackend::finishLayout() const {
         
         if (F.getKind() == MCFragment::FT_Relaxable) {
            unsigned Opcode = F.getInst().getOpcode();
-           if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::L32I_N) {
+           if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::MOVI_N || Opcode == Xtensa::L32I_N || Opcode == Xtensa::BEQZ_N || Opcode == Xtensa::BNEZ_N || Opcode == Xtensa::RET_N || Opcode == Xtensa::RETW_N) {
              PrevFragments.push_back(&F);
            } else if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
                       Opcode == Xtensa::CALL8 || Opcode == Xtensa::CALL12 ||
@@ -434,9 +444,12 @@ bool XtensaAsmBackend::finishLayout() const {
                  if (Inst.getOpcode() == Xtensa::MOV_N) {
                    Inst.setOpcode(Xtensa::OR);
                    Inst.addOperand(Inst.getOperand(1));
-                 } else if (Inst.getOpcode() == Xtensa::L32I_N) {
-                   Inst.setOpcode(Xtensa::L32I);
-                 }
+                 } else if (Inst.getOpcode() == Xtensa::MOVI_N) { Inst.setOpcode(Xtensa::MOVI); }
+                 else if (Inst.getOpcode() == Xtensa::L32I_N) { Inst.setOpcode(Xtensa::L32I); }
+                 else if (Inst.getOpcode() == Xtensa::BEQZ_N) { Inst.setOpcode(Xtensa::BEQZ); }
+                 else if (Inst.getOpcode() == Xtensa::BNEZ_N) { Inst.setOpcode(Xtensa::BNEZ); }
+                 else if (Inst.getOpcode() == Xtensa::RET_N) { Inst.setOpcode(Xtensa::RET); }
+                 else if (Inst.getOpcode() == Xtensa::RETW_N) { Inst.setOpcode(Xtensa::RETW); }
                  PF->setInst(Inst);
                  
                  SmallVector<char, 16> Data;
@@ -449,12 +462,38 @@ bool XtensaAsmBackend::finishLayout() const {
                  IterChanged = true;
                  Changed = true;
                }
-               // If BytesToWiden is still > 0, we can't widen enough instructions.
-               // We would need to insert NOPs. Currently we don't insert NOPs manually here,
-               // we just do best-effort widening to match GAS density.
              }
              PrevFragments.clear();
            }
+        } else if (F.getKind() == MCFragment::FT_Align) {
+           uint64_t Offset = Asm->getFragmentOffset(F);
+           uint64_t Alignment = F.getAlignment().value();
+           uint64_t Padding = (Alignment - (Offset % Alignment)) % Alignment;
+           
+           if (Padding == 1 && !PrevFragments.empty()) {
+                 MCFragment *PF = PrevFragments.pop_back_val();
+                 MCInst Inst = PF->getInst();
+                 if (Inst.getOpcode() == Xtensa::MOV_N) {
+                   Inst.setOpcode(Xtensa::OR);
+                   Inst.addOperand(Inst.getOperand(1));
+                 } else if (Inst.getOpcode() == Xtensa::MOVI_N) { Inst.setOpcode(Xtensa::MOVI); }
+                 else if (Inst.getOpcode() == Xtensa::L32I_N) { Inst.setOpcode(Xtensa::L32I); }
+                 else if (Inst.getOpcode() == Xtensa::BEQZ_N) { Inst.setOpcode(Xtensa::BEQZ); }
+                 else if (Inst.getOpcode() == Xtensa::BNEZ_N) { Inst.setOpcode(Xtensa::BNEZ); }
+                 else if (Inst.getOpcode() == Xtensa::RET_N) { Inst.setOpcode(Xtensa::RET); }
+                 else if (Inst.getOpcode() == Xtensa::RETW_N) { Inst.setOpcode(Xtensa::RETW); }
+                 PF->setInst(Inst);
+                 
+                 SmallVector<char, 16> Data;
+                 SmallVector<MCFixup, 1> Fixups;
+                 Asm->getEmitter().encodeInstruction(Inst, Data, Fixups, *PF->getSubtargetInfo());
+                 PF->setVarContents(Data);
+                 PF->setVarFixups(Fixups);
+                 
+                 IterChanged = true;
+                 Changed = true;
+           }
+           PrevFragments.clear();
         }
       }
 
