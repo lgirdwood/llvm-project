@@ -731,22 +731,21 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
 
-    uint32_t insn0 = 0xc4c777cb | ((r & 1) << 24);
-    uint32_t insn1 = 0x16000300 | (s << 2) | (((r >> 1) & 1) << 4) | (((r >> 2) & 1) << 6) |
-                     (((r >> 3) & 1) << 7) | ((0x30 | t) << 16);
+    uint32_t insn0 = 0xc4c777cb | (((r >> 2) & 1) << 24) | (((r >> 3) & 1) << 25);
+    uint32_t insn1 = 0x16000300 | (s << 2) | ((r & 1) << 6) | (((r >> 1) & 1) << 7) | ((0x30 | t) << 16);
     uint32_t insn2 = 0x1f1570;
 
-    CB.push_back(char(insn0));
-    CB.push_back(char(insn0 >> 8));
-    CB.push_back(char(insn0 >> 16));
-    CB.push_back(char(insn0 >> 24));
-    CB.push_back(char(insn1));
-    CB.push_back(char(insn1 >> 8));
-    CB.push_back(char(insn1 >> 16));
-    CB.push_back(char(insn1 >> 24));
-    CB.push_back(char(insn2));
-    CB.push_back(char(insn2 >> 8));
     CB.push_back(char(insn2 >> 16));
+    CB.push_back(char(insn2 >> 8));
+    CB.push_back(char(insn2));
+    CB.push_back(char(insn1 >> 24));
+    CB.push_back(char(insn1 >> 16));
+    CB.push_back(char(insn1 >> 8));
+    CB.push_back(char(insn1));
+    CB.push_back(char(insn0 >> 24));
+    CB.push_back(char(insn0 >> 16));
+    CB.push_back(char(insn0 >> 8));
+    CB.push_back(char(insn0));
     return;
   }
 
@@ -1110,12 +1109,12 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0x7c));
-    CB.push_back(char(0x9f));
-    CB.push_back(char(0xa0));
-    CB.push_back(char(0x00));
-    CB.push_back(char((r << 4) | s));
     CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0xa0));
+    CB.push_back(char(0x9f));
+    CB.push_back(char(0x7c));
     return;
   }
 
@@ -1123,12 +1122,12 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0x7c));
-    CB.push_back(char(0xa2));
-    CB.push_back(char(0xb0));
-    CB.push_back(char(0x00));
-    CB.push_back(char((r << 4) | s));
     CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0xb0));
+    CB.push_back(char(0xa2));
+    CB.push_back(char(0x7c));
     return;
   }
 
@@ -1136,12 +1135,25 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
-    CB.push_back(char(0x7c));
-    CB.push_back(char(0x9f));
-    CB.push_back(char(0x60));
-    CB.push_back(char(0x00));
-    CB.push_back(char((r << 4) | s));
     CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0x60));
+    CB.push_back(char(0x9f));
+    CB.push_back(char(0x7c));
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_S32X2_XC1) {
+    unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
+    unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(3).getReg());
+    CB.push_back(char((t << 4) | 0x0e));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0x00));
+    CB.push_back(char(0x70));
+    CB.push_back(char(0xa2));
+    CB.push_back(char(0x7c));
     return;
   }
 
