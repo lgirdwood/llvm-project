@@ -183,7 +183,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
     if (Name.starts_with("AE_MUL")) {
-      Allowed.Slot2 = true;
+      Allowed.Slot1 = true;
       return Allowed;
     }
     if (Name.starts_with("AE_ROUND") || Name.starts_with("AE_SAT") ||
@@ -205,7 +205,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
         Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
         Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
         Name.starts_with("AE_MOV") || Name.starts_with("AE_ZERO")) {
-      Allowed.Slot2 = true;
+      Allowed.Slot1 = true;
       return Allowed;
     }
     Allowed.Slot0 = true;
@@ -1335,10 +1335,72 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       } else if (Opc == Xtensa::AE_SEXT32X2D16_10) {
         Val |= 0x10000000;
       } else if (Opc == Xtensa::NOP) {
-        if (SlotIdx == 0) Val = 0x10341D35;
+        if (SlotIdx == 0) Val = 0x27b205;
         else if (SlotIdx == 1) Val = 0x0E57D0;
         else if (SlotIdx == 2) Val = 0x00E57D0;
       }
+
+      StringRef Name = MCII.getName(Opc);
+      if (Name.starts_with("AE_MULA") || Name.starts_with("AE_MULS") || Name.starts_with("AE_MULF") || Name.starts_with("AE_MUL32")) {
+        unsigned opcode = StringSwitch<unsigned>(Name)
+          .Case("AE_MULFP32X16X2RAS_L_REAL", 0xda)
+          .Case("AE_MULF16SS_00_REAL", 0xb2)
+          .Case("AE_MULAFP32X2RS_REAL", 0x8c)
+          .Case("AE_MULFP24X2R_REAL", 0xd4)
+          .Case("AE_MULAF32S_LH_HIFI3", 0x62)
+          .Case("AE_MULSF32R_LL_REAL", 0x20)
+          .Case("AE_MULFP32X16X2RAS_H_REAL", 0xd8)
+          .Case("AE_MULAAFD32RA_HH_LL_HIFI3", 0x48)
+          .Case("AE_MUL32_LL_HIFI3", 0x18)
+          .Case("AE_MULAF32R_LL", 0x5e)
+          .Case("AE_MULSF32S_LH_REAL", 0x24)
+          .Case("AE_MULF32R_LH_REAL", 0xb6)
+          .Case("AE_MULAF32RA_LH", 0xbe)
+          .Case("AE_MULAFP32X16X2RS_L_REAL", 0x84)
+          .Case("AE_MULF32R_LL_REAL", 0xb8)
+          .Case("AE_MULSF32S_LL_REAL", 0x26)
+          .Case("AE_MULAF32RA_LL", 0xbe)
+          .Case("AE_MULAF32S_HH_HIFI3", 0x60)
+          .Case("AE_MUL32_HH_REAL", 0x14)
+          .Case("AE_MULAF32S_LL_HIFI3", 0x64)
+          .Case("AE_MULFP32X16X2RS_H_REAL", 0xdc)
+          .Case("AE_MULF32S_LH_REAL", 0xbc)
+          .Case("AE_MULAF32R_LH_HIFI3", 0x5c)
+          .Case("AE_MULAF32R_LL_HIFI3", 0x5e)
+          .Case("AE_MULSF32S_HH_REAL", 0x22)
+          .Case("AE_MULSF32R_LH_REAL", 0x1e)
+          .Case("AE_MULSF32R_HH_REAL", 0x1c)
+          .Case("AE_MULAF16SS_00_REAL", 0x58)
+          .Case("AE_MULF32S_LL_REAL", 0xbe)
+          .Case("AE_MULAFP32X16X2RS_H_REAL", 0x82)
+          .Case("AE_MULAF32R_LH", 0x5c)
+          .Case("AE_MULF32S_HH_REAL", 0xba)
+          .Case("AE_MULFP32X2RS_REAL", 0xe6)
+          .Case("AE_MULAAFD32X16_H3_L2_HIFI3", 0x56)
+          .Case("AE_MULFC24RA_REAL", 0xea)
+          .Case("AE_MULAF32R_HH_HIFI3", 0x5a)
+          .Case("AE_MULAAFD32X16_H1_L0_HIFI3", 0x52)
+          .Case("AE_MULF32R_HH_REAL", 0xb4)
+          .Case("AE_MULAF32RA_HH", 0xbe)
+          .Case("AE_MULFP32X16X2RS_L_REAL", 0xde)
+          .Default(0);
+        if (opcode != 0) {
+          unsigned Size = MCII.get(Opc).getSize();
+          unsigned t, s, r;
+          if (Size == 8) {
+            uint32_t ValHigh = SlotInstBits.extractBitsAsZExtValue(32, 32);
+            t = (Val >> 27) & 0xf;
+            r = (ValHigh >> 8) & 0xf;
+            s = ((ValHigh & 1) << 3) | ((ValHigh >> 13) & 0x7);
+          } else {
+            t = (Val >> 4) & 0xf;
+            s = (Val >> 8) & 0xf;
+            r = (Val >> 12) & 0xf;
+          }
+          Val = (opcode << 12) | (s << 8) | (r << 4) | t;
+        }
+      }
+
       return Val;
     };
 
@@ -1391,7 +1453,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x0B000040;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x3900;
     } else if (Format == 0) {
-      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x260B74;
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x27b205;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0F3016;
     }
 
@@ -1400,7 +1462,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
     if (Format == 0) {
       insn[0] = 0x0e;
-      insn[1] = 0xc000;
+      insn[1] = 0;
       
       insn[0] = (insn[0] & ~0xf00) | ((Val0 & 0xf) << 8);
       insn[0] = (insn[0] & ~0xf0) | (((Val0 & 0xf0) >> 4) << 4);
