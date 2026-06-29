@@ -315,10 +315,7 @@ def URAlign : RegisterClass<"Xtensa", [i32], 32, (add U0, U1, U2, U3)>;
 //
 // VALIGN is defined as a subclass of AR so that copyPhysReg, storeRegToStackSlot,
 // and loadRegFromStackSlot all fall through to their existing AR cases without
-// special handling.
-def VALIGN : RegisterClass<"Xtensa", [i32], 32,
-  (add A8, A9, A10, A11, A12, A13, A14, A15,
-       A7, A6, A5, A4, A3, A2, A0, SP)>;
+def VALIGN : RegisterClass<"Xtensa", [i32], 32, (add A0, SP, A2, A3)>;
 
 // Thread Pointer register
 def THREADPTR : URReg<231, "threadptr", ["THREADPTR"]>;

@@ -297,6 +297,17 @@ def XtensaPCRelTargetAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+// Memory operand for PC-relative loads
+def mem32pc : Operand<i32> {
+  let PrintMethod = "printMemOperand";
+  let EncoderMethod = "getMemRegEncoding";
+}
+
+// VALIGN register operand for alignment state (prints u0-u3 for A0-A3)
+def valign_op : RegisterOperand<VALIGN> {
+  let PrintMethod = "printVALIGNOperand";
+}
+
 def  pcrel32call : Operand<iPTR> {
   let PrintMethod = "printCallOperand";
   let EncoderMethod = "getCallEncoding";

@@ -86,6 +86,20 @@ void XtensaInstPrinter::printRegName(raw_ostream &O, MCRegister Reg) {
   O << getRegisterName(Reg);
 }
 
+void XtensaInstPrinter::printVALIGNOperand(const MCInst *MI, int OpNum,
+                                           raw_ostream &O) {
+  if (MI->getOperand(OpNum).isReg()) {
+    unsigned Reg = MI->getOperand(OpNum).getReg();
+    // Map A0-A3 to u0-u3 for output
+    if (Reg >= Xtensa::A0 && Reg <= Xtensa::A3)
+      O << "u" << (Reg - Xtensa::A0);
+    else
+      printOperand(MI, OpNum, O);
+  } else {
+    printOperand(MI, OpNum, O);
+  }
+}
+
 void XtensaInstPrinter::printOperand(const MCInst *MI, int OpNum,
                                      raw_ostream &O) {
   printOperand(MI->getOperand(OpNum), O);

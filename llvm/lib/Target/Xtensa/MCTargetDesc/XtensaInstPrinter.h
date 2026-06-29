@@ -58,6 +58,7 @@ private:
   void printPCRelImm(uint64_t Address, int64_t Offset, raw_ostream &O);
 
   void printImm8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+  void printVALIGNOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm8_sh8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm12_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm12m_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
