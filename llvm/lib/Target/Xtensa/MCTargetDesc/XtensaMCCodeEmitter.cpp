@@ -1327,10 +1327,11 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         unsigned t = (Val >> 20) & 0xf;
         Val = 0x201000 | (r << 8) | (t << 4) | s;
       } else if (Opc == Xtensa::AE_SLAI64S_HIFI3) {
-        unsigned t_val = Val & 0xf;
-        unsigned imm = (Val >> 8) & 0x3f;
-        unsigned r = (Val >> 20) & 0xf;
-        Val = 0x10210020 | imm | (r << 12) | (t_val << 8);
+        unsigned t_val = (Val >> 20) & 0xf;
+        unsigned r = (Val >> 12) & 0xf;
+        unsigned imm = (((Val >> 1) & 0x1) << 5) | ((Val & 0x1) << 4) | ((Val >> 8) & 0xf);
+        unsigned bundle_imm = ((imm & 0x30) << 2) | (imm & 0xf);
+        Val = 0x10210020 | bundle_imm | (r << 12) | (t_val << 8);
       } else if (Opc == Xtensa::AE_SEXT32X2D16_10) {
         Val |= 0x10000000;
       } else if (Opc == Xtensa::NOP) {
