@@ -185,12 +185,12 @@ class RRR_AE_Inst<bits<4> op0, bits<4> op1, bits<4> op_7_4, dag outs, dag ins,
   bits<4> s;
   bits<4> t;
 
-  let Inst{23-20} = t;
+  let Inst{23-20} = op0;
   let Inst{19-16} = op1;
   let Inst{15-12} = r;
   let Inst{11-8} = s;
-  let Inst{7-4} = op_7_4;
-  let Inst{3-0} = op0;
+  let Inst{7-4} = t;
+  let Inst{3-0} = op_7_4;
 }
 
 class RRI4_Inst<bits<4> op0, bits<4> op1, dag outs, dag ins,
