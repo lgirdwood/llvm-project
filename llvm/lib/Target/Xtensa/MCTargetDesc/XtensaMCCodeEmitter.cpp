@@ -172,7 +172,8 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   if (Name.starts_with("AE_")) {
     if (Name.starts_with("AE_ABS32_HIFI3") || Name.starts_with("AE_ABS64S_HIFI3") ||
         Name.starts_with("AE_ABSSQ56S_HIFI3") || Name.starts_with("AE_ADDSQ56S_HIFI3") ||
-        Name.starts_with("AE_ADDSUB32_HIFI3") || Name.starts_with("AE_ADDSUB32S_HIFI3")) {
+        Name.starts_with("AE_ADDSUB32_HIFI3") || Name.starts_with("AE_ADDSUB32S_HIFI3") ||
+        Name == "AE_SLAI64S_HIFI3" || Name.starts_with("AE_SEXT32X2D16_10")) {
       Allowed.Slot0 = true;
       return Allowed;
     }
@@ -190,7 +191,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
         Name.starts_with("AE_SRAI") || Name.starts_with("AE_MAX") ||
         Name.starts_with("AE_MIN") || Name.starts_with("AE_ABS") ||
         Name.starts_with("AE_NEG") || Name.starts_with("AE_TRUNC") ||
-        Name.starts_with("AE_PKSR")) {
+        Name.starts_with("AE_PKSR") || Name.starts_with("AE_SEXT")) {
       Allowed.Slot3 = true;
       return Allowed;
     }
@@ -352,7 +353,6 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_SLAI32_HIFI3", true)
       .StartsWith("AE_SLAI32S_HIFI3", true)
       .StartsWith("AE_SRAI64_HIFI3", true)
-      .StartsWith("AE_SLAI64S_HIFI3", true)
       .StartsWith("AE_SLAA64S_HIFI3", true)
       .StartsWith("AE_SRAI32R_HIFI3", true)
       .StartsWith("AE_ADD16_HIFI3", true)
@@ -408,8 +408,6 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_MOVAD16_2", true)
       .StartsWith("AE_MOVAD16_3", true)
       .StartsWith("AE_MOVDA32X2", true)
-      .StartsWith("AE_SEXT32X2D16_10", true)
-      .StartsWith("AE_SEXT32X2D16_32", true)
       .StartsWith("AE_ROUND16X4F32SSYM", true)
       .StartsWith("AE_SRAA32", true)
       .StartsWith("AE_AND_HIFI3", true)
@@ -460,8 +458,10 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_SRAA64", true)
       .StartsWith("AE_SRAAQ56", true)
       .StartsWith("AE_SLAI24S", true)
+      .StartsWith("AE_SLAI64S_HIFI3", false)
       .StartsWith("AE_SLAI64", true)
       .StartsWith("AE_SRAA16RS", true)
+      .StartsWith("AE_SEXT32X2D16_32", true)
       .StartsWith("AE_SRAA32RS", true)
       .StartsWith("AE_SLAI16S", true)
       .StartsWith("AE_ADD24S", true)
@@ -1326,6 +1326,17 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         unsigned s = (Val >> 8) & 0xf;
         unsigned t = (Val >> 20) & 0xf;
         Val = 0x201000 | (r << 8) | (t << 4) | s;
+      } else if (Opc == Xtensa::AE_SLAI64S_HIFI3) {
+        unsigned t_val = Val & 0xf;
+        unsigned imm = (Val >> 8) & 0x3f;
+        unsigned r = (Val >> 20) & 0xf;
+        Val = 0x10210020 | imm | (r << 12) | (t_val << 8);
+      } else if (Opc == Xtensa::AE_SEXT32X2D16_10) {
+        Val |= 0x10000000;
+      } else if (Opc == Xtensa::NOP) {
+        if (SlotIdx == 0) Val = 0x10341D35;
+        else if (SlotIdx == 1) Val = 0x0E57D0;
+        else if (SlotIdx == 2) Val = 0x00E57D0;
       }
       return Val;
     };
@@ -1335,7 +1346,8 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       unsigned Opc = SubInst->getOpcode();
       if (Opc == Xtensa::AE_ABS32_HIFI3 || Opc == Xtensa::AE_ABS64S_HIFI3 ||
           Opc == Xtensa::AE_ABSSQ56S_HIFI3 || Opc == Xtensa::AE_ADDSQ56S_HIFI3 ||
-          Opc == Xtensa::AE_ADDSUB32_HIFI3 || Opc == Xtensa::AE_ADDSUB32S_HIFI3) {
+          Opc == Xtensa::AE_ADDSUB32_HIFI3 || Opc == Xtensa::AE_ADDSUB32S_HIFI3 ||
+          Opc == Xtensa::AE_SLAI64S_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_10) {
         UseFormat88_2 = true;
         break;
       }
@@ -1360,7 +1372,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       }
     }
 
-    uint32_t Val0 = 0, Val1 = 0, Val2 = 0, Val3 = 0;
+    uint32_t Val0 = 0x57d0, Val1 = 0x57d0, Val2 = 0x57d0, Val3 = 0;
     if (Format == 4) {
       Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x10341D35;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0E57D0;
@@ -1547,6 +1559,13 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
   APInt Scratch(128, 0);
   getBinaryCodeForInstr(MI, Fixups, Inst, Scratch, STI);
   unsigned Size = MCII.get(MI.getOpcode()).getSize();
+
+  if (Opcode == Xtensa::AE_SRAI64_HIFI3 || Opcode == Xtensa::AE_SLAI32_HIFI3 ||
+      Opcode == Xtensa::AE_SRAI32_HIFI3 || Opcode == Xtensa::AE_SEXT32X2D16_32) {
+    uint32_t Val = Inst.extractBitsAsZExtValue(32, 0);
+    uint32_t NewVal = ((Val & 0xFF) << 16) | (Val & 0xFF00) | ((Val >> 16) & 0xFF);
+    Inst.insertBits(NewVal, 0, 24);
+  }
 
   if (IsLittleEndian) {
     // Little-endian insertion of Size bytes.
