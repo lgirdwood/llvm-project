@@ -157,7 +157,7 @@ static bool lowerXtensaHIFIPseudo(const MachineInstr *MI, MCInst &OutMI, XtensaA
 
   // 3. ZALIGN pseudos
   if (Opc == Xtensa::AE_ZALIGN64_PSEUDO_HIFI3 || Opc == Xtensa::AE_ZALIGN64_PSEUDO_HIFI4) {
-    OutMI = MCInstBuilder(Xtensa::AE_ZALIGN64).addReg(Xtensa::U1);
+    OutMI = MCInstBuilder(Xtensa::AE_ZALIGN64).addReg(Xtensa::SP);
     return true;
   }
 

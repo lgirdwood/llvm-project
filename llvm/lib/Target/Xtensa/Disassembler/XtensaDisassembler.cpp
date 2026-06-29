@@ -252,7 +252,7 @@ static DecodeStatus DecodeBRRegisterClass(MCInst &Inst, uint64_t RegNo,
 }
 
 static const MCPhysReg VALIGNDecoderTable[] = {
-    Xtensa::U0, Xtensa::U1, Xtensa::U2, Xtensa::U3};
+    Xtensa::A0, Xtensa::SP, Xtensa::A2, Xtensa::A3};
 
 static DecodeStatus DecodeVALIGNRegisterClass(MCInst &Inst, uint64_t RegNo,
                                            uint64_t Address,

@@ -145,6 +145,13 @@ void XtensaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
 
+  if (Xtensa::VALIGNRegClass.contains(DestReg, SrcReg)) {
+    // URAlign registers (u0-u3) cannot be physically copied in hardware.
+    // If the register allocator inserts a copy, it's typically an identity copy (u0->u0)
+    // or a PHI node resolution. Since we can't physically copy them, we emit nothing.
+    return;
+  }
+
   if (STI.hasSingleFloat() && Xtensa::FPRRegClass.contains(SrcReg) &&
       Xtensa::FPRRegClass.contains(DestReg))
     Opcode = Xtensa::MOV_S;

@@ -32,14 +32,14 @@ class ARReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n> {
 }
 
 // Return Address
-def A0 : ARReg<0, "a0">, DwarfRegNum<[0]>;
+def A0 : ARReg<0, "a0", ["u0"]>, DwarfRegNum<[0]>;
 
 // Stack Pointer (callee-saved)
-def SP : ARReg<1, "a1", ["sp"]>, DwarfRegNum<[1]>;
+def SP : ARReg<1, "a1", ["sp", "u1"]>, DwarfRegNum<[1]>;
 
 // Function Arguments
-def A2 : ARReg<2, "a2">, DwarfRegNum<[2]>;
-def A3 : ARReg<3, "a3">, DwarfRegNum<[3]>;
+def A2 : ARReg<2, "a2", ["u2"]>, DwarfRegNum<[2]>;
+def A3 : ARReg<3, "a3", ["u3"]>, DwarfRegNum<[3]>;
 def A4 : ARReg<4, "a4">, DwarfRegNum<[4]>;
 def A5 : ARReg<5, "a5">, DwarfRegNum<[5]>;
 def A6 : ARReg<6, "a6">, DwarfRegNum<[6]>;
@@ -287,22 +287,7 @@ class URReg<bits<8> num, string n, list<string> alt = []> : XtensaReg<n> {
 // HiFi4 has four alignment registers (u0-u3).
 // HWEncoding[1:0] = the u-register number; this matches the instruction
 // T-nibble[1:0] used by ae_la32x2.ip, ae_sa32x2.ip, ae_la64.pp, etc.
-class URAlignReg<bits<2> num, string n, list<string> altnames = []> : XtensaReg<n> {
-  let HWEncoding{1-0} = num;
-  let AltNames = altnames;
-}
-def U0 : URAlignReg<0, "u0", ["ae_valign", "AE_VALIGN"]>;
-def U1 : URAlignReg<1, "u1">;
-def U2 : URAlignReg<2, "u2">;
-def U3 : URAlignReg<3, "u3">;
 
-// Alignment registers class.
-def URAlign : RegisterClass<"Xtensa", [i32], 32, (add U0, U1, U2, U3)>;
-
-// Legacy name for use in hasSideEffects Defs lists; U0 IS the hardware u0
-// alignment register.  Any Defs = [AE_VALIGN] in instruction definitions
-// should use U0 directly.
-// Note: no separate AE_VALIGN register -- that caused duplicate "u0" names.
 
 // Alignment token register class.
 // The alignment state token is tracked as an i32 value in the general-purpose
