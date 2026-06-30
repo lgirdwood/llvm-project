@@ -204,7 +204,12 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
     if (Name.starts_with("AE_ADD") || Name.starts_with("AE_SUB") ||
         Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
         Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
-        Name.starts_with("AE_MOV") || Name.starts_with("AE_ZERO")) {
+        (Name.starts_with("AE_MOV") &&
+         !Name.starts_with("AE_MOVAE") &&
+         !Name.starts_with("AE_MOVEA") &&
+         !Name.starts_with("AE_MOVFCRFSRV") &&
+         !Name.starts_with("AE_MOVVFCRFSR")) ||
+        Name.starts_with("AE_ZERO")) {
       Allowed.Slot1 = true;
       return Allowed;
     }
@@ -226,7 +231,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
     Allowed.Slot0 = true;
     break;
 
-  // ALU (Strictly Slot 1)
+  // ALU (Slot 0 or Slot 1)
   case Xtensa::ADD:
   case Xtensa::ADDI:
   case Xtensa::SUB:
@@ -234,7 +239,12 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::OR:
   case Xtensa::XOR:
   case Xtensa::MOVI:
+  case Xtensa::MOV_N:
+  case Xtensa::MOVI_N:
+  case Xtensa::ADD_N:
+  case Xtensa::ADDI_N:
   case Xtensa::NOP:
+
   case Xtensa::NEG:
   case Xtensa::ABS:
   case Xtensa::EXTUI:
@@ -260,8 +270,10 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::SSAI:
   case Xtensa::SSL:
   case Xtensa::SSR:
+    Allowed.Slot0 = true;
     Allowed.Slot1 = true;
     break;
+
 
   default:
     if (Desc.isConditionalBranch() || Desc.isUnconditionalBranch()) {
@@ -1334,7 +1346,113 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         Val = 0x10210020 | bundle_imm | (r << 12) | (t_val << 8);
       } else if (Opc == Xtensa::AE_SEXT32X2D16_10) {
         Val |= 0x10000000;
+      } else if (SlotIdx == 0) {
+        bool IsStandard = false;
+        unsigned t0 = 0, s0 = 0, r0 = 0, imm8_lo = 0, imm8_hi = 0, op2 = 0;
+        unsigned opcode_bits = 0x1d;
+        switch (Opc) {
+        case Xtensa::ADD:  op2 = 8; IsStandard = true; break;
+        case Xtensa::SUB:  op2 = 0xc; IsStandard = true; break;
+        case Xtensa::AND:  op2 = 1; IsStandard = true; break;
+        case Xtensa::OR:   op2 = 2; IsStandard = true; break;
+        case Xtensa::XOR:  op2 = 3; IsStandard = true; break;
+        case Xtensa::NEG:  op2 = 6; IsStandard = true; break;
+        case Xtensa::ABS:  op2 = 6; IsStandard = true; break;
+        case Xtensa::MOV_N: op2 = 2; IsStandard = true; break;
+        case Xtensa::ADD_N: op2 = 8; IsStandard = true; break;
+        case Xtensa::L32I:
+        case Xtensa::S32I:
+        case Xtensa::L32I_N:
+        case Xtensa::S32I_N: {
+          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+          s0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+          int imm = SlotInst.getOperand(2).getImm() / 4;
+          imm8_lo = imm & 0xf;
+          imm8_hi = (imm >> 4) & 0xf;
+          r0 = 1;
+          opcode_bits = (Opc == Xtensa::S32I || Opc == Xtensa::S32I_N) ? 0x19 : 0x16;
+          IsStandard = true;
+          break;
+        }
+        case Xtensa::L32R: {
+          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+          opcode_bits = 0x00;
+          IsStandard = true;
+          break;
+        }
+        case Xtensa::MOVI:
+        case Xtensa::MOVI_N: {
+          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+          int imm = SlotInst.getOperand(1).getImm();
+          imm8_lo = imm & 0xf;
+          imm8_hi = (imm >> 4) & 0xf;
+          opcode_bits = 0x1b;
+          IsStandard = true;
+          break;
+        }
+        case Xtensa::ADDI:
+        case Xtensa::ADDI_N: {
+          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+          s0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+          int imm = SlotInst.getOperand(2).getImm();
+          imm8_lo = imm & 0xf;
+          imm8_hi = (imm >> 4) & 0xf;
+          opcode_bits = 0x12;
+          IsStandard = true;
+          break;
+        }
+        default:
+          break;
+        }
+        if (IsStandard) {
+          if (Opc == Xtensa::ADD || Opc == Xtensa::SUB || Opc == Xtensa::AND ||
+              Opc == Xtensa::OR || Opc == Xtensa::XOR || Opc == Xtensa::NEG ||
+              Opc == Xtensa::ABS || Opc == Xtensa::MOV_N || Opc == Xtensa::ADD_N) {
+            r0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+            s0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+            t0 = (SlotInst.getNumOperands() > 2 && SlotInst.getOperand(2).isReg()) ? Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(2).getReg()) : s0;
+            imm8_lo = r0;
+            imm8_hi = op2;
+            r0 = 0;
+          }
+          Val = (opcode_bits << 16) | (imm8_hi << 12) | (imm8_lo << 8) | (t0 << 4) | s0;
+        }
+      } else if (SlotIdx == 1) {
+        bool IsStandard = false;
+        unsigned t1 = 0, s1 = 0, r1 = 0, opcode_bits = 0xb4;
+        switch (Opc) {
+        case Xtensa::ADD:  opcode_bits = 0xa4; IsStandard = true; break;
+        case Xtensa::ADD_N: opcode_bits = 0xa4; IsStandard = true; break;
+        case Xtensa::ADDI: opcode_bits = 0xa4; IsStandard = true; break;
+        case Xtensa::ADDI_N: opcode_bits = 0xa4; IsStandard = true; break;
+        case Xtensa::SLLI:
+        case Xtensa::SRLI:
+        case Xtensa::SRAI:
+        case Xtensa::SRC:
+        case Xtensa::SSAI:
+        case Xtensa::SSL:
+        case Xtensa::SSR:  opcode_bits = 0xa0; IsStandard = true; break;
+        case Xtensa::SUB:
+        case Xtensa::AND:
+        case Xtensa::OR:
+        case Xtensa::XOR:
+        case Xtensa::NEG:
+        case Xtensa::ABS:
+        case Xtensa::MOV_N:
+        case Xtensa::MOVI:
+        case Xtensa::MOVI_N: opcode_bits = 0xb4; IsStandard = true; break;
+        default:
+          break;
+        }
+        if (IsStandard) {
+          r1 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+          s1 = (SlotInst.getNumOperands() > 1 && SlotInst.getOperand(1).isReg()) ? Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg()) : 0;
+          t1 = (SlotInst.getNumOperands() > 2 && SlotInst.getOperand(2).isReg()) ? Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(2).getReg()) : s1;
+          Val = (opcode_bits << 12) | (r1 << 8) | (t1 << 4) | s1;
+        }
       } else if (Opc == Xtensa::NOP) {
+
+
         if (SlotIdx == 0) Val = 0x27b205;
         else if (SlotIdx == 1) Val = 0x0E57D0;
         else if (SlotIdx == 2) Val = 0x00E57D0;
@@ -1410,7 +1528,8 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       if (Opc == Xtensa::AE_ABS32_HIFI3 || Opc == Xtensa::AE_ABS64S_HIFI3 ||
           Opc == Xtensa::AE_ABSSQ56S_HIFI3 || Opc == Xtensa::AE_ADDSQ56S_HIFI3 ||
           Opc == Xtensa::AE_ADDSUB32_HIFI3 || Opc == Xtensa::AE_ADDSUB32S_HIFI3 ||
-          Opc == Xtensa::AE_SLAI64S_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_10) {
+          Opc == Xtensa::AE_SLAI64S_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_10 ||
+          Opc == Xtensa::AE_MOVFCRFSRV || Opc == Xtensa::AE_MOVVFCRFSR) {
         UseFormat88_2 = true;
         break;
       }
@@ -1462,7 +1581,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
     if (Format == 0) {
       insn[0] = 0x0e;
-      insn[1] = 0;
+      insn[1] = 0xe000;
       
       insn[0] = (insn[0] & ~0xf00) | ((Val0 & 0xf) << 8);
       insn[0] = (insn[0] & ~0xf0) | (((Val0 & 0xf0) >> 4) << 4);
@@ -1477,7 +1596,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       Size = 6;
     } else if (Format == 1) {
       insn[0] = 0x0e;
-      insn[1] = 0x8000;
+      insn[1] = 0xe000;
 
       insn[0] = (insn[0] & ~0xf00) | ((Val0 & 0xf) << 8);
       insn[0] = (insn[0] & ~0xf0) | (((Val0 & 0xf0) >> 4) << 4);
@@ -1492,7 +1611,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       Size = 6;
     } else if (Format == 2) {
       insn[0] = 0x0e;
-      insn[1] = 0;
+      insn[1] = 0xe000;
 
       insn[0] = (insn[0] & ~0xf00) | ((Val0 & 0xf) << 8);
       insn[0] = (insn[0] & ~0xf0) | (((Val0 & 0xf0) >> 4) << 4);

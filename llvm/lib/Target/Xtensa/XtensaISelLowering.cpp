@@ -772,15 +772,16 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
     }
   }
 
-  // Join the stores, which are independent of one another.
+  // Joint the stores, which are independent of one another.
   if (!MemOpChains.empty())
     Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
 
-  if (Subtarget.isWindowedABI()) {
-    if (!StackPtr.getNode())
-      StackPtr = DAG.getCopyFromReg(Chain, DL, Xtensa::SP, PtrVT);
-    RegsToPass.push_back(std::make_pair(Xtensa::A9, StackPtr));
-  }
+  // if (Subtarget.isWindowedABI()) {
+  //   if (!StackPtr.getNode())
+  //     StackPtr = DAG.getCopyFromReg(Chain, DL, Xtensa::SP, PtrVT);
+  //   RegsToPass.push_back(std::make_pair(Xtensa::A9, StackPtr));
+  // }
+
 
   // Build a sequence of copy-to-reg nodes, chained and glued together.
   SDValue Glue;

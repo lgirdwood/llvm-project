@@ -300,6 +300,11 @@ static bool canBundle2(const MachineInstr &A, const MachineInstr &B,
   if (AisMem && BisALU)
     return true;
 
+  // Scalar ALU + Scalar ALU (Slot 0 = ALU, Slot 1 = ALU)
+  if (AisALU && BisALU)
+    return true;
+
+
   // 2. Branch + Scalar ALU (Slot 0 = Branch, Slot 1 = ALU)
   if (AisBranch && BisALU)
     return true;
