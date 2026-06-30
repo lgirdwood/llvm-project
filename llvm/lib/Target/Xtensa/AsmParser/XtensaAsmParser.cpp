@@ -1433,6 +1433,37 @@ ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
   StringRef IDVal = DirectiveID.getString();
   SMLoc Loc = getLexer().getLoc();
 
+  if (IDVal == ".no") {
+    if (getLexer().getTok().is(AsmToken::Minus) &&
+        getLexer().peekTok().is(AsmToken::Identifier) &&
+        getLexer().peekTok().getString() == "density") {
+      MCAsmParser &Parser = getParser();
+      Parser.Lex(); // Consume '-'
+      Parser.Lex(); // Consume 'density'
+      if (getSTI().hasFeature(Xtensa::FeatureDensity)) {
+        MCSubtargetInfo &STI = copySTI();
+        setAvailableFeatures(ComputeAvailableFeatures(STI.ToggleFeature("density")));
+      }
+      return parseEOL();
+    }
+  }
+
+  if (IDVal == ".no-density") {
+    if (getSTI().hasFeature(Xtensa::FeatureDensity)) {
+      MCSubtargetInfo &STI = copySTI();
+      setAvailableFeatures(ComputeAvailableFeatures(STI.ToggleFeature("density")));
+    }
+    return parseEOL();
+  }
+
+  if (IDVal == ".density") {
+    if (!getSTI().hasFeature(Xtensa::FeatureDensity)) {
+      MCSubtargetInfo &STI = copySTI();
+      setAvailableFeatures(ComputeAvailableFeatures(STI.ToggleFeature("density")));
+    }
+    return parseEOL();
+  }
+
   if (IDVal == ".literal_position") {
     XtensaTargetStreamer &TS = this->getTargetStreamer();
     TS.emitLiteralPosition();
