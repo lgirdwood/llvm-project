@@ -385,12 +385,7 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_L16M_XU", true)
       .StartsWith("AE_L32F24_XC", true)
       .StartsWith("AE_L32M_X", true)
-      .StartsWith("AE_L32X2F24_IP", true)
-      .StartsWith("AE_L32X2F24_XC", true)
-      .StartsWith("AE_L32X2_I", true)
-      .StartsWith("AE_L32X2_IP", true)
-      .StartsWith("AE_L32X2_XC", true)
-      .StartsWith("AE_L32X2_XC1", true)
+      // AE_L32X2* are bundleable
       .StartsWith("AE_S64_I_HIFI3", true)
       .StartsWith("AE_S16_0_X", true)
       .StartsWith("AE_S16_0_XC", true)
@@ -405,12 +400,7 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_S32_L_XC1", true)
       .StartsWith("AE_L16_XC", true)
       .StartsWith("AE_S32_L_XC", true)
-      .StartsWith("AE_S32X2_I", true)
-      .StartsWith("AE_S16X2M_I", true)
-      .StartsWith("AE_S32X2_IP", true)
-      .StartsWith("AE_S32X2_X", true)
-      .StartsWith("AE_S32X2_XC", true)
-      .StartsWith("AE_S32X2_XC1", true)
+      // AE_S32X2* and AE_S16X2M_I are bundleable
       .StartsWith("AE_LA128_PP_HIFI5", true)
       .StartsWith("AE_SA128POS_FP_HIFI5", true)
       .StartsWith("AE_CVT48A32", true)
@@ -420,7 +410,7 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_MOVAD16_0", true)
       .StartsWith("AE_MOVAD16_2", true)
       .StartsWith("AE_MOVAD16_3", true)
-      .StartsWith("AE_MOVDA32X2", true)
+      // AE_MOVDA32X2 is bundleable
       .StartsWith("AE_ROUND16X4F32SSYM", true)
       .StartsWith("AE_SRAA32", true)
       .StartsWith("AE_AND_HIFI3", true)
@@ -1278,6 +1268,55 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       }
 
       unsigned Opc = SlotInst.getOpcode();
+      if (Opc == Xtensa::NOP || Opc == Xtensa::NOP_N) {
+        if (SlotIdx == 0) Val = 0x27b205;
+        else if (SlotIdx == 1) Val = 0x0E57D0;
+        else if (SlotIdx == 2) Val = 0x00E57D0;
+        return Val;
+      }
+
+      if (SlotIdx == 0) {
+        if (Opc == Xtensa::AE_L32X2_I) {
+          unsigned r = (Val >> 12) & 0xf;
+          unsigned s = (Val >> 8) & 0xf;
+          unsigned t = (Val >> 4) & 0xf;
+          Val = 0x244000 | (r << 8) | ((8 + t) << 4) | s;
+        } else if (Opc == Xtensa::AE_S32X2_I) {
+          unsigned r = (Val >> 12) & 0xf;
+          unsigned s = (Val >> 8) & 0xf;
+          unsigned t = (Val >> 4) & 0xf;
+          Val = 0x24c000 | (r << 8) | (t << 4) | s;
+        } else if (Opc == Xtensa::AE_L32X2_IP || Opc == Xtensa::AE_S32X2_IP ||
+                   Opc == Xtensa::AE_LA32X2_IP_HIFI3 || Opc == Xtensa::AE_LA32X2_IP_HIFI4) {
+          unsigned r = (Val >> 12) & 0xf;
+          unsigned s = (Val >> 8) & 0xf;
+          unsigned t = (Val >> 4) & 0xf;
+          if (Opc == Xtensa::AE_LA32X2_IP_HIFI3 || Opc == Xtensa::AE_LA32X2_IP_HIFI4) {
+            Val = 0x257000 | (r << 8) | (2 << 4) | s;
+          } else {
+            unsigned imm = (((t & 6) << 1) | 0x2 | (t & 1));
+            if (Opc == Xtensa::AE_L32X2_IP)
+              Val = 0x243000 | (r << 8) | (imm << 4) | s;
+            else
+              Val = 0x253000 | (r << 8) | (imm << 4) | s;
+          }
+        } else if (Opc == Xtensa::AE_L32X2_XC || Opc == Xtensa::AE_S32X2_XC) {
+          unsigned r = (Val >> 12) & 0xf;
+          unsigned s = (Val >> 8) & 0xf;
+          unsigned t = (Val >> 4) & 0xf;
+          if (Opc == Xtensa::AE_L32X2_XC)
+            Val = 0x1f1000 | (r << 8) | (t << 4) | s;
+          else
+            Val = 0x217000 | (r << 8) | (t << 4) | s;
+        } else if (Opc == Xtensa::AE_LA64_PP_HIFI3 || Opc == Xtensa::AE_LA64_PP_HIFI4) {
+          unsigned s = (Val >> 8) & 0xf;
+          Val = 0x260000 | (11 << 8) | (0 << 4) | s;
+        } else if (Opc == Xtensa::AE_SA64POS_FP_REAL) {
+          unsigned s = (Val >> 8) & 0xf;
+          Val = 0x260000 | (11 << 8) | (1 << 4) | s;
+        }
+      }
+
       if (Opc == Xtensa::AE_ABS32_HIFI3 || Opc == Xtensa::AE_ABS64S_HIFI3 ||
           Opc == Xtensa::AE_ABSSQ56S_HIFI3) {
         unsigned r = (Val >> 12) & 0xf;
@@ -1620,12 +1659,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         if (IsStandard) {
           Val = (opcode_bits << 12) | (r1 << 8) | (t1 << 4) | s1;
         }
-      } else if (Opc == Xtensa::NOP) {
-
-
-        if (SlotIdx == 0) Val = 0x27b205;
-        else if (SlotIdx == 1) Val = 0x0E57D0;
-        else if (SlotIdx == 2) Val = 0x00E57D0;
       }
 
       StringRef Name = MCII.getName(Opc);
@@ -1741,9 +1774,17 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     } else if (Format == 1) {
       Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x0B000040;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x3900;
+      if (AssignedSlots[0] != -1 && (SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP_N))
+        Val0 = 0x0B000040;
+      if (AssignedSlots[1] != -1 && (SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP_N))
+        Val1 = 0x3900;
     } else if (Format == 0) {
       Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x27b205;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0F3016;
+      if (AssignedSlots[0] != -1 && (SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP_N))
+        Val0 = 0x27b205;
+      if (AssignedSlots[1] != -1 && (SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP_N))
+        Val1 = 0x0F3016;
     }
 
     uint32_t insn[3] = {0, 0, 0};
