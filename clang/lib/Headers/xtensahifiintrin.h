@@ -308,6 +308,8 @@ typedef unsigned char xtbool4;
     ((a) = (__builtin_xtensa_ae_mulaaaafq32x16((a), ((b)), ((c)), ((d)))))
 #define AE_MULAAF2D32RA_HH_LL(a, b, c, d, e, f) \
     __builtin_xtensa_ae_mulaaf2d32ra_hh_ll(&(a), &(b), (c), (d), (e), (f))
+#define AE_MULA4O4X16(a0, a1, a2, a3, s, v, r, u) \
+    __builtin_xtensa_ae_mula4o4x16(&(a0), &(a1), &(a2), &(a3), (s), (v), (r), (u))
 #define AE_MULAAFD24_HH_LL(a, b, c) \
     ((a) = (__builtin_xtensa_ae_mulaafd24_hh_ll((a), ((b)), ((c)))))
 #define AE_MULAAFD32RA_HH_LL(a, b, c) \

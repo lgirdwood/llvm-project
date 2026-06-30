@@ -1410,6 +1410,13 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
           else // Format == 4
             Val = 0x1190000 | (s << 12) | (r << 8) | (acc << 4) | (IsL ? 5 : 4);
           return Val;
+        } else if (Opc == Xtensa::AE_MULAAAAFQ32X16) {
+          unsigned t = Val & 0xf;
+          unsigned s = (Val >> 4) & 0xf;
+          unsigned v = (Val >> 8) & 0xf;
+          unsigned r = (Val >> 12) & 0xf;
+          Val = 0x01100000 | (s << 12) | (v << 8) | (t << 4) | r;
+          return Val;
         }
       } else if (SlotIdx == 3) {
         if (Opc == Xtensa::AE_SAT16X4 || Opc == Xtensa::AE_MAXABS32S || Opc == Xtensa::AE_SAT24S) {

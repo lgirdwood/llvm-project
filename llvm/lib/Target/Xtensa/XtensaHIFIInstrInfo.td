@@ -1590,6 +1590,36 @@ let Predicates = [HasHIFI3] in {
     let Inst{107-106} = r{3-2};
   }
 
+  let Predicates = [HasHIFI3, HasNoHIFI5] in {
+    def AE_MULAAAAFQ32X16 : XtensaInst64<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$v, AEDR:$r),
+                                         "ae_mulaaaafq32x16\t$t, $s, $v, $r",
+                                         [(set AEDR:$t, (int_xtensa_ae_mulaaaafq32x16 AEDR:$acc, AEDR:$s, AEDR:$v, AEDR:$r))]> {
+      let Constraints = "$acc = $t";
+      let isCodeGenOnly = 1;
+      bits<4> t;
+      bits<4> s;
+      bits<4> v;
+      bits<4> r;
+      let Inst{3-0}   = t;
+      let Inst{7-4}   = s;
+      let Inst{11-8}  = v;
+      let Inst{15-12} = r;
+      let Inst{63-16} = 0;
+    }
+  }
+
+  def AE_MULA4O4X16_HIFI5 : Pseudo<(outs AEDR:$t0, AEDR:$t1, AEDR:$t2, AEDR:$t3), 
+                                        (ins AEDR:$acc0, AEDR:$acc1, AEDR:$acc2, AEDR:$acc3, 
+                                             AEDR:$s, AEDR:$v, AEDR:$r, AEDR:$u),
+                                        "ae_mula4o4x16\t$t0, $t1, $t2, $t3, $s, $v, $r, $u",
+                                        [(set AEDR:$t0, AEDR:$t1, AEDR:$t2, AEDR:$t3, 
+                                              (int_xtensa_ae_mula4o4x16 AEDR:$acc0, AEDR:$acc1, AEDR:$acc2, AEDR:$acc3, 
+                                                                         AEDR:$s, AEDR:$v, AEDR:$r, AEDR:$u))]> {
+    let Constraints = "$acc0 = $t0, $acc1 = $t1, $acc2 = $t2, $acc3 = $t3";
+    let Predicates = [HasHIFI5];
+    let isCodeGenOnly = 0;
+  }
+
   def AE_MULAAF2D32RA_HH_LL_HIFI5 : XtensaInst128<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$acc1, AEDR:$acc2, AEDR:$d0, AEDR:$d1, AEDR:$d2, AEDR:$d3),
                                             "ae_mulaaf2d32ra.hh.ll\t$t1, $t2, $d0, $d1, $d2, $d3",
                                             [(set AEDR:$t1, AEDR:$t2, (int_xtensa_ae_mulaaf2d32ra_hh_ll AEDR:$acc1, AEDR:$acc2, AEDR:$d0, AEDR:$d1, AEDR:$d2, AEDR:$d3))]> {
