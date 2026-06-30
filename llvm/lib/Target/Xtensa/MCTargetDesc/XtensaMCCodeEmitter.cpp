@@ -376,8 +376,6 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_SUB32_HIFI3", true)
       .StartsWith("AE_SUB32S_HIFI3", true)
       .StartsWith("AE_SUB64_HIFI3", true)
-      .StartsWith("AE_ROUND32X2F48SASYM_HIFI3", true)
-      .StartsWith("AE_ROUND32X2F48SSYM_HIFI3", true)
       .StartsWith("AE_NSAZ32_L", true)
       .StartsWith("AE_SEL16I", true)
       .StartsWith("AE_L64_I_HIFI3", true)
@@ -411,7 +409,6 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_MOVAD16_2", true)
       .StartsWith("AE_MOVAD16_3", true)
       // AE_MOVDA32X2 is bundleable
-      .StartsWith("AE_ROUND16X4F32SSYM", true)
       .StartsWith("AE_SRAA32", true)
       .StartsWith("AE_AND_HIFI3", true)
       .StartsWith("AE_OR_HIFI3", true)
@@ -451,7 +448,6 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_MOVAD16_1", true)
       .StartsWith("AE_MOVAB2", true)
       .StartsWith("AE_CVTP24A16X2_LL", true)
-      .StartsWith("AE_ROUND16X4F32SASYM", true)
       .StartsWith("AE_MOV", true)
       .StartsWith("AE_SLAA16S", true)
       .StartsWith("AE_SLAA32", true)
@@ -508,9 +504,7 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_MULF2P32X4RS", true)
       .StartsWith("AE_MULF32X2R_HH_LL", true)
       .StartsWith("AE_MOVAD16_1", true)
-      .StartsWith("AE_ROUND16X4F32SASYM", true)
       .StartsWith("AE_MULAFD32X16X2_FIR", true)
-      .StartsWith("AE_ROUND16X4F32SSYM", true)
       .StartsWith("AE_ROUND32X2F64SSYM", true)
       .StartsWith("AE_ROUND32X2F64SASYM", true)
       .StartsWith("AE_MUL16X4", true)
@@ -1423,9 +1417,24 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
           unsigned dest = Val & 0xf;
           unsigned s = (Val >> 4) & 0xf;
           unsigned t = (Val >> 8) & 0xf;
-          unsigned op = (Opc == Xtensa::AE_SAT16X4) ? 0x19d000 :
-                        (Opc == Xtensa::AE_MAXABS32S) ? 0x18d000 : 0x1bd000;
-          Val = op | (t << 8) | (s << 4) | dest;
+          if (Opc == Xtensa::AE_SAT24S) {
+            Val = 0x1b7000 | (s << 8) | (6 << 4) | dest;
+          } else {
+            unsigned op = (Opc == Xtensa::AE_SAT16X4) ? 0x19d000 : 0x18d000;
+            Val = op | (t << 8) | (s << 4) | dest;
+          }
+          return Val;
+        } else if (Opc == Xtensa::AE_ROUND32X2F48SSYM_HIFI3) {
+          unsigned dest = (Val >> 12) & 0xf;
+          unsigned s = (Val >> 8) & 0xf;
+          unsigned t = (Val >> 4) & 0xf;
+          Val = 0x198000 | (t << 8) | (s << 4) | dest;
+          return Val;
+        } else if (Opc == Xtensa::AE_ROUND16X4F32SSYM) {
+          unsigned dest = Val & 0xf;
+          unsigned s = (Val >> 4) & 0xf;
+          unsigned r = (Val >> 8) & 0xf;
+          Val = 0x194000 | (r << 8) | (s << 4) | dest;
           return Val;
         }
       }
