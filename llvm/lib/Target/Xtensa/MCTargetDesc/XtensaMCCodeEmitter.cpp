@@ -244,6 +244,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::ADD_N:
   case Xtensa::ADDI_N:
   case Xtensa::NOP:
+  case Xtensa::NOP_N:
 
   case Xtensa::NEG:
   case Xtensa::ABS:
@@ -1180,20 +1181,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       }
     } else {
       SubInsts.push_back(&MI);
-    }
-
-    if (SubInsts.empty())
-      return;
-
-    for (const MCInst *Sub : SubInsts) {
-      if (Sub->getOpcode() == Xtensa::AE_MUL16X4_REAL) {
-        errs() << "DBG BUNDLE: AE_MUL16X4_REAL has " << Sub->getNumOperands() << " operands.\n";
-        for (unsigned i = 0; i < Sub->getNumOperands(); ++i) {
-          errs() << "  op " << i << ": ";
-          Sub->getOperand(i).print(errs());
-          errs() << "\n";
-        }
-      }
     }
 
     int AssignedSlots[4] = {-1, -1, -1, -1};

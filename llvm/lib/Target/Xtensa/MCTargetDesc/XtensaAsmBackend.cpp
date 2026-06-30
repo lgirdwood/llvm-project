@@ -186,6 +186,22 @@ std::optional<bool> XtensaAsmBackend::evaluateFixup(const MCFragment &F,
                                                     uint64_t &Value) {
   // For a few PC-relative fixups, offsets need to be aligned down. We
   switch (Fixup.getKind()) {
+  case Xtensa::fixup_xtensa_slot0:
+  case Xtensa::fixup_xtensa_slot1:
+  case Xtensa::fixup_xtensa_slot2:
+  case Xtensa::fixup_xtensa_slot3:
+  case Xtensa::fixup_xtensa_slot4:
+  case Xtensa::fixup_xtensa_slot5:
+  case Xtensa::fixup_xtensa_slot6:
+  case Xtensa::fixup_xtensa_slot7:
+  case Xtensa::fixup_xtensa_slot8:
+  case Xtensa::fixup_xtensa_slot9:
+  case Xtensa::fixup_xtensa_slot10:
+  case Xtensa::fixup_xtensa_slot11:
+  case Xtensa::fixup_xtensa_slot12:
+  case Xtensa::fixup_xtensa_slot13:
+  case Xtensa::fixup_xtensa_slot14:
+    return false;
   case Xtensa::fixup_xtensa_call_18:
     Value -= (Asm->getFragmentOffset(F) + Fixup.getOffset()) % 4;
     break;
