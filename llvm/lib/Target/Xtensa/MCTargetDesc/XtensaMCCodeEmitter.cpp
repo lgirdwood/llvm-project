@@ -1348,52 +1348,127 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         Val |= 0x10000000;
       } else if (SlotIdx == 0) {
         bool IsStandard = false;
-        unsigned t0 = 0, s0 = 0, r0 = 0, imm8_lo = 0, imm8_hi = 0, op2 = 0;
-        unsigned opcode_bits = 0x1d;
+        unsigned t0 = 0, s0 = 0, imm8_lo = 0, imm8_hi = 0;
+        unsigned opcode_bits = 0;
+
+        // Extract standard registers if present
+        unsigned std_r0 = 0, std_s0 = 0, std_t0 = 0;
+        if (SlotInst.getNumOperands() > 0 && SlotInst.getOperand(0).isReg())
+          std_r0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+        if (SlotInst.getNumOperands() > 1 && SlotInst.getOperand(1).isReg())
+          std_s0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+        if (SlotInst.getNumOperands() > 2 && SlotInst.getOperand(2).isReg())
+          std_t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(2).getReg());
+
         switch (Opc) {
-        case Xtensa::ADD:  op2 = 8; IsStandard = true; break;
-        case Xtensa::SUB:  op2 = 0xc; IsStandard = true; break;
-        case Xtensa::AND:  op2 = 1; IsStandard = true; break;
-        case Xtensa::OR:   op2 = 2; IsStandard = true; break;
-        case Xtensa::XOR:  op2 = 3; IsStandard = true; break;
-        case Xtensa::NEG:  op2 = 6; IsStandard = true; break;
-        case Xtensa::ABS:  op2 = 6; IsStandard = true; break;
-        case Xtensa::MOV_N: op2 = 2; IsStandard = true; break;
-        case Xtensa::ADD_N: op2 = 8; IsStandard = true; break;
+        case Xtensa::ADD:
+        case Xtensa::ADD_N:
+          opcode_bits = 0x1c;
+          imm8_hi = 4;
+          imm8_lo = std_r0;
+          t0 = std_t0;
+          s0 = std_s0;
+          IsStandard = true;
+          break;
+        case Xtensa::SUB:
+          opcode_bits = 0x1d;
+          imm8_hi = 3;
+          imm8_lo = std_r0;
+          t0 = std_t0;
+          s0 = std_s0;
+          IsStandard = true;
+          break;
+        case Xtensa::AND:
+          opcode_bits = 0x1c;
+          imm8_hi = 9;
+          imm8_lo = std_r0;
+          t0 = std_t0;
+          s0 = std_s0;
+          IsStandard = true;
+          break;
+        case Xtensa::OR:
+          opcode_bits = 0x1d;
+          imm8_hi = 2;
+          imm8_lo = std_r0;
+          t0 = std_t0;
+          s0 = std_s0;
+          IsStandard = true;
+          break;
+        case Xtensa::XOR:
+          opcode_bits = 0x1d;
+          imm8_hi = 7;
+          imm8_lo = std_r0;
+          t0 = std_t0;
+          s0 = std_s0;
+          IsStandard = true;
+          break;
+        case Xtensa::NEG:
+          opcode_bits = 0x26;
+          imm8_hi = 8;
+          imm8_lo = std_r0;
+          t0 = std_s0;
+          s0 = std_s0;
+          IsStandard = true;
+          break;
+        case Xtensa::ABS:
+          opcode_bits = 0x26;
+          imm8_hi = 8;
+          imm8_lo = std_r0;
+          t0 = std_s0;
+          s0 = 0;
+          IsStandard = true;
+          break;
+        case Xtensa::MOV_N:
+          opcode_bits = 0x26;
+          imm8_hi = 0;
+          imm8_lo = 9;
+          t0 = std_r0;
+          s0 = std_s0;
+          IsStandard = true;
+          break;
         case Xtensa::L32I:
-        case Xtensa::S32I:
-        case Xtensa::L32I_N:
-        case Xtensa::S32I_N: {
-          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
-          s0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+        case Xtensa::L32I_N: {
+          t0 = std_r0;
+          s0 = std_s0;
           int imm = SlotInst.getOperand(2).getImm() / 4;
           imm8_lo = imm & 0xf;
           imm8_hi = (imm >> 4) & 0xf;
-          r0 = 1;
-          opcode_bits = (Opc == Xtensa::S32I || Opc == Xtensa::S32I_N) ? 0x19 : 0x16;
+          opcode_bits = 0x16;
+          IsStandard = true;
+          break;
+        }
+        case Xtensa::S32I:
+        case Xtensa::S32I_N: {
+          t0 = std_r0;
+          s0 = std_s0;
+          int imm = SlotInst.getOperand(2).getImm() / 4;
+          imm8_lo = imm & 0xf;
+          imm8_hi = (imm >> 4) & 0xf;
+          opcode_bits = 0x19;
           IsStandard = true;
           break;
         }
         case Xtensa::L32R: {
-          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+          t0 = std_r0;
           opcode_bits = 0x00;
           IsStandard = true;
           break;
         }
         case Xtensa::MOVI:
         case Xtensa::MOVI_N: {
-          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+          t0 = std_r0;
           int imm = SlotInst.getOperand(1).getImm();
-          imm8_lo = imm & 0xf;
-          imm8_hi = (imm >> 4) & 0xf;
+          s0 = imm & 0xf;
+          imm8_lo = (imm >> 4) & 0xf;
+          imm8_hi = (imm >> 8) & 0xf;
           opcode_bits = 0x1b;
           IsStandard = true;
           break;
         }
         case Xtensa::ADDI:
         case Xtensa::ADDI_N: {
-          t0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
-          s0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+          t0 = std_r0;
+          s0 = std_s0;
           int imm = SlotInst.getOperand(2).getImm();
           imm8_lo = imm & 0xf;
           imm8_hi = (imm >> 4) & 0xf;
@@ -1405,49 +1480,157 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
           break;
         }
         if (IsStandard) {
-          if (Opc == Xtensa::ADD || Opc == Xtensa::SUB || Opc == Xtensa::AND ||
-              Opc == Xtensa::OR || Opc == Xtensa::XOR || Opc == Xtensa::NEG ||
-              Opc == Xtensa::ABS || Opc == Xtensa::MOV_N || Opc == Xtensa::ADD_N) {
-            r0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
-            s0 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
-            t0 = (SlotInst.getNumOperands() > 2 && SlotInst.getOperand(2).isReg()) ? Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(2).getReg()) : s0;
-            imm8_lo = r0;
-            imm8_hi = op2;
-            r0 = 0;
-          }
           Val = (opcode_bits << 16) | (imm8_hi << 12) | (imm8_lo << 8) | (t0 << 4) | s0;
         }
       } else if (SlotIdx == 1) {
         bool IsStandard = false;
-        unsigned t1 = 0, s1 = 0, r1 = 0, opcode_bits = 0xb4;
+        unsigned t1 = 0, s1 = 0, r1 = 0, opcode_bits = 0;
+
+        // Extract standard registers/immediates
+        unsigned std_r1 = 0, std_s1 = 0, std_t1 = 0;
+        if (SlotInst.getNumOperands() > 0 && SlotInst.getOperand(0).isReg())
+          std_r1 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
+        else if (SlotInst.getNumOperands() > 0 && SlotInst.getOperand(0).isImm())
+          std_r1 = SlotInst.getOperand(0).getImm();
+
+        if (SlotInst.getNumOperands() > 1 && SlotInst.getOperand(1).isReg())
+          std_s1 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg());
+        else if (SlotInst.getNumOperands() > 1 && SlotInst.getOperand(1).isImm())
+          std_s1 = SlotInst.getOperand(1).getImm();
+
+        if (SlotInst.getNumOperands() > 2 && SlotInst.getOperand(2).isReg())
+          std_t1 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(2).getReg());
+        else if (SlotInst.getNumOperands() > 2 && SlotInst.getOperand(2).isImm())
+          std_t1 = SlotInst.getOperand(2).getImm();
+
         switch (Opc) {
-        case Xtensa::ADD:  opcode_bits = 0xa4; IsStandard = true; break;
-        case Xtensa::ADD_N: opcode_bits = 0xa4; IsStandard = true; break;
-        case Xtensa::ADDI: opcode_bits = 0xa4; IsStandard = true; break;
-        case Xtensa::ADDI_N: opcode_bits = 0xa4; IsStandard = true; break;
-        case Xtensa::SLLI:
-        case Xtensa::SRLI:
-        case Xtensa::SRAI:
-        case Xtensa::SRC:
-        case Xtensa::SSAI:
-        case Xtensa::SSL:
-        case Xtensa::SSR:  opcode_bits = 0xa0; IsStandard = true; break;
+        case Xtensa::ADD:
+        case Xtensa::ADD_N:
+          opcode_bits = 0x1a4;
+          r1 = std_r1;
+          t1 = std_t1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
         case Xtensa::SUB:
+          opcode_bits = 0x1b6;
+          r1 = std_r1;
+          t1 = std_t1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
         case Xtensa::AND:
+          opcode_bits = 0x1ab;
+          r1 = std_r1;
+          t1 = std_t1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
         case Xtensa::OR:
+          opcode_bits = 0x1b4;
+          r1 = std_r1;
+          t1 = std_t1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
         case Xtensa::XOR:
+          opcode_bits = 0x1ba;
+          r1 = std_r1;
+          t1 = std_t1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
         case Xtensa::NEG:
+          opcode_bits = 0x1f3;
+          r1 = std_r1;
+          t1 = std_s1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
         case Xtensa::ABS:
+          opcode_bits = 0x1f3;
+          r1 = std_r1;
+          t1 = std_s1;
+          s1 = 0;
+          IsStandard = true;
+          break;
         case Xtensa::MOV_N:
+          opcode_bits = 0x1f4;
+          r1 = 0;
+          t1 = std_r1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
         case Xtensa::MOVI:
-        case Xtensa::MOVI_N: opcode_bits = 0xb4; IsStandard = true; break;
+        case Xtensa::MOVI_N:
+          opcode_bits = 0x180;
+          r1 = 0;
+          t1 = std_r1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
+        case Xtensa::ADDI:
+        case Xtensa::ADDI_N:
+          opcode_bits = 0x120;
+          r1 = std_t1;
+          t1 = std_r1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
+        case Xtensa::SLLI:
+          opcode_bits = 0x1a1;
+          opcode_bits |= (31 - std_t1) << 4;
+          r1 = std_r1;
+          t1 = std_r1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
+        case Xtensa::SRLI:
+          opcode_bits = 0x1ee;
+          r1 = std_r1;
+          t1 = std_s1;
+          s1 = std_t1;
+          IsStandard = true;
+          break;
+        case Xtensa::SRAI:
+          opcode_bits = 0x1a2;
+          r1 = std_r1;
+          t1 = std_s1;
+          s1 = std_t1;
+          IsStandard = true;
+          break;
+        case Xtensa::SRC:
+          opcode_bits = 0x1b5;
+          r1 = std_r1;
+          t1 = std_t1;
+          s1 = std_s1;
+          IsStandard = true;
+          break;
+        case Xtensa::SSL:
+          opcode_bits = 0x1f2;
+          r1 = 1;
+          t1 = 2;
+          s1 = std_r1;
+          IsStandard = true;
+          break;
+        case Xtensa::SSR:
+          opcode_bits = 0x1f2;
+          r1 = 1;
+          t1 = 3;
+          s1 = std_r1;
+          IsStandard = true;
+          break;
+        case Xtensa::SSAI:
+          opcode_bits = 0x1f3;
+          r1 = std_r1 >> 1;
+          t1 = 0;
+          s1 = 6 | (std_r1 & 1);
+          IsStandard = true;
+          break;
         default:
           break;
         }
         if (IsStandard) {
-          r1 = Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(0).getReg());
-          s1 = (SlotInst.getNumOperands() > 1 && SlotInst.getOperand(1).isReg()) ? Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(1).getReg()) : 0;
-          t1 = (SlotInst.getNumOperands() > 2 && SlotInst.getOperand(2).isReg()) ? Ctx.getRegisterInfo()->getEncodingValue(SlotInst.getOperand(2).getReg()) : s1;
           Val = (opcode_bits << 12) | (r1 << 8) | (t1 << 4) | s1;
         }
       } else if (Opc == Xtensa::NOP) {
