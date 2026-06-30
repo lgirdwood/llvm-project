@@ -1351,7 +1351,7 @@ bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
                                        OperandVector &Operands) {
   if (Name.starts_with("_"))
     Name = Name.drop_front(1);
-  if (Name.ends_with(".l") || Name.ends_with(".w"))
+  if ((Name.ends_with(".l") || Name.ends_with(".w")) && !Name.starts_with("ae_"))
     Name = Name.drop_back(2);
 
   if (Name == "{" || Name == "}") {

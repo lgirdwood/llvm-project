@@ -183,7 +183,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
     if (Name.starts_with("AE_MUL")) {
-      Allowed.Slot1 = true;
+      Allowed.Slot2 = true;
       return Allowed;
     }
     if (Name.starts_with("AE_ROUND") || Name.starts_with("AE_SAT") ||
@@ -1255,6 +1255,38 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       report_fatal_error("Could not find a valid VLIW slot assignment for instructions in bundle!");
     }
 
+    bool UseFormat88_2 = false;
+    for (const MCInst *SubInst : SubInsts) {
+      unsigned Opc = SubInst->getOpcode();
+      if (Opc == Xtensa::AE_ABS32_HIFI3 || Opc == Xtensa::AE_ABS64S_HIFI3 ||
+          Opc == Xtensa::AE_ABSSQ56S_HIFI3 || Opc == Xtensa::AE_ADDSQ56S_HIFI3 ||
+          Opc == Xtensa::AE_ADDSUB32_HIFI3 || Opc == Xtensa::AE_ADDSUB32S_HIFI3 ||
+          Opc == Xtensa::AE_SLAI64S_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_10 ||
+          Opc == Xtensa::AE_MOVFCRFSRV || Opc == Xtensa::AE_MOVVFCRFSR) {
+        UseFormat88_2 = true;
+        break;
+      }
+    }
+
+    unsigned Format = 0;
+    if (UseFormat88_2) {
+      Format = 4;
+    } else if (AssignedSlots[3] != -1) {
+      Format = 3;
+    } else if (AssignedSlots[2] != -1) {
+      Format = 4;
+    } else {
+      bool HasBranch = false;
+      if (AssignedSlots[0] != -1 && isBranchMCInst(*SubInsts[AssignedSlots[0]], MCII)) {
+        HasBranch = true;
+      }
+      if (HasBranch) {
+        Format = 1;
+      } else {
+        Format = 0;
+      }
+    }
+
     auto encodeSlotInstr = [&](const MCInst &SlotInst, unsigned SlotIdx) -> uint32_t {
       SmallVector<MCFixup, 4> LocalFixups;
       APInt SlotInstBits(128, 0);
@@ -1280,40 +1312,114 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
           unsigned r = (Val >> 12) & 0xf;
           unsigned s = (Val >> 8) & 0xf;
           unsigned t = (Val >> 4) & 0xf;
-          Val = 0x244000 | (r << 8) | ((8 + t) << 4) | s;
+          if (Format == 3)
+            Val = 0x180000 | (r << 12) | (t << 8) | (9 << 4) | s;
+          else if (Format == 4)
+            Val = 0x102f0000 | (r << 12) | (t << 8) | (9 << 4) | s;
+          else
+            Val = 0x244000 | (r << 8) | ((8 + t) << 4) | s;
         } else if (Opc == Xtensa::AE_S32X2_I) {
           unsigned r = (Val >> 12) & 0xf;
           unsigned s = (Val >> 8) & 0xf;
           unsigned t = (Val >> 4) & 0xf;
-          Val = 0x24c000 | (r << 8) | (t << 4) | s;
+          if (Format == 3)
+            Val = 0x180000 | (r << 12) | (t << 8) | (1 << 4) | s;
+          else if (Format == 4)
+            Val = 0x102f0000 | (r << 12) | (t << 8) | (1 << 4) | s;
+          else
+            Val = 0x24c000 | (r << 8) | (t << 4) | s;
         } else if (Opc == Xtensa::AE_L32X2_IP || Opc == Xtensa::AE_S32X2_IP ||
                    Opc == Xtensa::AE_LA32X2_IP_HIFI3 || Opc == Xtensa::AE_LA32X2_IP_HIFI4) {
           unsigned r = (Val >> 12) & 0xf;
           unsigned s = (Val >> 8) & 0xf;
           unsigned t = (Val >> 4) & 0xf;
           if (Opc == Xtensa::AE_LA32X2_IP_HIFI3 || Opc == Xtensa::AE_LA32X2_IP_HIFI4) {
-            Val = 0x257000 | (r << 8) | (2 << 4) | s;
-          } else {
-            unsigned imm = (((t & 6) << 1) | 0x2 | (t & 1));
-            if (Opc == Xtensa::AE_L32X2_IP)
-              Val = 0x243000 | (r << 8) | (imm << 4) | s;
+            if (Format == 3)
+              Val = 0x180000 | (r << 12) | (2 << 8) | (0xf << 4) | s;
+            else if (Format == 4)
+              Val = 0x102e0000 | (r << 12) | (2 << 8) | (0xf << 4) | s;
             else
-              Val = 0x253000 | (r << 8) | (imm << 4) | s;
+              Val = 0x257000 | (r << 8) | (2 << 4) | s;
+          } else {
+            unsigned imm = t & 7;
+            if (Opc == Xtensa::AE_L32X2_IP) {
+              if (Format == 3)
+                Val = 0x180000 | (r << 12) | (0xe << 8) | ((2 * imm) << 4) | s;
+              else if (Format == 4)
+                Val = 0x102e0000 | (r << 12) | (0xe << 8) | ((2 * imm) << 4) | s;
+              else {
+                unsigned imm_std = (((t & 6) << 1) | 0x2 | (t & 1));
+                Val = 0x243000 | (r << 8) | (imm_std << 4) | s;
+              }
+            } else { // AE_S32X2_IP
+              if (Format == 3)
+                Val = 0x180000 | (r << 12) | (0xf << 8) | ((2 * imm) << 4) | s;
+              else if (Format == 4)
+                Val = 0x102f0000 | (r << 12) | (0xf << 8) | ((2 * imm) << 4) | s;
+              else {
+                unsigned imm_std = (((t & 6) << 1) | 0x2 | (t & 1));
+                Val = 0x253000 | (r << 8) | (imm_std << 4) | s;
+              }
+            }
           }
         } else if (Opc == Xtensa::AE_L32X2_XC || Opc == Xtensa::AE_S32X2_XC) {
           unsigned r = (Val >> 12) & 0xf;
           unsigned s = (Val >> 8) & 0xf;
           unsigned t = (Val >> 4) & 0xf;
-          if (Opc == Xtensa::AE_L32X2_XC)
-            Val = 0x1f1000 | (r << 8) | (t << 4) | s;
-          else
-            Val = 0x217000 | (r << 8) | (t << 4) | s;
+          if (Opc == Xtensa::AE_L32X2_XC) {
+            if (Format == 3)
+              Val = 0x180000 | (r << 12) | (t << 8) | (0xb << 4) | s;
+            else if (Format == 4)
+              Val = 0x102f0000 | (r << 12) | (t << 8) | (0xb << 4) | s;
+            else
+              Val = 0x1f1000 | (r << 8) | (t << 4) | s;
+          } else { // AE_S32X2_XC
+            if (Format == 3)
+              Val = 0x180000 | (r << 12) | (t << 8) | (0xe << 4) | s;
+            else if (Format == 4)
+              Val = 0x102f0000 | (r << 12) | (t << 8) | (0xe << 4) | s;
+            else
+              Val = 0x217000 | (r << 8) | (t << 4) | s;
+          }
         } else if (Opc == Xtensa::AE_LA64_PP_HIFI3 || Opc == Xtensa::AE_LA64_PP_HIFI4) {
           unsigned s = (Val >> 8) & 0xf;
-          Val = 0x260000 | (11 << 8) | (0 << 4) | s;
+          if (Format == 3)
+            Val = 0x180000 | (11 << 12) | (0 << 8) | (0 << 4) | s;
+          else if (Format == 4)
+            Val = 0x102f0000 | (11 << 12) | (0 << 8) | (0 << 4) | s;
+          else
+            Val = 0x260000 | (11 << 8) | (0 << 4) | s;
         } else if (Opc == Xtensa::AE_SA64POS_FP_REAL) {
           unsigned s = (Val >> 8) & 0xf;
-          Val = 0x260000 | (11 << 8) | (1 << 4) | s;
+          if (Format == 3)
+            Val = 0x180000 | (11 << 12) | (0 << 8) | (1 << 4) | s;
+          else if (Format == 4)
+            Val = 0x102f0000 | (11 << 12) | (0 << 8) | (1 << 4) | s;
+          else
+            Val = 0x260000 | (11 << 8) | (1 << 4) | s;
+        }
+      } else if (SlotIdx == 2) {
+        if (Opc == Xtensa::AE_MULAFP32X16X2RS_H_REAL || Opc == Xtensa::AE_MULAFP32X16X2RS_L_REAL ||
+            Opc == Xtensa::AE_MULAFP32X16X2RS_H || Opc == Xtensa::AE_MULAFP32X16X2RS_L) {
+          bool IsL = (Opc == Xtensa::AE_MULAFP32X16X2RS_L_REAL || Opc == Xtensa::AE_MULAFP32X16X2RS_L);
+          unsigned acc = (Val >> 8) & 0xf;
+          unsigned s = (Val >> 4) & 0xf;
+          unsigned r = Val & 0xf;
+          if (Format == 3)
+            Val = 0x280000 | ((IsL ? 6 : 5) << 12) | (r << 8) | (s << 4) | acc;
+          else // Format == 4
+            Val = 0x1190000 | (s << 12) | (r << 8) | (acc << 4) | (IsL ? 5 : 4);
+          return Val;
+        }
+      } else if (SlotIdx == 3) {
+        if (Opc == Xtensa::AE_SAT16X4 || Opc == Xtensa::AE_MAXABS32S || Opc == Xtensa::AE_SAT24S) {
+          unsigned dest = Val & 0xf;
+          unsigned s = (Val >> 4) & 0xf;
+          unsigned t = (Val >> 8) & 0xf;
+          unsigned op = (Opc == Xtensa::AE_SAT16X4) ? 0x19d000 :
+                        (Opc == Xtensa::AE_MAXABS32S) ? 0x18d000 : 0x1bd000;
+          Val = op | (t << 8) | (s << 4) | dest;
+          return Val;
         }
       }
 
@@ -1658,6 +1764,16 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         }
         if (IsStandard) {
           Val = (opcode_bits << 12) | (r1 << 8) | (t1 << 4) | s1;
+          if (Format == 3 || Format == 4) {
+            if (Opc == Xtensa::ADD || Opc == Xtensa::ADD_N) {
+              Val = 0x94000 | (r1 << 8) | (t1 << 4) | s1;
+            } else if (Opc == Xtensa::SUB) {
+              if (Format == 3)
+                Val = 0xa6000 | (r1 << 8) | (t1 << 4) | s1;
+              else
+                Val = 0xa4000 | (r1 << 8) | (t1 << 4) | s1;
+            }
+          }
         }
       }
 
@@ -1667,6 +1783,9 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
           .Case("AE_MULFP32X16X2RAS_L_REAL", 0xda)
           .Case("AE_MULF16SS_00_REAL", 0xb2)
           .Case("AE_MULAFP32X2RS_REAL", 0x8c)
+          .Case("AE_MULAFP32X2RS", 0x8c)
+          .Case("AE_MULAFP32X16X2RS_L", 0x84)
+          .Case("AE_MULAFP32X16X2RS_H", 0x82)
           .Case("AE_MULFP24X2R_REAL", 0xd4)
           .Case("AE_MULAF32S_LH_HIFI3", 0x62)
           .Case("AE_MULSF32R_LL_REAL", 0x20)
@@ -1724,38 +1843,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
       return Val;
     };
-
-    bool UseFormat88_2 = false;
-    for (const MCInst *SubInst : SubInsts) {
-      unsigned Opc = SubInst->getOpcode();
-      if (Opc == Xtensa::AE_ABS32_HIFI3 || Opc == Xtensa::AE_ABS64S_HIFI3 ||
-          Opc == Xtensa::AE_ABSSQ56S_HIFI3 || Opc == Xtensa::AE_ADDSQ56S_HIFI3 ||
-          Opc == Xtensa::AE_ADDSUB32_HIFI3 || Opc == Xtensa::AE_ADDSUB32S_HIFI3 ||
-          Opc == Xtensa::AE_SLAI64S_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_10 ||
-          Opc == Xtensa::AE_MOVFCRFSRV || Opc == Xtensa::AE_MOVVFCRFSR) {
-        UseFormat88_2 = true;
-        break;
-      }
-    }
-
-    unsigned Format = 0;
-    if (UseFormat88_2) {
-      Format = 4;
-    } else if (AssignedSlots[3] != -1) {
-      Format = 3;
-    } else if (AssignedSlots[2] != -1) {
-      Format = 2;
-    } else {
-      bool HasBranch = false;
-      if (AssignedSlots[0] != -1 && isBranchMCInst(*SubInsts[AssignedSlots[0]], MCII)) {
-        HasBranch = true;
-      }
-      if (HasBranch) {
-        Format = 1;
-      } else {
-        Format = 0;
-      }
-    }
 
     uint32_t Val0 = 0x57d0, Val1 = 0x57d0, Val2 = 0x57d0, Val3 = 0;
     if (Format == 4) {
@@ -1860,7 +1947,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
       insn[1] = (insn[1] & ~0xf) | (Val3 & 0xf);
       insn[1] = (insn[1] & ~0x3c00000) | (((Val3 & 0xf0) >> 4) << 22);
-      insn[1] = (insn[1] & ~0x3c000) | (((Val3 & 0xf00) >> 8) << 18);
+      insn[1] = (insn[1] & ~0x3c0000) | (((Val3 & 0xf00) >> 8) << 18);
       insn[1] = (insn[1] & ~0x18000000) | (((Val3 & 0x3000) >> 12) << 27);
       insn[2] = (insn[2] & ~0xfe0000) | (((Val3 & 0x1fc000) >> 14) << 17);
       Size = 11;
@@ -1882,8 +1969,8 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       insn[0] = (insn[0] & ~0xf00000) | (((Val1 & 0xf00) >> 8) << 20);
       insn[2] = (insn[2] & ~0x7f8) | (((Val1 & 0xff000) >> 12) << 3);
 
-      insn[0] = (insn[0] & ~0xf0000000) | ((Val2 & 0xf) << 28);
-      insn[1] = (insn[1] & ~0xf) | ((Val2 & 0xf0) >> 4);
+      insn[0] = (insn[0] & ~0xf0000000) | (((Val2 & 0xf0) >> 4) << 28);
+      insn[1] = (insn[1] & ~0xf) | (Val2 & 0xf);
       insn[1] = (insn[1] & ~0x3c000) | (((Val2 & 0xf00) >> 8) << 14);
       insn[1] = (insn[1] & ~0x20) | (((Val2 & 0x1000) >> 12) << 5);
       insn[1] = (insn[1] & ~0x1c00) | (((Val2 & 0xe000) >> 13) << 10);

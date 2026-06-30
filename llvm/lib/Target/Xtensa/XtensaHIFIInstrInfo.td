@@ -2864,6 +2864,27 @@ let Predicates = [HasHIFI3] in {
     let Predicates = [HasHIFI3];
   }
 
+  def AE_MULAFP32X16X2RS_H : RRR_Slot3_Inst<0x01, 0x04, 0x00, (outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
+                                           "ae_mulafp32x16x2rs.h\t$t, $s, $r", []> {
+    let Constraints = "$acc = $t";
+    let isAsmParserOnly = 1;
+    let Predicates = [HasHIFI3];
+  }
+
+  def AE_MULAFP32X16X2RS_L : RRR_Slot3_Inst<0x02, 0x04, 0x00, (outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
+                                           "ae_mulafp32x16x2rs.l\t$t, $s, $r", []> {
+    let Constraints = "$acc = $t";
+    let isAsmParserOnly = 1;
+    let Predicates = [HasHIFI3];
+  }
+
+  def AE_MULAFP32X2RS : RRR_Slot3_Inst<0x06, 0x04, 0x00, (outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
+                                       "ae_mulafp32x2rs\t$t, $s, $r", []> {
+    let Constraints = "$acc = $t";
+    let isAsmParserOnly = 1;
+    let Predicates = [HasHIFI3];
+  }
+
   def AE_ROUND32X2F64SSYM_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$s, AEDR:$r),
                                               "ae_round32x2f64ssym\t$t, $s, $r", []> {
     bits<4> t;
