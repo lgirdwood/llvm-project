@@ -2318,6 +2318,7 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
       if (DT->InstrAnalysis)
         DT->InstrAnalysis->resetState();
 
+      bool InXtensaLiteralPool = false;
       while (Index < End) {
         uint64_t RelOffset;
 
@@ -2431,6 +2432,27 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
             Size = std::min<uint64_t>(
                 ThisBytes.size(),
                 DT->DisAsm->suggestBytesToSkip(ThisBytes, ThisAddr));
+
+          bool IsXtensaLiteral = (Obj.getArch() == Triple::xtensa && !Disassembled && Size == 4);
+          if (IsXtensaLiteral && !InXtensaLiteralPool) {
+            InXtensaLiteralPool = true;
+            const SymbolInfoTy *NextSym = nullptr;
+            for (const SymbolInfoTy &Sym : Symbols) {
+              if (Sym.Addr > ThisAddr) {
+                if (!NextSym || Sym.Addr < NextSym->Addr) {
+                  NextSym = &Sym;
+                }
+              }
+            }
+            FOS << "\n";
+            if (NextSym) {
+              FOS << "<" << NextSym->Name << ".literals>:\n";
+            } else {
+              FOS << "<.literals>:\n";
+            }
+          } else if (!IsXtensaLiteral) {
+            InXtensaLiteralPool = false;
+          }
 
           LEP.update({ThisAddr, Section.getIndex()},
                      {ThisAddr + Size, Section.getIndex()},
@@ -2622,6 +2644,62 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
                                            SectionAddr + Index);
           } else if (!Disassembled && DT->InstrAnalysis) {
             DT->InstrAnalysis->resetState();
+          }
+
+          if (IsXtensaLiteral) {
+            uint32_t Target = Bytes[Index] | (Bytes[Index+1] << 8) | (Bytes[Index+2] << 16) | (Bytes[Index+3] << 24);
+            FOS << " 0x" << format_hex_no_prefix(Target, 8);
+            if (Target >= 0x10000) {
+              std::vector<const SectionSymbolsTy *> TargetSectionSymbols;
+              if (!Obj.isRelocatableObject()) {
+                auto It = llvm::partition_point(
+                    SectionAddresses,
+                    [=](const std::pair<uint64_t, SectionRef> &O) {
+                      return O.first <= Target;
+                    });
+                uint64_t TargetSecAddr = 0;
+                while (It != SectionAddresses.begin()) {
+                  --It;
+                  if (TargetSecAddr == 0)
+                    TargetSecAddr = It->first;
+                  if (It->first != TargetSecAddr)
+                    break;
+                  TargetSectionSymbols.push_back(&AllSymbols[It->second]);
+                }
+              } else {
+                TargetSectionSymbols.push_back(&Symbols);
+              }
+              TargetSectionSymbols.push_back(&AbsoluteSymbols);
+
+              const SymbolInfoTy *TargetSym = nullptr;
+              for (const SectionSymbolsTy *TargetSymbols : TargetSectionSymbols) {
+                auto It = llvm::partition_point(
+                    *TargetSymbols,
+                    [=](const SymbolInfoTy &O) { return O.Addr <= Target; });
+                while (It != TargetSymbols->begin()) {
+                  --It;
+                  if (!It->IsMappingSymbol) {
+                    TargetSym = &*It;
+                    break;
+                  }
+                }
+                if (TargetSym)
+                  break;
+              }
+              if (TargetSym != nullptr) {
+                uint64_t TargetAddress = TargetSym->Addr;
+                uint64_t Disp = Target - TargetAddress;
+                if (Disp < 0x100000) {
+                  std::string TargetName = Demangle ? demangle(TargetSym->Name)
+                                                    : TargetSym->Name.str();
+                  FOS << " <" << TargetName;
+                  if (Disp) {
+                    FOS << "+0x" << Twine::utohexstr(Disp);
+                  }
+                  FOS << ">";
+                }
+              }
+            }
           }
         }
 
