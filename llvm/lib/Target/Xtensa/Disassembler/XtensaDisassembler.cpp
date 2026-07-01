@@ -660,6 +660,7 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                                                 ArrayRef<uint8_t> Bytes,
                                                 uint64_t Address,
                                                 raw_ostream &CS) const {
+  Size = 0;
   uint64_t Insn;
   DecodeStatus Result;
 

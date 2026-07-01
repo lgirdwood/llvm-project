@@ -225,6 +225,24 @@ std::optional<bool> XtensaAsmBackend::evaluateFixup(const MCFragment &F,
 void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
                                   const MCValue &Target, uint8_t *Data,
                                   uint64_t OrigValue, bool IsResolved) {
+  if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_jump_18) {
+    if (IsResolved) {
+      int64_t RelOffset = (int64_t)OrigValue - 4;
+      if (RelOffset >= -3 && RelOffset <= 0) {
+        if (IsLittleEndian) {
+          Data[0] = 0xf0;
+          Data[1] = 0x20;
+          Data[2] = 0x00;
+        } else {
+          Data[0] = 0x00;
+          Data[1] = 0x20;
+          Data[2] = 0xf0;
+        }
+        return;
+      }
+    }
+  }
+
   bool WasResolved = IsResolved;
   uint64_t Value = OrigValue;
   if (Fixup.getKind() >= (MCFixupKind)Xtensa::fixup_xtensa_slot0 &&
