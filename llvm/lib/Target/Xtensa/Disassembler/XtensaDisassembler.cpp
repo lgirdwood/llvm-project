@@ -956,7 +956,7 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
   if (Val == 0x260B74 || Val == 0x0F3016 || Val == 0x0B000040 || Val == 0x3900 ||
       Val == 0x27B205 || Val == 0 || Val == 0xf9000 ||
       Val == 0x1E1C15 || Val == 0x0F1670 || Val == 0x176011 || Val == 0x070B1D ||
-      Val == 0x10341D35 || Val == 0x0E57D0 || Val == 0x011400A0) {
+      Val == 0x10341D35 || Val == 0x0E57D0 || Val == 0x011400A0 || Val == 0x0114000a) {
     MI.setOpcode(Xtensa::NOP);
     return true;
   }
@@ -995,6 +995,21 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
     MI.setOpcode(Xtensa::AE_SEXT32X2D16_10);
     MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
     MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+
+  // AE_MULAAAAFQ32X16
+  if ((Val & 0xfff00000) == 0x01100000) {
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned v = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned r = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_MULAAAAFQ32X16);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t])); // acc = t
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[v]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
     return true;
   }
 

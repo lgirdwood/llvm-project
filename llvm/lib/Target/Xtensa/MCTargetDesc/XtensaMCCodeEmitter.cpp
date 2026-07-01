@@ -1333,9 +1333,9 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
       unsigned Opc = SlotInst.getOpcode();
       if (Opc == Xtensa::NOP || Opc == Xtensa::NOP_N) {
-        if (SlotIdx == 0) Val = 0x27b205;
+        if (SlotIdx == 0) Val = 0x260b74;
         else if (SlotIdx == 1) Val = 0x0E57D0;
-        else if (SlotIdx == 2) Val = 0x00E57D0;
+        else if (SlotIdx == 2) Val = 0x0114000a;
         return Val;
       }
 
@@ -1902,16 +1902,36 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     if (Format == 4) {
       Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x10341D35;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0E57D0;
-      Val2 = (AssignedSlots[2] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2) : 0x011400A0;
+      Val2 = (AssignedSlots[2] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2) : 0x0114000a;
+      if (AssignedSlots[0] != -1 && (SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP_N))
+        Val0 = 0x10341D35;
+      if (AssignedSlots[1] != -1 && (SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP_N))
+        Val1 = 0x0E57D0;
+      if (AssignedSlots[2] != -1 && (SubInsts[AssignedSlots[2]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[2]]->getOpcode() == Xtensa::NOP_N))
+        Val2 = 0x0114000a;
     } else if (Format == 3) {
       Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x1E1C15;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0F1670;
       Val2 = (AssignedSlots[2] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2) : 0x176011;
       Val3 = (AssignedSlots[3] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[3]], 3) : 0x070B1D;
+      if (AssignedSlots[0] != -1 && (SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP_N))
+        Val0 = 0x1E1C15;
+      if (AssignedSlots[1] != -1 && (SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP_N))
+        Val1 = 0x0F1670;
+      if (AssignedSlots[2] != -1 && (SubInsts[AssignedSlots[2]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[2]]->getOpcode() == Xtensa::NOP_N))
+        Val2 = 0x176011;
+      if (AssignedSlots[3] != -1 && (SubInsts[AssignedSlots[3]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[3]]->getOpcode() == Xtensa::NOP_N))
+        Val3 = 0x070B1D;
     } else if (Format == 2) {
-      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x27B205;
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x260B74;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0;
       Val2 = (AssignedSlots[2] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[2]], 2) : 0xf9000;
+      if (AssignedSlots[0] != -1 && (SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP_N))
+        Val0 = 0x260B74;
+      if (AssignedSlots[1] != -1 && (SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP_N))
+        Val1 = 0;
+      if (AssignedSlots[2] != -1 && (SubInsts[AssignedSlots[2]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[2]]->getOpcode() == Xtensa::NOP_N))
+        Val2 = 0xf9000;
     } else if (Format == 1) {
       Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x0B000040;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x3900;
@@ -1920,10 +1940,10 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       if (AssignedSlots[1] != -1 && (SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP_N))
         Val1 = 0x3900;
     } else if (Format == 0) {
-      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x27b205;
+      Val0 = (AssignedSlots[0] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[0]], 0) : 0x260b74;
       Val1 = (AssignedSlots[1] != -1) ? encodeSlotInstr(*SubInsts[AssignedSlots[1]], 1) : 0x0F3016;
       if (AssignedSlots[0] != -1 && (SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[0]]->getOpcode() == Xtensa::NOP_N))
-        Val0 = 0x27b205;
+        Val0 = 0x260b74;
       if (AssignedSlots[1] != -1 && (SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP || SubInsts[AssignedSlots[1]]->getOpcode() == Xtensa::NOP_N))
         Val1 = 0x0F3016;
     }
