@@ -278,7 +278,6 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
                 instrAsm#"\t$s, $imm8", []> {
     let r = 0x7;
     let t = t_val;
-    let isAsmParserOnly = 1;
   }
 
   def DHWB  : Cache_Inst<0x4, "dhwb">;
@@ -293,7 +292,6 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
                 instrAsm#"\t$s, $imm8", []> {
     let r = 0x7;
     let t = t_val;
-    let isAsmParserOnly = 1;
   }
 
   def DPFL  : Cache_Lock_Inst<0x8, "dpfl">;
@@ -308,7 +306,6 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
     let t = 0x8;
     let Inst{23-20} = imm;
     let Inst{19-16} = op1_val;
-    let isAsmParserOnly = 1;
   }
 
   def DIWB  : Cache_Ind_Inst<0x4, "diwb">;
@@ -326,7 +323,6 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
     let t = t_val;
     let Inst{23-20} = imm;
     let Inst{19-16} = op1_val;
-    let isAsmParserOnly = 1;
   }
 
   def DHU  : Cache_Ind_T_Inst<0x8, 0x2, "dhu">;
@@ -338,7 +334,6 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
     : RRR_Inst<0x00, op1_val, 0x0f, (outs AR:$t), (ins AR:$s),
                instrAsm#"\t$t, $s", []> {
     let r = 0x1;
-    let isAsmParserOnly = 1;
   }
 
   def LICT : Cache_Tag_Inst<0x0, "lict">;
@@ -357,7 +352,6 @@ let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
     let r = 0x7;
     let t = t_val;
     let imm8 = imm_val;
-    let isAsmParserOnly = 1;
   }
 
   def DIWBUI_P : Cache_Inc_Inst<0x8, 0x0f, "diwbui.p">;
