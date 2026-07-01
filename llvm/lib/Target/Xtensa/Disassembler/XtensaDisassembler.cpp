@@ -947,6 +947,19 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
   }
 
   // Check manual remapped instructions
+  if ((Val & 0xfffff0) == 0x17f700) {
+    unsigned d = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_MOVFCRFSRV);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d]));
+    return true;
+  }
+  if ((Val & 0xfffff0) == 0x17f710) {
+    unsigned d = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_MOVVFCRFSR);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d]));
+    return true;
+  }
+
   // 1. AE_L16X4_X
   if ((Val & 0xfff000) == 0x1e1000) {
     unsigned r = (Val >> 8) & 0xf;
