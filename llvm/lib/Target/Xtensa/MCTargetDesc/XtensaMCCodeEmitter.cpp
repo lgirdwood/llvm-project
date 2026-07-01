@@ -537,6 +537,44 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
   unsigned Opcode = MI.getOpcode();
   StringRef Name = MCII.getName(Opcode);
 
+  if (Opcode == Xtensa::AE_MOVVFCRFSR || Opcode == Xtensa::AE_MOVFCRFSRV) {
+    uint8_t Data[11] = {0x1f, 0x15, 0x70, 0x06, 0x3d, 0xe3, 0x6d, 0xc4, 0xc7, 0x7f, 0x39};
+    if (Opcode == Xtensa::AE_MOVFCRFSRV) {
+      Data[4] = 0x1d;
+    }
+    unsigned Reg = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    Data[3] |= (Reg << 4);
+    for (unsigned I = 0; I < 11; ++I) {
+      CB.push_back(char(Data[I]));
+    }
+    return;
+  }
+
+  if (Opcode == Xtensa::AE_MOVDRZBVC || Opcode == Xtensa::AE_MOVZBVCDR) {
+    uint8_t Data[16] = {0};
+    Data[0] = 0x4f;
+    Data[1] = 0x61;
+    Data[2] = 0x08;
+    Data[3] = 0xbb;
+    Data[4] = 0x53;
+    unsigned Reg = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    Data[5] = 0x01 + (Reg << 2);
+    Data[6] = (Opcode == Xtensa::AE_MOVDRZBVC) ? 0x0e : 0x1e;
+    Data[7] = 0x60;
+    Data[8] = 0x09;
+    Data[9] = 0x99;
+    Data[10] = 0x00;
+    Data[11] = 0x5e;
+    Data[12] = 0x80;
+    Data[13] = 0xa4;
+    Data[14] = 0x01;
+    Data[15] = 0x00;
+    for (unsigned I = 0; I < 16; ++I) {
+      CB.push_back(char(Data[I]));
+    }
+    return;
+  }
+
 
 
 
@@ -2009,44 +2047,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       }
     } else {
       report_fatal_error("Big-endian mode currently is not supported!");
-    }
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_MOVVFCRFSR || Opcode == Xtensa::AE_MOVFCRFSRV) {
-    uint8_t Data[11] = {0x1f, 0x15, 0x70, 0x06, 0x3d, 0xe3, 0x6d, 0xc4, 0xc7, 0x7f, 0x39};
-    if (Opcode == Xtensa::AE_MOVFCRFSRV) {
-      Data[4] = 0x1d;
-    }
-    unsigned Reg = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    Data[3] |= (Reg << 4);
-    for (unsigned I = 0; I < 11; ++I) {
-      CB.push_back(char(Data[I]));
-    }
-    return;
-  }
-
-  if (Opcode == Xtensa::AE_MOVDRZBVC || Opcode == Xtensa::AE_MOVZBVCDR) {
-    uint8_t Data[16] = {0};
-    Data[0] = 0x4f;
-    Data[1] = 0x61;
-    Data[2] = 0x08;
-    Data[3] = 0xbb;
-    Data[4] = 0x53;
-    unsigned Reg = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    Data[5] = 0x01 + (Reg << 2);
-    Data[6] = (Opcode == Xtensa::AE_MOVDRZBVC) ? 0x0e : 0x1e;
-    Data[7] = 0x60;
-    Data[8] = 0x09;
-    Data[9] = 0x99;
-    Data[10] = 0x00;
-    Data[11] = 0x5e;
-    Data[12] = 0x80;
-    Data[13] = 0xa4;
-    Data[14] = 0x01;
-    Data[15] = 0x00;
-    for (unsigned I = 0; I < 16; ++I) {
-      CB.push_back(char(Data[I]));
     }
     return;
   }
