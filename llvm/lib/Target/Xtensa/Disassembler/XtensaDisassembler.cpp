@@ -824,8 +824,8 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                       (((insn0 >> 20) & 0xf) << 8) |
                       (((insn2 >> 3) & 0xff) << 12);
 
-      uint32_t val2 = ((insn0 >> 28) & 0xf) |
-                      ((insn1 & 0xf) << 4) |
+      uint32_t val2 = (insn1 & 0xf) |
+                      (((insn0 >> 28) & 0xf) << 4) |
                       (((insn1 >> 14) & 0xf) << 8) |
                       (((insn1 >> 5) & 0x1) << 12) |
                       (((insn1 >> 10) & 0x7) << 13) |
@@ -892,6 +892,21 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
   if (Result == MCDisassembler::Fail)
     return MCDisassembler::Fail;
 
+  // Try decoding with SwappedInsn first for the byte-swapped instructions
+  if (hasHIFI3()) {
+    uint32_t SwappedInsn = ((Insn & 0xFF) << 16) | (Insn & 0xFF00) | ((Insn >> 16) & 0xFF);
+    MCInst TmpMI;
+    if (decodeInstruction(DecoderTableXtensaHIFI324, TmpMI, SwappedInsn, Address, this, STI) != MCDisassembler::Fail) {
+      unsigned Opc = TmpMI.getOpcode();
+      if (Opc == Xtensa::AE_SRAI64_HIFI3 || Opc == Xtensa::AE_SLAI32_HIFI3 ||
+          Opc == Xtensa::AE_SRAI32_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_32) {
+        MI = TmpMI;
+        Size = 3;
+        return MCDisassembler::Success;
+      }
+    }
+  }
+
   // Try HiFi tables first
   if (hasHIFI5()) {
     LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI5 24-bit instruction table :\n");
@@ -957,6 +972,29 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
     unsigned d = Val & 0xf;
     MI.setOpcode(Xtensa::AE_MOVVFCRFSR);
     MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d]));
+    return true;
+  }
+
+  // AE_SLAI64S_HIFI3
+  if ((Val & 0xffff0030) == 0x10210020) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned bundle_imm = Val & 0x3cf;
+    unsigned imm = ((bundle_imm >> 2) & 0x30) | (bundle_imm & 0xf);
+    MI.setOpcode(Xtensa::AE_SLAI64S_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createImm(imm));
+    return true;
+  }
+
+  // AE_SEXT32X2D16_10
+  if ((Val & 0xffff00ff) == 0x1033003a) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned s = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_SEXT32X2D16_10);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
     return true;
   }
 
@@ -1077,7 +1115,7 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
 
   // Fallback: try standard decoding tables, searching for the correct bits 23-20
   for (unsigned mask = 0; mask < 16; ++mask) {
-    uint32_t CandidateVal = (Val & ~(0xf << 20)) | (mask << 20);
+    uint32_t CandidateVal = ((Val & ~(0xf << 20)) & 0xffffff) | (mask << 20);
     if (decodeInstruction(DecoderTableXtensaHIFI524, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
     if (decodeInstruction(DecoderTableXtensaHIFI424, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
     if (decodeInstruction(DecoderTableXtensaHIFI324, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
