@@ -2101,6 +2101,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
   unsigned Size = MCII.get(MI.getOpcode()).getSize();
 
   if (Opcode == Xtensa::AE_SRAI64_HIFI3 || Opcode == Xtensa::AE_SLAI32_HIFI3 ||
+      Opcode == Xtensa::AE_SLAI32S_HIFI3 ||
       Opcode == Xtensa::AE_SRAI32_HIFI3 || Opcode == Xtensa::AE_SEXT32X2D16_32) {
     uint32_t Val = Inst.extractBitsAsZExtValue(32, 0);
     uint32_t NewVal = ((Val & 0xFF) << 16) | (Val & 0xFF00) | ((Val >> 16) & 0xFF);

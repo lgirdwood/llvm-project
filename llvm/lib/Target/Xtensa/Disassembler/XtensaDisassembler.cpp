@@ -899,6 +899,7 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     if (decodeInstruction(DecoderTableXtensaHIFI324, TmpMI, SwappedInsn, Address, this, STI) != MCDisassembler::Fail) {
       unsigned Opc = TmpMI.getOpcode();
       if (Opc == Xtensa::AE_SRAI64_HIFI3 || Opc == Xtensa::AE_SLAI32_HIFI3 ||
+          Opc == Xtensa::AE_SLAI32S_HIFI3 ||
           Opc == Xtensa::AE_SRAI32_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_32) {
         MI = TmpMI;
         Size = 3;
