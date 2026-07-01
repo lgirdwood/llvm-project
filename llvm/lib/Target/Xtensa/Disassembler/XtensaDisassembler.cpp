@@ -56,6 +56,8 @@ public:
   bool isVLIWOnlyInstruction(unsigned Opcode) const {
     if (!MCII) return false;
     StringRef Name = MCII->getName(Opcode);
+    if (Name.ends_with("_IP_REAL"))
+      return false;
     if (Name.ends_with("_REAL"))
       return true;
     if (Name.starts_with("AE_SAT") || Name.starts_with("AE_MAXABS") || 
@@ -779,23 +781,27 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
 
   // Manual disassembly of custom 11-byte VLIW pseudo-instructions
   if (hasFLIX() && Bytes.size() >= 11) {
-    uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
-    uint32_t insn1 = Bytes[4] | (Bytes[5] << 8) | (Bytes[6] << 16) | (Bytes[7] << 24);
-    uint32_t insn2 = Bytes[8] | (Bytes[9] << 8) | (Bytes[10] << 16);
+    uint8_t BE_Bytes[11];
+    for (int i = 0; i < 11; ++i)
+      BE_Bytes[i] = Bytes[10 - i];
+
+    uint32_t BE_insn0 = BE_Bytes[0] | (BE_Bytes[1] << 8) | (BE_Bytes[2] << 16) | (BE_Bytes[3] << 24);
+    uint32_t BE_insn1 = BE_Bytes[4] | (BE_Bytes[5] << 8) | (BE_Bytes[6] << 16) | (BE_Bytes[7] << 24);
+    uint32_t BE_insn2 = BE_Bytes[8] | (BE_Bytes[9] << 8) | (BE_Bytes[10] << 16);
 
     // 1. AE_MULAFD32X16X2_FIR_HH, HL, LH, LL
-    if ((insn0 == 0x0d2c0700 || insn0 == 0x0d2c0f00 || insn0 == 0x0d2c1700 || insn0 == 0x0d2c1f00) &&
-        insn2 == 0x0f3570) {
-      if (insn0 == 0x0d2c0700) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_HH);
-      else if (insn0 == 0x0d2c0f00) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_HL_REAL);
-      else if (insn0 == 0x0d2c1700) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_LH_REAL);
+    if ((BE_insn0 == 0x0d2c0700 || BE_insn0 == 0x0d2c0f00 || BE_insn0 == 0x0d2c1700 || BE_insn0 == 0x0d2c1f00) &&
+        BE_insn2 == 0x0f3570) {
+      if (BE_insn0 == 0x0d2c0700) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_HH);
+      else if (BE_insn0 == 0x0d2c0f00) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_HL_REAL);
+      else if (BE_insn0 == 0x0d2c1700) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_LH_REAL);
       else MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_LL_REAL);
 
-      unsigned q0 = (insn1 >> 28) & 0xf;
-      unsigned q1 = (insn1 >> 16) & 0xf;
-      unsigned c  = (insn1 >> 2) & 0xf;
-      unsigned d1 = (insn1 >> 9) & 0xf;
-      unsigned d0 = (insn1 & 1) | (((insn1 >> 8) & 1) << 1) | (((insn1 >> 14) & 1) << 2) | (((insn1 >> 13) & 1) << 3);
+      unsigned q0 = (BE_insn1 >> 28) & 0xf;
+      unsigned q1 = (BE_insn1 >> 16) & 0xf;
+      unsigned c  = (BE_insn1 >> 2) & 0xf;
+      unsigned d1 = (BE_insn1 >> 9) & 0xf;
+      unsigned d0 = (BE_insn1 & 1) | (((BE_insn1 >> 8) & 1) << 1) | (((BE_insn1 >> 14) & 1) << 2) | (((BE_insn1 >> 13) & 1) << 3);
 
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q0])); // t1
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q1])); // t2
@@ -809,15 +815,15 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
 
     // 2. AE_ROUND16X4F32SSYM
-    if (Bytes[0] == 0x1f && Bytes[1] == 0x15 && Bytes[2] == 0x70 &&
-        Bytes[8] == 0xc7 && Bytes[9] == 0x77 && Bytes[10] == 0xcb && (Bytes[7] & 0xfc) == 0xc4) {
+    if (BE_Bytes[0] == 0x1f && BE_Bytes[1] == 0x15 && BE_Bytes[2] == 0x70 &&
+        BE_Bytes[8] == 0xc7 && BE_Bytes[9] == 0x77 && BE_Bytes[10] == 0xcb && (BE_Bytes[7] & 0xfc) == 0xc4) {
       MI.setOpcode(Xtensa::AE_ROUND16X4F32SSYM);
-      unsigned t = (insn1 >> 16) & 0xf;
-      unsigned s = (insn1 >> 2) & 0xf;
-      unsigned r_bit0 = (insn1 >> 6) & 1;
-      unsigned r_bit1 = (insn1 >> 7) & 1;
-      unsigned r_bit2 = Bytes[7] & 1;
-      unsigned r_bit3 = (Bytes[7] >> 1) & 1;
+      unsigned t = (BE_insn1 >> 16) & 0xf;
+      unsigned s = (BE_insn1 >> 2) & 0xf;
+      unsigned r_bit0 = (BE_insn1 >> 6) & 1;
+      unsigned r_bit1 = (BE_insn1 >> 7) & 1;
+      unsigned r_bit2 = BE_Bytes[7] & 1;
+      unsigned r_bit3 = (BE_Bytes[7] >> 1) & 1;
       unsigned r = r_bit0 | (r_bit1 << 1) | (r_bit2 << 2) | (r_bit3 << 3);
 
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
@@ -828,14 +834,14 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
 
     // 3. AE_ROUND16X4F32SASYM
-    if ((insn0 & 0xfeffffff) == 0xdcc777c9 && insn2 == 0x1f1570) {
+    if ((BE_insn0 & 0xfeffffff) == 0xdcc777c9 && BE_insn2 == 0x1f1570) {
       MI.setOpcode(Xtensa::AE_ROUND16X4F32SASYM);
-      unsigned t = (insn1 >> 16) & 0xf;
-      unsigned s = (insn1 >> 2) & 0xf;
-      unsigned r_bit0 = (insn0 >> 24) & 1;
-      unsigned r_bit1 = (insn1 >> 7) & 1;
-      unsigned r_bit2 = (insn1 >> 5) & 1;
-      unsigned r_bit3 = (insn1 >> 6) & 1;
+      unsigned t = (BE_insn1 >> 16) & 0xf;
+      unsigned s = (BE_insn1 >> 2) & 0xf;
+      unsigned r_bit0 = (BE_insn0 >> 24) & 1;
+      unsigned r_bit1 = (BE_insn1 >> 7) & 1;
+      unsigned r_bit2 = (BE_insn1 >> 5) & 1;
+      unsigned r_bit3 = (BE_insn1 >> 6) & 1;
       unsigned r = r_bit0 | (r_bit1 << 1) | (r_bit2 << 2) | (r_bit3 << 3);
 
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
@@ -846,12 +852,12 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
 
     // 4. AE_ROUND32X2F64SSYM_REAL
-    if (Bytes[0] == 0xcd && Bytes[1] == 0x77 && Bytes[2] == 0xc7 && Bytes[3] == 0xd4 &&
-        Bytes[8] == 0x70 && Bytes[9] == 0x15 && Bytes[10] == 0x1f) {
+    if (BE_Bytes[0] == 0xcd && BE_Bytes[1] == 0x77 && BE_Bytes[2] == 0xc7 && BE_Bytes[3] == 0xd4 &&
+        BE_Bytes[8] == 0x70 && BE_Bytes[9] == 0x15 && BE_Bytes[10] == 0x1f) {
       MI.setOpcode(Xtensa::AE_ROUND32X2F64SSYM_REAL);
-      unsigned t = (insn1 >> 16) & 0xf;
-      unsigned s = (insn1 >> 6) & 0xf;
-      unsigned r = (insn1 >> 2) & 0xf;
+      unsigned t = (BE_insn1 >> 16) & 0xf;
+      unsigned s = (BE_insn1 >> 6) & 0xf;
+      unsigned r = (BE_insn1 >> 2) & 0xf;
 
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
@@ -861,15 +867,15 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
 
     // 5. AE_ROUND32X2F64SASYM_REAL & AE_ROUND24X2F48SSYM_REAL
-    if (Bytes[0] == 0x39 && Bytes[1] == 0x77 && Bytes[2] == 0xc6 && Bytes[3] == 0xc4 &&
-        Bytes[8] == 0x70 && Bytes[9] == 0x00 && Bytes[10] == 0x1f) {
-      unsigned sub = (insn1 >> 8) & 0xff;
+    if (BE_Bytes[0] == 0x39 && BE_Bytes[1] == 0x77 && BE_Bytes[2] == 0xc6 && BE_Bytes[3] == 0xc4 &&
+        BE_Bytes[8] == 0x70 && BE_Bytes[9] == 0x00 && BE_Bytes[10] == 0x1f) {
+      unsigned sub = (BE_insn1 >> 8) & 0xff;
       if (sub == 0x02) MI.setOpcode(Xtensa::AE_ROUND32X2F64SASYM_REAL);
       else MI.setOpcode(Xtensa::AE_ROUND24X2F48SSYM_REAL);
 
-      unsigned t = (insn2 >> 12) & 0xf;
-      unsigned s = (insn1 >> 20) & 0xf;
-      unsigned r = Bytes[8] & 0xf;
+      unsigned t = (BE_insn2 >> 12) & 0xf;
+      unsigned s = (BE_insn1 >> 20) & 0xf;
+      unsigned r = BE_Bytes[8] & 0xf;
 
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
       MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
