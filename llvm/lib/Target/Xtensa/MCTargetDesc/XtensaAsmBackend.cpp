@@ -228,7 +228,7 @@ void XtensaAsmBackend::applyFixup(const MCFragment &F, const MCFixup &Fixup,
   if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_jump_18) {
     if (IsResolved) {
       int64_t RelOffset = (int64_t)OrigValue - 4;
-      if (RelOffset >= -3 && RelOffset <= 0) {
+      if (RelOffset == -1) {
         if (IsLittleEndian) {
           Data[0] = 0xf0;
           Data[1] = 0x20;

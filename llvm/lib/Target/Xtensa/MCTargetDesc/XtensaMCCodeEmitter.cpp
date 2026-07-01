@@ -131,6 +131,9 @@ private:
   void getImm8n_7_x4OpValue(const MCInst &MI, unsigned OpNo, APInt &Value, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
 
   void getImm8n_7_x8OpValue(const MCInst &MI, unsigned OpNo, APInt &Value, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const;
+
+  bool isStandaloneHiFiInstr(const MCInst &MI, StringRef Name,
+                             const MCSubtargetInfo &STI) const;
 };
 } // namespace
 
@@ -292,15 +295,19 @@ static bool isBranchMCInst(const MCInst &Inst, const MCInstrInfo &MCII) {
          MCII.get(Inst.getOpcode()).isUnconditionalBranch();
 }
 
-static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
-  if (STI.hasFeature(Xtensa::FeatureHIFI4) || STI.hasFeature(Xtensa::FeatureHIFI5)) {
-    if (Name.starts_with("AE_MOVAE") ||
-        Name.starts_with("AE_MOVEA") ||
-        Name.starts_with("AE_MOVFCRFSRV") ||
-        Name.starts_with("AE_MOVVFCRFSR"))
-      return false;
-  }
-  return StringSwitch<bool>(Name)
+bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name,
+                                                const MCSubtargetInfo &STI) const {
+  bool IsStandalone = false;
+  if (Name.starts_with("AE_MOVDA32") || Name.starts_with("AE_MOVDA16")) {
+    IsStandalone = false;
+  } else if ((STI.hasFeature(Xtensa::FeatureHIFI4) || STI.hasFeature(Xtensa::FeatureHIFI5)) &&
+             (Name.starts_with("AE_MOVAE") ||
+              Name.starts_with("AE_MOVEA") ||
+              Name.starts_with("AE_MOVFCRFSRV") ||
+              Name.starts_with("AE_MOVVFCRFSR"))) {
+    IsStandalone = false;
+  } else {
+    IsStandalone = StringSwitch<bool>(Name)
       .StartsWith("AE_L32_I_HIFI4", true)
       .StartsWith("AE_L16_I_HIFI4", true)
       .StartsWith("AE_L32_X_HIFI4", true)
@@ -528,6 +535,23 @@ static bool isStandaloneHiFiInstr(StringRef Name, const MCSubtargetInfo &STI) {
       .StartsWith("AE_MOVDRZBVC", true)
       .StartsWith("AE_MOVZBVCDR", true)
       .Default(false);
+  }
+
+  if (!IsStandalone)
+    return false;
+
+  if (MCII.get(MI.getOpcode()).getSize() == 3) {
+    SmallVector<MCFixup, 4> LocalFixups;
+    APInt InstBits(128, 0);
+    APInt Scratch(128, 0);
+    getBinaryCodeForInstr(MI, LocalFixups, InstBits, Scratch, STI);
+    unsigned Low4 = InstBits.extractBitsAsZExtValue(4, 0);
+    if (Low4 >= 12) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
@@ -1192,7 +1216,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     return;
   }
 
-  if (Opcode == Xtensa::BUNDLE || (Name.starts_with("AE_") && !isStandaloneHiFiInstr(Name, STI))) {
+  if (Opcode == Xtensa::BUNDLE || (Name.starts_with("AE_") && !isStandaloneHiFiInstr(MI, Name, STI))) {
     SmallVector<const MCInst *, 4> SubInsts;
     if (Opcode == Xtensa::BUNDLE) {
       for (unsigned i = 0; i < MI.getNumOperands(); ++i) {

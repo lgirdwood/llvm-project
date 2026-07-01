@@ -1013,6 +1013,64 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
     return true;
   }
 
+  // AE_SAT24S
+  if ((Val & 0xfff0f0) == 0x1b7060) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_SAT24S);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+
+  // AE_SAT16X4
+  if ((Val & 0xfff000) == 0x19d000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_SAT16X4);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // AE_MAXABS32S
+  if ((Val & 0xfff000) == 0x18d000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_MAXABS32S);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // AE_ROUND32X2F48SSYM_HIFI3
+  if ((Val & 0xfff000) == 0x198000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_ROUND32X2F48SSYM_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // AE_ROUND16X4F32SSYM
+  if ((Val & 0xfff000) == 0x194000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned r = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_ROUND16X4F32SSYM);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    return true;
+  }
+
   // 1. AE_L16X4_X
   if ((Val & 0xfff000) == 0x1e1000) {
     unsigned r = (Val >> 8) & 0xf;
