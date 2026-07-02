@@ -1704,7 +1704,47 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
                          Op1, Op0);
     }
 
-    // v4i16: return UNDEF for now (extend later if needed)
+    if (VT == MVT::v4i16) {
+      SDValue Op0 = Op.getOperand(0);
+      SDValue Op1 = Op.getOperand(1);
+      SDValue Op2 = Op.getOperand(2);
+      SDValue Op3 = Op.getOperand(3);
+
+      // Check for all-zero vector
+      bool AllZero = true;
+      for (unsigned i = 0, e = Op.getNumOperands(); i != e; ++i) {
+        if (!isNullConstant(Op.getOperand(i)) && !Op.getOperand(i).isUndef()) {
+          AllZero = false;
+          break;
+        }
+      }
+      if (AllZero) {
+        return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, MVT::v4i16,
+                           DAG.getTargetConstant(Intrinsic::xtensa_ae_zero16, DL, MVT::i32));
+      }
+
+      if (Op0.isUndef()) Op0 = DAG.getConstant(0, DL, MVT::i32);
+      if (Op1.isUndef()) Op1 = DAG.getConstant(0, DL, MVT::i32);
+      if (Op2.isUndef()) Op2 = DAG.getConstant(0, DL, MVT::i32);
+      if (Op3.isUndef()) Op3 = DAG.getConstant(0, DL, MVT::i32);
+
+      Op0 = DAG.getZExtOrTrunc(Op0, DL, MVT::i32);
+      Op1 = DAG.getZExtOrTrunc(Op1, DL, MVT::i32);
+      Op2 = DAG.getZExtOrTrunc(Op2, DL, MVT::i32);
+      Op3 = DAG.getZExtOrTrunc(Op3, DL, MVT::i32);
+
+      SDValue LoSh = DAG.getNode(ISD::SHL, DL, MVT::i32, Op1, DAG.getConstant(16, DL, MVT::i32));
+      SDValue LoMask = DAG.getNode(ISD::AND, DL, MVT::i32, Op0, DAG.getConstant(0xffff, DL, MVT::i32));
+      SDValue Lo = DAG.getNode(ISD::OR, DL, MVT::i32, LoSh, LoMask);
+
+      SDValue HiSh = DAG.getNode(ISD::SHL, DL, MVT::i32, Op3, DAG.getConstant(16, DL, MVT::i32));
+      SDValue HiMask = DAG.getNode(ISD::AND, DL, MVT::i32, Op2, DAG.getConstant(0xffff, DL, MVT::i32));
+      SDValue Hi = DAG.getNode(ISD::OR, DL, MVT::i32, HiSh, HiMask);
+
+      SDValue V2 = DAG.getNode(ISD::BUILD_VECTOR, DL, MVT::v2i32, Lo, Hi);
+      return DAG.getNode(ISD::BITCAST, DL, MVT::v4i16, V2);
+    }
+
     return DAG.getUNDEF(VT);
   }
   case ISD::EXTRACT_VECTOR_ELT: {
