@@ -74,6 +74,16 @@ bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineFunction &MF = *MI.getParent()->getParent();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   uint64_t StackSize = MF.getFrameInfo().getStackSize();
+  
+  // Round up StackSize to 16*N to match final stack size
+  StackSize += (16 - StackSize) & 0xf;
+  if (MF.getSubtarget<XtensaSubtarget>().isWindowedABI()) {
+    StackSize += 32;
+    uint64_t MaxAlignment = MF.getFrameInfo().getMaxAlign().value();
+    if (MaxAlignment > 32)
+      StackSize += MaxAlignment;
+  }
+
   int64_t SPOffset = MF.getFrameInfo().getObjectOffset(FrameIndex);
   MachineFrameInfo &MFI = MF.getFrameInfo();
   const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();

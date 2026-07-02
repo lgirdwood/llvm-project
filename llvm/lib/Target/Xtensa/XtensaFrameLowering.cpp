@@ -74,24 +74,20 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
 
       BuildMI(MBB, MBBI, DL, TII.get(Xtensa::ENTRY))
           .addReg(SP)
-          .addImm(MIN_FRAME_SIZE);
-      TII.loadImmediate(MBB, MBBI, &TmpReg, StackSize - MIN_FRAME_SIZE);
+          .addImm(32);
+      TII.loadImmediate(MBB, MBBI, &TmpReg, StackSize - 32);
       BuildMI(MBB, MBBI, DL, TII.get(Xtensa::SUB), TmpReg)
           .addReg(SP)
           .addReg(TmpReg);
       BuildMI(MBB, MBBI, DL, TII.get(Xtensa::MOVSP), SP).addReg(TmpReg);
     }
 
-    // Calculate how much is needed to have the correct alignment.
-    // Change offset to: alignment + difference.
-    // For example, in case of alignment of 128:
-    // diff_to_128_aligned_address = (128 - (SP & 127))
-    // new_offset = SP + diff_to_128_aligned_address
-    // This is safe to do because we increased the stack size by MaxAlignment.
-    MCRegister Reg = Xtensa::A8;
-    MCRegister RegMisAlign = Xtensa::A9;
-
     if (MaxAlignment > 32) {
+      // diff_to_128_aligned_address = (128 - (SP & 127))
+      // new_offset = SP + diff_to_128_aligned_address
+      // This is safe to do because we increased the stack size by MaxAlignment.
+      MCRegister Reg = Xtensa::A8;
+      MCRegister RegMisAlign = Xtensa::A9;
       TII.loadImmediate(MBB, MBBI, &RegMisAlign, MaxAlignment - 1);
       TII.loadImmediate(MBB, MBBI, &Reg, MaxAlignment);
       BuildMI(MBB, MBBI, DL, TII.get(Xtensa::AND))
