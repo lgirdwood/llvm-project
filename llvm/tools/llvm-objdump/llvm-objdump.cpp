@@ -2070,7 +2070,7 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
     std::vector<RelocationRef>::const_iterator RelEnd = Rels.end();
     std::string CurrentRISCVVendorSymbol;
     uint64_t CurrentRISCVVendorOffset = 0;
-
+    StringRef LastPrintedLiteralSymbol;
     // Loop over each chunk of code between two points where at least
     // one symbol is defined.
     for (size_t SI = 0, SE = Symbols.size(); SI != SE;) {
@@ -2313,11 +2313,36 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
                                   SectionAddr, Index, End, AllLabels);
         collectBBAddrMapLabels(FullAddrMap, SectionAddr, Index, End,
                                BBAddrMapLabels);
+      } else if (Obj.getArch() == Triple::xtensa) {
+        collectLocalBranchTargets(Bytes, DT->InstrAnalysis.get(),
+                                  DT->DisAsm.get(), DT->InstPrinter.get(),
+                                  PrimaryTarget.SubtargetInfo.get(),
+                                  SectionAddr, Index, End, AllLabels);
       }
 
       if (DT->InstrAnalysis)
         DT->InstrAnalysis->resetState();
 
+      bool IsLiteralSymbol = false;
+      if (Obj.getArch() == Triple::xtensa) {
+        for (const StringRef &Name : SymNamesHere) {
+          if (Name.contains(".literals") || Name.contains(".literal") || Name.starts_with(".literal")) {
+            IsLiteralSymbol = true;
+            break;
+          }
+        }
+      }
+
+      uint64_t MaxBranchTarget = Start;
+      if (Obj.getArch() == Triple::xtensa) {
+        for (const auto &Label : AllLabels) {
+          if (Label.first > MaxBranchTarget && Label.first < End) {
+            MaxBranchTarget = Label.first;
+          }
+        }
+      }
+
+      bool AfterFinalReturn = false;
       bool InXtensaLiteralPool = false;
       while (Index < End) {
         uint64_t RelOffset;
@@ -2426,15 +2451,32 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
           MCInst Inst;
           ArrayRef<uint8_t> ThisBytes = Bytes.slice(Index);
           uint64_t ThisAddr = SectionAddr + Index + VMAAdjustment;
-          bool Disassembled = DT->DisAsm->getInstruction(
-              Inst, Size, ThisBytes, ThisAddr, CommentStream);
-          if (Size == 0)
-            Size = std::min<uint64_t>(
-                ThisBytes.size(),
-                DT->DisAsm->suggestBytesToSkip(ThisBytes, ThisAddr));
+          bool Disassembled = false;
+          if (IsLiteralSymbol || (Obj.getArch() == Triple::xtensa && AfterFinalReturn)) {
+            Disassembled = false;
+            Size = std::min<uint64_t>(4, End - Index);
+          } else {
+            Disassembled = DT->DisAsm->getInstruction(
+                Inst, Size, ThisBytes, ThisAddr, CommentStream);
+            if (Size == 0) {
+              Size = std::min<uint64_t>(
+                  ThisBytes.size(),
+                  DT->DisAsm->suggestBytesToSkip(ThisBytes, ThisAddr));
+            } else if (Size > 0 && Index + Size > End) {
+              Disassembled = false;
+              Size = End - Index;
+            } else if (Size > 0 && Disassembled && Obj.getArch() == Triple::xtensa &&
+                       DT->InstrAnalysis && DT->InstrAnalysis->isReturn(Inst) &&
+                       ThisAddr >= MaxBranchTarget) {
+              AfterFinalReturn = true;
+            }
+          }
 
           bool IsXtensaLiteral = (Obj.getArch() == Triple::xtensa && !Disassembled && Size == 4);
-          if (IsXtensaLiteral && !InXtensaLiteralPool) {
+          if (IsLiteralSymbol)
+            IsXtensaLiteral = true;
+
+           if (IsXtensaLiteral && !InXtensaLiteralPool) {
             InXtensaLiteralPool = true;
             const SymbolInfoTy *NextSym = nullptr;
             for (const SymbolInfoTy &Sym : Symbols) {
@@ -2444,11 +2486,15 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
                 }
               }
             }
-            FOS << "\n";
-            if (NextSym) {
-              FOS << "<" << NextSym->Name << ".literals>:\n";
-            } else {
-              FOS << "<.literals>:\n";
+            StringRef NextSymName = NextSym ? NextSym->Name : StringRef();
+            if (NextSymName != LastPrintedLiteralSymbol) {
+              LastPrintedLiteralSymbol = NextSymName;
+              FOS << "\n";
+              if (NextSym) {
+                FOS << "<" << NextSym->Name << ".literals>:\n";
+              } else {
+                FOS << "<.literals>:\n";
+              }
             }
           } else if (!IsXtensaLiteral) {
             InXtensaLiteralPool = false;

@@ -20,6 +20,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -415,6 +416,32 @@ bool Xtensa::compress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &
   return false;
 }
 
+namespace {
+class XtensaMCInstrAnalysis : public MCInstrAnalysis {
+public:
+  XtensaMCInstrAnalysis(const MCInstrInfo *Info) : MCInstrAnalysis(Info) {}
+
+  bool evaluateBranch(const MCInst &Inst, uint64_t Addr, uint64_t Size,
+                      uint64_t &Target) const override {
+    unsigned NumOps = Inst.getNumOperands();
+    if (NumOps == 0)
+      return false;
+
+    const MCOperand &LastOp = Inst.getOperand(NumOps - 1);
+    if (!LastOp.isImm())
+      return false;
+
+    int64_t Offset = LastOp.getImm();
+    Target = Addr + Offset + 4;
+    return true;
+  }
+};
+} // end anonymous namespace
+
+static MCInstrAnalysis *createXtensaMCInstrAnalysis(const MCInstrInfo *Info) {
+  return new XtensaMCInstrAnalysis(Info);
+}
+
 static MCAsmInfo *createXtensaMCAsmInfo(const MCRegisterInfo &MRI,
                                         const Triple &TT,
                                         const MCTargetOptions &Options) {
@@ -496,4 +523,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTargetMC() {
   // Register the ELF target streamer.
   TargetRegistry::RegisterObjectTargetStreamer(
       getTheXtensaTarget(), createXtensaObjectTargetStreamer);
+
+  // Register the MCInstrAnalysis.
+  TargetRegistry::RegisterMCInstrAnalysis(getTheXtensaTarget(),
+                                          createXtensaMCInstrAnalysis);
 }
