@@ -937,9 +937,9 @@ class AE_Sel_Inst<bits<4> op0, bits<4> op1, bits<4> op_7_4, dag outs, dag ins, s
                                 [(set AR:$r, (int_xtensa_ae_le64 AEDR:$s, AEDR:$t))]>;
   }
   // Miscellaneous operations
-  def AE_NSAZ32_L : RRR_Inst<0x05, 0x04, 0x0f, (outs AR:$r), (ins AEDR:$s),
+  def AE_NSAZ32_L : RRR_Inst<0x04, 0x05, 0x02, (outs AR:$r), (ins AEDR:$s),
                              "ae_nsaz32.l\t$r, $s", []> {
-    let t = 2;
+    let t = 0xf;
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
@@ -1432,29 +1432,29 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
                                 
   
 
-  def AE_MOVAD32_L : RRR_Inst<0x05, 0x04, 0x0c, (outs AR:$r), (ins AEDR:$s),
+  def AE_MOVAD32_L : RRR_Inst<0x04, 0x05, 0x02, (outs AR:$r), (ins AEDR:$s),
                               "ae_movad32.l\t$r, $s", []> {
-    let t = 2;
+    let t = 0xc;
   }
-  def AE_MOVAD32_H : RRR_Inst<0x05, 0x04, 0x0b, (outs AR:$r), (ins AEDR:$s),
+  def AE_MOVAD32_H : RRR_Inst<0x04, 0x05, 0x02, (outs AR:$r), (ins AEDR:$s),
                               "ae_movad32.h\t$r, $s", []> {
-    let t = 2;
+    let t = 0xb;
   }
   def AE_MOVDA32 : RRR_Inst<0x0c, 0x04, 0x03, (outs AEDR:$r), (ins AR:$s),
                              "ae_movda32\t$r, $s", []> {
     let t = 3;
   }
-  def AE_MOVAD16_0 : RRR_Inst<0x05, 0x04, 0x08, (outs AR:$r), (ins AEDR:$s),
+  def AE_MOVAD16_0 : RRR_Inst<0x04, 0x05, 0x02, (outs AR:$r), (ins AEDR:$s),
                               "ae_movad16.0\t$r, $s", []> {
-    let t = 2;
+    let t = 0x8;
   }
-  def AE_MOVAD16_2 : RRR_Inst<0x05, 0x04, 0x09, (outs AR:$r), (ins AEDR:$s),
+  def AE_MOVAD16_2 : RRR_Inst<0x04, 0x05, 0x02, (outs AR:$r), (ins AEDR:$s),
                               "ae_movad16.2\t$r, $s", []> {
-    let t = 2;
+    let t = 0x9;
   }
-  def AE_MOVAD16_3 : RRR_Inst<0x05, 0x04, 0x0a, (outs AR:$r), (ins AEDR:$s),
+  def AE_MOVAD16_3 : RRR_Inst<0x04, 0x05, 0x02, (outs AR:$r), (ins AEDR:$s),
                               "ae_movad16.3\t$r, $s", []> {
-    let t = 2;
+    let t = 0xa;
   }
   def AE_MOVDA32X2 : RRR_Inst<0x04, 0x05, 0x01, (outs AEDR:$r), (ins AR:$s, AR:$t),
                               "ae_movda32x2\t$r, $s, $t",
