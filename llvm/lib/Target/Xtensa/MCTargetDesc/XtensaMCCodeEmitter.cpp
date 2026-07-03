@@ -299,7 +299,10 @@ bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name
                                                 const MCSubtargetInfo &STI) const {
   bool IsStandalone = false;
   if (Name.starts_with("AE_MOVDA32") || Name.starts_with("AE_MOVDA16")) {
-    IsStandalone = false;
+    // These build-from-AR moves (ae_movda32, ae_movda32x2, ae_movda16) have
+    // valid standalone 24-bit encodings matching GNU-as. Emitting them as FLIX
+    // slot bundles produces a malformed 6-byte packet that faults on ACE15 HW.
+    IsStandalone = true;
   } else if ((STI.hasFeature(Xtensa::FeatureHIFI4) || STI.hasFeature(Xtensa::FeatureHIFI5)) &&
              (Name.starts_with("AE_MOVAE") ||
               Name.starts_with("AE_MOVEA") ||
@@ -390,7 +393,12 @@ bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name
       .StartsWith("AE_L16M_XU", true)
       .StartsWith("AE_L32F24_XC", true)
       .StartsWith("AE_L32M_X", true)
-      // AE_L32X2* are bundleable
+      // AE_L32X2 indexed loads have valid standalone 24-bit encodings matching
+      // GNU-as; FLIX-bundling them yields a malformed 6-byte packet that faults
+      // on ACE15 HW (wild-address load).
+      .StartsWith("AE_L32X2_IP", true)
+      .StartsWith("AE_L32X2_I", true)
+      .StartsWith("AE_L32X2_X", true)
       .StartsWith("AE_S64_I_HIFI3", true)
       .StartsWith("AE_S16_0_X", true)
       .StartsWith("AE_S16_0_XC", true)
@@ -405,7 +413,12 @@ bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name
       .StartsWith("AE_S32_L_XC1", true)
       .StartsWith("AE_L16_XC", true)
       .StartsWith("AE_S32_L_XC", true)
-      // AE_S32X2* and AE_S16X2M_I are bundleable
+      // AE_S32X2 indexed stores have valid standalone 24-bit encodings matching
+      // GNU-as; FLIX-bundling them yields a malformed 6-byte packet that faults
+      // on ACE15 HW (wild-address store -> stack/BSA corruption).
+      .StartsWith("AE_S32X2_IP", true)
+      .StartsWith("AE_S32X2_I", true)
+      .StartsWith("AE_S32X2_X", true)
       .StartsWith("AE_LA128_PP_HIFI5", true)
       .StartsWith("AE_SA128POS_FP_HIFI5", true)
       .StartsWith("AE_CVT48A32", true)
@@ -1145,12 +1158,15 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
   }
 
   if (Opcode == Xtensa::AE_S32_L_X) {
+    // Operands: (AEDR $t, AR base $s, AR offreg $r). GNU ground truth:
+    // ae_s32.l.x = word 0xe20344 (mem bytes 44 03 e2): op0=0x4, {23-20}=0xe,
+    // {19-16}=0x2, aedr@{15-12}, base@{11-8}, offreg@{7-4}. Emit in memory order.
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    CB.push_back(char(0xe2));
-    CB.push_back(char((r << 4) | s));
     CB.push_back(char((t << 4) | 0x04));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0xe2));
     return;
   }
 
@@ -1227,6 +1243,30 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       }
     } else {
       SubInsts.push_back(&MI);
+    }
+
+    // Whole-class fix: a lone HiFi instruction that has a valid standalone
+    // 24-bit encoding must NOT be slot-encoded into a FLIX bundle. clang can
+    // wrap a single AE memory op in an Xtensa::BUNDLE even with -flix disabled;
+    // routing it through the hand-written slot tables yields a malformed 6-byte
+    // packet whose address side effects (post-increment / base) differ from the
+    // standalone form. On ACE15 HW this produces wild loads/stores that corrupt
+    // the stack. Emit the standalone encoding instead when the sole sub-inst is
+    // classified as a standalone HiFi instruction.
+    if (SubInsts.size() == 1) {
+      const MCInst &Sole = *SubInsts[0];
+      StringRef SoleName = MCII.getName(Sole.getOpcode());
+      if (isStandaloneHiFiInstr(Sole, SoleName, STI)) {
+        APInt SoleInst(128, 0);
+        APInt SoleScratch(128, 0);
+        getBinaryCodeForInstr(Sole, Fixups, SoleInst, SoleScratch, STI);
+        unsigned SoleSize = MCII.get(Sole.getOpcode()).getSize();
+        for (unsigned I = 0; I != SoleSize; ++I) {
+          uint64_t Byte = SoleInst.extractBitsAsZExtValue(8, I * 8);
+          CB.push_back(char(Byte));
+        }
+        return;
+      }
     }
 
     int AssignedSlots[4] = {-1, -1, -1, -1};

@@ -820,26 +820,26 @@ class AE_Sel_Inst<bits<4> op0, bits<4> op1, bits<4> op_7_4, dag outs, dag ins, s
   def AE_ADD16_HIFI3 : RRR_Inst<0x5, 0x5, 0x7, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_add16\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_add16 AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
-  def AE_ADD32_HIFI3 : RRR_Inst<0x5, 0x5, 0x8, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+  def AE_ADD32_HIFI3 : RRR_Inst<0x4, 0x0, 0x3, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_add32\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_add32 AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
-  def AE_ADD32S_HIFI3 : RRR_Inst<0x5, 0x5, 0x9, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+  def AE_ADD32S_HIFI3 : RRR_Inst<0x4, 0x0, 0x4, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_add32s\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_add32s AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
-  def AE_ADD64_HIFI3 : RRR_Inst<0x5, 0x5, 0xA, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+  def AE_ADD64_HIFI3 : RRR_Inst<0x4, 0x1, 0x3, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_add64\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_add64 AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
 
   def AE_SUB16_HIFI3 : RRR_Inst<0x5, 0x5, 0xB, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_sub16\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_sub16 AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
-  def AE_SUB32_HIFI3 : RRR_Inst<0x5, 0x5, 0xC, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+  def AE_SUB32_HIFI3 : RRR_Inst<0x4, 0xc, 0x4, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_sub32\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_sub32 AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
-  def AE_SUB32S_HIFI3 : RRR_Inst<0x5, 0x5, 0xD, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+  def AE_SUB32S_HIFI3 : RRR_Inst<0x4, 0xf, 0x4, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_sub32s\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_sub32s AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
-  def AE_SUB64_HIFI3 : RRR_Inst<0x5, 0x5, 0xE, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
+  def AE_SUB64_HIFI3 : RRR_Inst<0x4, 0xd, 0x4, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                 "ae_sub64\t$r, $s, $t",
                                 [(set AEDR:$r, (int_xtensa_ae_sub64 AEDR:$s, AEDR:$t))]> { let DecoderNamespace = "XtensaHIFI3"; let Predicates = [HasHIFI3]; }
 
@@ -1072,6 +1072,10 @@ let mayLoad = 1 in {
                              "ae_l32x2.ip\t$r, $s, $t",
                              [(set AEDR:$r, AR:$s_out, (int_xtensa_ae_l32x2_ip AR:$s, uimm4_x8:$t))]> {
     let Inst{19-16} = 0xE;
+    // GNU-as encodes the post-increment immediate as t = 0x8 | (offset/8), i.e.
+    // bit 7 of the t field is always set (offset range 0..56). The base format
+    // binds all of Inst{7-4}=t (= offset/8), so force bit 7 high here.
+    let Inst{7} = 1;
     let Constraints = "$s = $s_out";
   }
   def AE_L32X2_XC : RRR_Inst<0x04, 0x00, 0x0C, (outs AEDR:$r, AR:$s_out), (ins AR:$s, AR:$t),
@@ -1214,11 +1218,14 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
     bits<4> r;
     bits<4> s;
     bits<4> t;
-    let Inst{23-20} = t;
-    let Inst{19-16} = 0x4;
+    // GNU ground truth: ae_s32.l.xp $r,$s,$t = word 0xe30344 (mem bytes 44 03 e3):
+    //   {23-20}=0xe, {19-16}=0x3, aedr@{15-12}, base@{11-8}, offreg@{7-4}, op0=0x4.
+    let Inst{23-20} = 0xe;
+    let Inst{19-16} = 0x3;
     let Inst{15-12} = r;
     let Inst{11-8} = s;
-    let Inst{7-0} = 0xe3;
+    let Inst{7-4} = t;
+    let Inst{3-0} = 0x4;
     let Constraints = "$s = $s_out";
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
@@ -1229,10 +1236,14 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
     bits<4> t;
     bits<4> s;
     bits<4> r;
-    let Inst{3-0} = t;
-    let Inst{7-4} = s;
-    let Inst{11-8} = r;
-    let Inst{23-12} = 0x666;
+    // GNU ground truth: ae_s32.l.x $t,$s,$r = word 0xe20344 (mem bytes 44 03 e2):
+    //   {23-20}=0xe, {19-16}=0x2, aedr($t)@{15-12}, base($s)@{11-8}, offreg($r)@{7-4}, op0=0x4.
+    let Inst{3-0} = 0x4;
+    let Inst{7-4} = r;
+    let Inst{11-8} = s;
+    let Inst{15-12} = t;
+    let Inst{19-16} = 0x2;
+    let Inst{23-20} = 0xe;
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
@@ -1333,7 +1344,7 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
   }
 
   let Predicates = [HasHIFI3], mayStore = 1 in {
-    def AE_S32X2_I : RRR_AE_Inst<0x09, 0x04, 0x0E, (outs), (ins AEDR:$r, AR:$s, imm8n_7_x8:$t),
+    def AE_S32X2_I : RRR_AE_Inst<0x0E, 0x09, 0x04, (outs), (ins AEDR:$r, AR:$s, imm8n_7_x8:$t),
                                  "ae_s32x2.i\t$r, $s, $t",
                                  [(int_xtensa_ae_s32x2_i AEDR:$r, AR:$s, imm8n_7_x8:$t)]>;
 
@@ -1341,13 +1352,13 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
                                   "ae_s16x2m.i\t$r, $s, $t",
                                   [(int_xtensa_ae_s16x2m_i AEDR:$r, AR:$s, imm8n_7_x4:$t)]>;
 
-    def AE_S32X2_IP : RRR_AE_Inst<0x02, 0x04, 0x06, (outs AR:$s_out), (ins AEDR:$r, AR:$s, uimm4_x8:$t),
+    def AE_S32X2_IP : RRR_AE_Inst<0x06, 0x02, 0x04, (outs AR:$s_out), (ins AEDR:$r, AR:$s, uimm4_x8:$t),
                                   "ae_s32x2.ip\t$r, $s, $t",
                                   [(set AR:$s_out, (int_xtensa_ae_s32x2_ip AEDR:$r, AR:$s, uimm4_x8:$t))]> {
       let Constraints = "$s = $s_out";
     }
 
-    def AE_S32X2_X : RRR_AE_Inst<0x0A, 0x04, 0x0E, (outs), (ins AEDR:$r, AR:$s, AR:$t),
+    def AE_S32X2_X : RRR_AE_Inst<0x0E, 0x0A, 0x04, (outs), (ins AEDR:$r, AR:$s, AR:$t),
                                  "ae_s32x2.x\t$r, $s, $t",
                                  [(int_xtensa_ae_s32x2_x AEDR:$r, AR:$s, AR:$t)]>;
 
@@ -1440,7 +1451,7 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
                               "ae_movad32.h\t$r, $s", []> {
     let t = 0xb;
   }
-  def AE_MOVDA32 : RRR_Inst<0x0c, 0x04, 0x03, (outs AEDR:$r), (ins AR:$s),
+  def AE_MOVDA32 : RRR_Inst<0x04, 0x0c, 0x03, (outs AEDR:$r), (ins AR:$s),
                              "ae_movda32\t$r, $s", []> {
     let t = 3;
   }
@@ -2533,9 +2544,9 @@ let Predicates = [HasHIFI3] in {
   def AE_ZEXT16 : AE_SEXT_ZEXT_Inst<0x9, (outs AR:$r), (ins AR:$s),
                                    "ae_zext16\t$r, $s", []>;
 
-  def AE_MOVDA16 : RRR_Inst<0x0c, 0x03, 0x02, (outs AEDR:$r), (ins AR:$s),
+  def AE_MOVDA16 : RRR_Inst<0x04, 0x0c, 0x03, (outs AEDR:$r), (ins AR:$s),
                              "ae_movda16\t$r, $s", []> {
-    let t = 4;
+    let t = 2;
     // Swap r and s fields compared to standard RRR_Inst to match hardware encoding
     let Inst{15-12} = r;
     let Inst{11-8} = s;
