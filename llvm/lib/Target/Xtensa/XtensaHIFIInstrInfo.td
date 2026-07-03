@@ -3125,15 +3125,15 @@ let Predicates = [HasHIFI3] in {
 
   def AE_SA64POS_FP_REAL : XtensaInst24<(outs), (ins valign_op:$align, AR:$s),
                                         "ae_sa64pos.fp\t$align, $s", []> {
-    let isCodeGenOnly = 1;
     bits<4> s;
+    bits<2> align;
 
-    let Inst{23-22} = 3;
-    let Inst{21-20} = 1; // u1 is hardcoded
-    let Inst{19-16} = 4;
+    let Inst{23-16} = 0x77;
     let Inst{15-12} = 3;
     let Inst{11-8}  = s;
-    let Inst{7-0}   = 0x77;
+    let Inst{7-6}   = 3;
+    let Inst{5-4}   = align;
+    let Inst{3-0}   = 4;
 
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
@@ -3149,19 +3149,21 @@ let Predicates = [HasHIFI3] in {
 
   def AE_LA32X2POS_PC_REAL : XtensaInst24<(outs), (ins AR:$s),
                                           "ae_la32x2pos.pc\tu0, $s", []> {
-    let isCodeGenOnly = 1;
     bits<4> s;
 
-    let Inst{23-22} = 3;
-    let Inst{21-20} = 0; // u0 is hardcoded
-    let Inst{19-16} = 4;
+    let Inst{23-16} = 0x77;
     let Inst{15-12} = 1;
     let Inst{11-8}  = s;
-    let Inst{7-0}   = 0x77;
+    let Inst{7-6}   = 3;
+    let Inst{5-4}   = 0;
+    let Inst{3-0}   = 4;
 
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
+
+  def : InstAlias<"ae_la32x2pos.pc A0, $s", (AE_LA32X2POS_PC_REAL AR:$s)>;
+  def : InstAlias<"ae_la16x4pos.pc A0, $s", (AE_LA16X4POS_PC_REAL AR:$s)>;
 }
 
 let Predicates = [HasHIFI5], DecoderNamespace = "XtensaHIFI5" in {

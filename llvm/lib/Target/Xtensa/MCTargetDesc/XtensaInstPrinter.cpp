@@ -90,9 +90,15 @@ void XtensaInstPrinter::printVALIGNOperand(const MCInst *MI, int OpNum,
                                            raw_ostream &O) {
   if (MI->getOperand(OpNum).isReg()) {
     unsigned Reg = MI->getOperand(OpNum).getReg();
-    // Map A0-A3 to u0-u3 for output
-    if (Reg >= Xtensa::A0 && Reg <= Xtensa::A3)
-      O << "u" << (Reg - Xtensa::A0);
+    // Map A0, SP, A2, A3 to u0-u3 for output
+    if (Reg == Xtensa::A0)
+      O << "u0";
+    else if (Reg == Xtensa::SP)
+      O << "u1";
+    else if (Reg == Xtensa::A2)
+      O << "u2";
+    else if (Reg == Xtensa::A3)
+      O << "u3";
     else
       printOperand(MI, OpNum, O);
   } else {
