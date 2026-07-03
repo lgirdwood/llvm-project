@@ -378,6 +378,12 @@ bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name
       .StartsWith("AE_SRAI64_HIFI3", true)
       .StartsWith("AE_SLAA64S_HIFI3", true)
       .StartsWith("AE_SRAI32R_HIFI3", true)
+      // NOTE: AE_ADD16/AE_SUB16 (non-saturating) have NO valid standalone
+      // 24-bit encoding on ACE15 (GNU-as only emits them inside an 88-bit FLIX
+      // bundle). The plain RRR encoding uses op0=0x5 which decodes as base-ISA
+      // call0 and faults. They are (wrongly) kept "standalone" here because the
+      // generic slot path only yields a malformed 6-byte packet; a proper fix
+      // needs a hand-written slot-encoding case + 88-bit format (see TODO).
       .StartsWith("AE_ADD16_HIFI3", true)
       .StartsWith("AE_ADD32_HIFI3", true)
       .StartsWith("AE_ADD32S_HIFI3", true)
