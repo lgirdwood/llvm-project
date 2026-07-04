@@ -38,7 +38,8 @@ enum XtensaCPKind {
 
 enum XtensaCPModifier {
   no_modifier, // None
-  TPOFF        // Thread Pointer Offset
+  TPOFF,       // Thread Pointer Offset
+  PLT          // Procedure Linkage Table
 };
 } // namespace XtensaCP
 

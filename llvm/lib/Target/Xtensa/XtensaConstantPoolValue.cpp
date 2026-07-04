@@ -41,6 +41,8 @@ StringRef XtensaConstantPoolValue::getModifierText() const {
     return "";
   case XtensaCP::TPOFF:
     return "@TPOFF";
+  case XtensaCP::PLT:
+    return "";
   }
   report_fatal_error("Unknown modifier!");
 }
