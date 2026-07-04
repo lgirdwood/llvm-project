@@ -168,39 +168,17 @@ struct AllowedSlots {
 
 static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII) {
   unsigned Opc = Inst.getOpcode();
-  AllowedSlots Allowed;
-
-  if (Opc == Xtensa::NOP || Opc == Xtensa::NOP_N) {
-    Allowed.Slot0 = true;
-    Allowed.Slot1 = true;
-    Allowed.Slot2 = true;
-    Allowed.Slot3 = true;
-    return Allowed;
-  }
-
   const MCInstrDesc &Desc = MCII.get(Opc);
   StringRef Name = MCII.getName(Opc);
+  AllowedSlots Allowed;
 
   // HiFi instructions
   if (Name.starts_with("AE_")) {
-    if (Name == "AE_MIN_S" || Name == "AE_MAX_S") {
-      Allowed.Slot2 = true;
-      return Allowed;
-    }
     if (Name.starts_with("AE_ABS32_HIFI3") || Name.starts_with("AE_ABS64S_HIFI3") ||
         Name.starts_with("AE_ABSSQ56S_HIFI3") || Name.starts_with("AE_ADDSQ56S_HIFI3") ||
         Name.starts_with("AE_ADDSUB32_HIFI3") || Name.starts_with("AE_ADDSUB32S_HIFI3") ||
-        Name.starts_with("AE_ADDANDSUB32S") ||
         Name == "AE_SLAI64S_HIFI3" || Name.starts_with("AE_SEXT32X2D16_10")) {
       Allowed.Slot0 = true;
-      return Allowed;
-    }
-    if (Name.ends_with("_S2")) {
-      Allowed.Slot2 = true;
-      return Allowed;
-    }
-    if (Name.ends_with("_S3")) {
-      Allowed.Slot3 = true;
       return Allowed;
     }
     if (Desc.mayLoad() && !Desc.mayStore()) {
@@ -209,7 +187,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
     if (Name.starts_with("AE_MUL")) {
-      Allowed.Slot3 = true;
+      Allowed.Slot2 = true;
       return Allowed;
     }
     if (Name.starts_with("AE_ROUND") || Name.starts_with("AE_SAT") ||
@@ -218,7 +196,6 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
         Name.starts_with("AE_MIN") || Name.starts_with("AE_ABS") ||
         Name.starts_with("AE_NEG") || Name.starts_with("AE_TRUNC") ||
         Name.starts_with("AE_PKSR") || Name.starts_with("AE_SEXT")) {
-      Allowed.Slot2 = true;
       Allowed.Slot3 = true;
       return Allowed;
     }
@@ -228,25 +205,16 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
 
-    if (Name.starts_with("AE_MOV") &&
-        !Name.starts_with("AE_MOVAE") &&
-        !Name.starts_with("AE_MOVEA") &&
-        !Name.starts_with("AE_MOVFCRFSRV") &&
-        !Name.starts_with("AE_MOVVFCRFSR")) {
-      Allowed.Slot0 = true;
-      Allowed.Slot1 = true;
-      Allowed.Slot2 = true;
-      Allowed.Slot3 = true;
-      return Allowed;
-    }
-
     if (Name.starts_with("AE_ADD") || Name.starts_with("AE_SUB") ||
         Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
         Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
+        (Name.starts_with("AE_MOV") &&
+         !Name.starts_with("AE_MOVAE") &&
+         !Name.starts_with("AE_MOVEA") &&
+         !Name.starts_with("AE_MOVFCRFSRV") &&
+         !Name.starts_with("AE_MOVVFCRFSR")) ||
         Name.starts_with("AE_ZERO")) {
       Allowed.Slot1 = true;
-      Allowed.Slot2 = true;
-      Allowed.Slot3 = true;
       return Allowed;
     }
     Allowed.Slot0 = true;
@@ -255,22 +223,15 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
 
   // Scalar instructions
   switch (Opc) {
-  // Memory Loads (Slot 0 or Slot 1)
+  // Memory (Strictly Slot 0)
   case Xtensa::L32I:
+  case Xtensa::S32I:
+  case Xtensa::L32R:
   case Xtensa::L8UI:
   case Xtensa::L16UI:
   case Xtensa::L16SI:
-  case Xtensa::L32I_N:
-    Allowed.Slot0 = true;
-    Allowed.Slot1 = true;
-    break;
-
-  // Memory Stores and L32R (Strictly Slot 0)
-  case Xtensa::S32I:
-  case Xtensa::L32R:
   case Xtensa::S8I:
   case Xtensa::S16I:
-  case Xtensa::S32I_N:
     Allowed.Slot0 = true;
     break;
 
@@ -318,78 +279,12 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
     Allowed.Slot1 = true;
     break;
 
-  // Scalar float compare instructions (Slot 0 only)
-  case Xtensa::OLT_S:
-  case Xtensa::OLE_S:
-  case Xtensa::OEQ_S:
-  case Xtensa::UEQ_S:
-  case Xtensa::ULT_S:
-  case Xtensa::ULE_S:
-  case Xtensa::UN_S:
-    Allowed.Slot0 = true;
-    break;
-
-  // Scalar float min/max/abs (Slot 2 only)
-  case Xtensa::MIN_S:
-  case Xtensa::MAX_S:
-  case Xtensa::ABS_S:
-  case Xtensa::ADDEXP_S:
-  case Xtensa::ADDEXPM_S:
-  case Xtensa::CEIL_S:
-  case Xtensa::CONST_S:
-  case Xtensa::DIV0_S:
-  case Xtensa::DIVN_S:
-  case Xtensa::FLOAT_S:
-  case Xtensa::FLOOR_S:
-  case Xtensa::MADDN_S:
-  case Xtensa::MKDADJ_S:
-  case Xtensa::MKSADJ_S:
-  case Xtensa::MOV_S:
-  case Xtensa::MOVEQZ_S:
-  case Xtensa::MOVF_S:
-  case Xtensa::MOVGEZ_S:
-  case Xtensa::MOVLTZ_S:
-  case Xtensa::MOVNEZ_S:
-  case Xtensa::MOVT_S:
-  case Xtensa::NEXP01_S:
-  case Xtensa::RECIP0_S:
-  case Xtensa::RFR:
-  case Xtensa::ROUND_S:
-  case Xtensa::RSQRT0_S:
-  case Xtensa::SQRT0_S:
-  case Xtensa::TRUNC_S:
-  case Xtensa::UFLOAT_S:
-  case Xtensa::UTRUNC_S:
-  case Xtensa::WFR:
-    Allowed.Slot2 = true;
-    break;
-
-  // Scalar float math instructions (Slot 2 or Slot 3)
-  case Xtensa::ADD_S:
-  case Xtensa::SUB_S:
-  case Xtensa::MUL_S:
-  case Xtensa::NEG_S:
-  case Xtensa::MADD_S:
-  case Xtensa::MSUB_S:
-    Allowed.Slot2 = true;
-    Allowed.Slot3 = true;
-    break;
-
 
   default:
     if (Desc.isConditionalBranch() || Desc.isUnconditionalBranch()) {
       Allowed.Slot0 = true;
-      Allowed.Slot1 = true;
-      Allowed.Slot2 = true;
-      Allowed.Slot3 = true;
-    } else if (Desc.mayStore()) {
-      Allowed.Slot0 = true;
-    } else if (Desc.mayLoad()) {
-      Allowed.Slot0 = true;
-      Allowed.Slot1 = true;
     } else {
       Allowed.Slot0 = true;
-      Allowed.Slot1 = true;
     }
     break;
   }
@@ -680,12 +575,6 @@ bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name
     APInt Scratch(128, 0);
     getBinaryCodeForInstr(MI, LocalFixups, InstBits, Scratch, STI);
     unsigned Low4 = InstBits.extractBitsAsZExtValue(4, 0);
-    // For RRR_AE_Inst instructions that undergo nibble rearrangement,
-    // Inst{3:0} holds op_7_4 (which ends up in byte2[7:4]), not the
-    // actual byte0 low nibble.  The real byte0[3:0] after rearrangement
-    // comes from Inst{19:16}.  Check the rearranged value instead.
-    if (MI.getOpcode() == Xtensa::AE_S32X2_XC)
-      Low4 = InstBits.extractBitsAsZExtValue(4, 16);
     if (Low4 >= 12) {
       return false;
     }
@@ -1196,10 +1085,9 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
 
   if (Opcode == Xtensa::AE_LA16X4POS_PC_REAL) {
-    unsigned align = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
 
-    CB.push_back(char((align << 4) | 0x0e));
+    CB.push_back(char(0x2e));
     CB.push_back(char(0x30 | s));
     CB.push_back(char(0x06));
     CB.push_back(char(0x01));
@@ -1302,9 +1190,9 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    CB.push_back(char((t << 4) | 0x04));
-    CB.push_back(char((r << 4) | s));
     CB.push_back(char(0xbf));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char((t << 4) | 0x04));
     return;
   }
 
@@ -1525,12 +1413,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     }
 
     if (!Found) {
-      for (size_t i = 0; i < N; ++i) {
-        AllowedSlots A = getAllowedSlots(*SubInsts[i], MCII);
-        llvm::dbgs() << "SubInst " << i << ": " << MCII.getName(SubInsts[i]->getOpcode())
-                     << " AllowedSlots: Slot0=" << A.Slot0 << " Slot1=" << A.Slot1
-                     << " Slot2=" << A.Slot2 << " Slot3=" << A.Slot3 << "\n";
-      }
       report_fatal_error("Could not find a valid VLIW slot assignment for instructions in bundle!");
     }
 
@@ -1583,146 +1465,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         if (SlotIdx == 0) Val = 0x260b74;
         else if (SlotIdx == 1) Val = 0x0E57D0;
         else if (SlotIdx == 2) Val = 0x0114000a;
-        return Val;
-      }
-
-      auto getRegNum = [&](const MCOperand &MO) -> unsigned {
-        if (!MO.isReg()) return 0;
-        const MCRegisterInfo *MRI = Ctx.getRegisterInfo();
-        return MRI->getEncodingValue(MO.getReg());
-      };
-
-      if (Opc == Xtensa::L8UI || Opc == Xtensa::L16UI || Opc == Xtensa::L16SI || Opc == Xtensa::L32I) {
-        unsigned t = getRegNum(SlotInst.getOperand(0));
-        unsigned s = getRegNum(SlotInst.getOperand(1));
-        int64_t imm = SlotInst.getOperand(2).getImm();
-        unsigned scale = 1;
-        if (Opc == Xtensa::L16UI || Opc == Xtensa::L16SI) scale = 2;
-        else if (Opc == Xtensa::L32I) scale = 4;
-        unsigned imm8 = (imm / scale) & 0xff;
-        unsigned prefix = (SlotIdx == 0) ? 0x17 : 0x07;
-        if (Opc == Xtensa::L16UI) prefix = (SlotIdx == 0) ? 0x15 : 0x05;
-        else if (Opc == Xtensa::L16SI) prefix = (SlotIdx == 0) ? 0x14 : 0x04;
-        else if (Opc == Xtensa::L32I) prefix = (SlotIdx == 0) ? 0x16 : 0x06;
-        Val = (prefix << 16) | (imm8 << 8) | (t << 4) | s;
-        return Val;
-      }
-
-      if (Opc == Xtensa::S8I || Opc == Xtensa::S16I || Opc == Xtensa::S32I) {
-        unsigned t = getRegNum(SlotInst.getOperand(0));
-        unsigned s = getRegNum(SlotInst.getOperand(1));
-        int64_t imm = SlotInst.getOperand(2).getImm();
-        unsigned scale = 1;
-        if (Opc == Xtensa::S16I) scale = 2;
-        else if (Opc == Xtensa::S32I) scale = 4;
-        unsigned imm8 = (imm / scale) & 0xff;
-        unsigned prefix = 0x1a;
-        if (Opc == Xtensa::S16I) prefix = 0x18;
-        else if (Opc == Xtensa::S32I) prefix = 0x19;
-        Val = (prefix << 16) | (imm8 << 8) | (t << 4) | s;
-        return Val;
-      }
-
-      if (Opc == Xtensa::AE_ADDANDSUB32S_PSEUDO) {
-        unsigned sum = getRegNum(SlotInst.getOperand(0));
-        unsigned diff = getRegNum(SlotInst.getOperand(1));
-        unsigned a = getRegNum(SlotInst.getOperand(2));
-        unsigned b = getRegNum(SlotInst.getOperand(3));
-        Val = (0x2ff << 16) | (a << 12) | (b << 8) | (diff << 4) | sum;
-        return Val;
-      }
-
-      if (Opc == Xtensa::ADDI) {
-        unsigned t = getRegNum(SlotInst.getOperand(0));
-        unsigned s = getRegNum(SlotInst.getOperand(1));
-        unsigned imm8 = SlotInst.getOperand(2).getImm() & 0xff;
-        unsigned prefix = (SlotIdx == 0) ? 0x12 : 0x02;
-        Val = (prefix << 16) | (imm8 << 8) | (t << 4) | s;
-        return Val;
-      }
-
-      if (Opc == Xtensa::MOVI) {
-        unsigned t = getRegNum(SlotInst.getOperand(0));
-        unsigned imm12 = SlotInst.getOperand(1).getImm() & 0xfff;
-        unsigned prefix = (SlotIdx == 0) ? 0x1b : 0x08;
-        Val = (prefix << 16) | (((imm12 >> 4) & 0xff) << 8) | (t << 4) | (imm12 & 0xf);
-        return Val;
-      }
-
-      if (Opc == Xtensa::ADD || Opc == Xtensa::SUB || Opc == Xtensa::AND || Opc == Xtensa::OR || Opc == Xtensa::XOR ||
-          Opc == Xtensa::ADDX2 || Opc == Xtensa::ADDX4 || Opc == Xtensa::ADDX8) {
-        unsigned dest = getRegNum(SlotInst.getOperand(0));
-        unsigned s = getRegNum(SlotInst.getOperand(1));
-        unsigned t = getRegNum(SlotInst.getOperand(2));
-        unsigned prefix = (SlotIdx == 0) ? 0x1c : 0x0a;
-        unsigned opcExt = 4;
-        if (Opc == Xtensa::SUB) {
-          prefix = (SlotIdx == 0) ? 0x1d : 0xb;
-          opcExt = (SlotIdx == 0) ? 3 : 6;
-        } else if (Opc == Xtensa::AND) {
-          opcExt = (SlotIdx == 0) ? 9 : 0xb;
-        } else if (Opc == Xtensa::OR) {
-          prefix = (SlotIdx == 0) ? 0x1d : 0xb;
-          opcExt = (SlotIdx == 0) ? 2 : 4;
-        } else if (Opc == Xtensa::XOR) {
-          prefix = (SlotIdx == 0) ? 0x1d : 0xb;
-          opcExt = (SlotIdx == 0) ? 7 : 0xa;
-        } else if (Opc == Xtensa::ADDX2) {
-          opcExt = 5;
-        } else if (Opc == Xtensa::ADDX4) {
-          opcExt = 6;
-        } else if (Opc == Xtensa::ADDX8) {
-          opcExt = 7;
-        }
-        Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (t << 4) | s;
-        return Val;
-      }
-
-      if (Opc == Xtensa::NEG) {
-        unsigned dest = getRegNum(SlotInst.getOperand(0));
-        unsigned t = getRegNum(SlotInst.getOperand(1));
-        unsigned prefix = (SlotIdx == 0) ? 0x26 : 0x0f;
-        unsigned opcExt = (SlotIdx == 0) ? 8 : 3;
-        unsigned val_s = (SlotIdx == 0) ? dest : t;
-        Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (t << 4) | val_s;
-        return Val;
-      }
-
-      if (Opc == Xtensa::EXTUI) {
-        unsigned dest = getRegNum(SlotInst.getOperand(0));
-        unsigned s = getRegNum(SlotInst.getOperand(1));
-        unsigned shift = SlotInst.getOperand(2).getImm() & 0xf;
-        Val = ((SlotIdx == 0) ? 0x10e000 : 0x00e000) | (dest << 8) | (s << 4) | shift;
-        return Val;
-      }
-
-      if (Opc == Xtensa::SEXT) {
-        unsigned dest = getRegNum(SlotInst.getOperand(0));
-        unsigned s = getRegNum(SlotInst.getOperand(1));
-        unsigned prefix = (SlotIdx == 0) ? 0x1d : 0x0d;
-        Val = (prefix << 16) | (9 << 12) | (dest << 8) | s;
-        return Val;
-      }
-
-      if (Opc == Xtensa::SLLI || Opc == Xtensa::SRLI || Opc == Xtensa::SRAI) {
-        unsigned dest = getRegNum(SlotInst.getOperand(0));
-        unsigned s = getRegNum(SlotInst.getOperand(1));
-        unsigned shift = SlotInst.getOperand(2).getImm() & 0xf;
-        unsigned prefix = (SlotIdx == 0) ? 0x1c : 0x0a;
-        unsigned opcExt = 1;
-        if (Opc == Xtensa::SRLI) {
-          prefix = (SlotIdx == 0) ? 0x24 : 0x0e;
-          opcExt = 1;
-        } else if (Opc == Xtensa::SRAI) {
-          prefix = (SlotIdx == 0) ? 0x1c : 0x0a;
-          opcExt = 2;
-        }
-        if (Opc == Xtensa::SLLI) {
-          unsigned shift_val = (32 - shift) & 0xf;
-          Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (shift_val << 4) | s;
-        } else {
-          Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (s << 4) | shift;
-        }
         return Val;
       }
 
@@ -2463,75 +2205,12 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
   getBinaryCodeForInstr(MI, Fixups, Inst, Scratch, STI);
   unsigned Size = MCII.get(MI.getOpcode()).getSize();
 
-  // The AE-specific TableGen base classes (RRR_AE_Inst, AE_Sel_Inst,
-  // RRR_AE_SHIFT_Inst, etc.) define Inst bit positions differently from
-  // how Xtensa hardware maps instruction bits to memory bytes.  Fix up
-  // the byte/nibble ordering to match the hardware encoding (GAS output).
-  //
-  // RRR_AE_Inst: nibble rearrangement (op0 and op_7_4 in wrong nibbles)
-  //   newByte0 = (old0 & 0xF0) | (old2 & 0x0F)
-  //   newByte2 = ((old0 & 0x0F) << 4) | (old2 >> 4)
-  //
-  // AE_Sel_Inst, XtensaInst24, RRR_AE_SHIFT_Inst, RRR_AE_SHIFT64_Inst:
-  //   simple byte0 <-> byte2 swap
-  if (Size == 3) {
-    bool NeedNibbleRearrange = false;
-    bool NeedByteSwap = false;
-
-    switch (Opcode) {
-    // RRR_AE_Inst class — nibble rearrangement
-    case Xtensa::AE_ADD24S:
-    case Xtensa::AE_CVT48A32:
-    case Xtensa::AE_CVTP24A16X2_LL:
-    case Xtensa::AE_MOV:
-    case Xtensa::AE_SLAA16S:
-    case Xtensa::AE_SLAA32:
-    case Xtensa::AE_SLAA64:
-    case Xtensa::AE_SRAA32S:
-    case Xtensa::AE_SRAA64:
-    case Xtensa::AE_SRAAQ56:
-    case Xtensa::AE_S32X2_XC:
-      NeedNibbleRearrange = true;
-      break;
-
-    // AE_Sel_Inst / XtensaInst24 classes — byte swap
-    case Xtensa::AE_SEL16I:
-    case Xtensa::AE_SEL32_HH_Pseudo_HIFI3:
-    case Xtensa::AE_SEL32_HL_Pseudo_HIFI3:
-    case Xtensa::AE_SEL32_LH_Pseudo_HIFI3:
-    case Xtensa::AE_SEL32_LL_Pseudo_HIFI3:
-    case Xtensa::AE_SELP24_HH_Pseudo_HIFI3:
-    case Xtensa::AE_SELP24_LH_Pseudo_HIFI3:
-    case Xtensa::AE_S16_0_XP:
-    // RRR_AE_SHIFT_Inst / RRR_AE_SHIFT64_Inst classes — byte swap
-    case Xtensa::AE_SRAI64_HIFI3:
-    case Xtensa::AE_SLAI32_HIFI3:
-    case Xtensa::AE_SLAI32S_HIFI3:
-    case Xtensa::AE_SRAI32_HIFI3:
-    case Xtensa::AE_SRAI32R_HIFI3:
-    case Xtensa::AE_SLAI24S:
-    case Xtensa::AE_SLAI64:
-    case Xtensa::AE_SEXT32X2D16_32:
-      NeedByteSwap = true;
-      break;
-    default:
-      break;
-    }
-
-    if (NeedNibbleRearrange) {
-      uint32_t Val = Inst.extractBitsAsZExtValue(24, 0);
-      uint8_t b0 = Val & 0xFF;
-      uint8_t b1 = (Val >> 8) & 0xFF;
-      uint8_t b2 = (Val >> 16) & 0xFF;
-      uint8_t newB0 = (b0 & 0xF0) | (b2 & 0x0F);
-      uint8_t newB2 = ((b0 & 0x0F) << 4) | ((b2 >> 4) & 0x0F);
-      uint32_t NewVal = newB0 | (b1 << 8) | (newB2 << 16);
-      Inst.insertBits(NewVal, 0, 24);
-    } else if (NeedByteSwap) {
-      uint32_t Val = Inst.extractBitsAsZExtValue(32, 0);
-      uint32_t NewVal = ((Val & 0xFF) << 16) | (Val & 0xFF00) | ((Val >> 16) & 0xFF);
-      Inst.insertBits(NewVal, 0, 24);
-    }
+  if (Opcode == Xtensa::AE_SRAI64_HIFI3 || Opcode == Xtensa::AE_SLAI32_HIFI3 ||
+      Opcode == Xtensa::AE_SLAI32S_HIFI3 ||
+      Opcode == Xtensa::AE_SRAI32_HIFI3 || Opcode == Xtensa::AE_SEXT32X2D16_32) {
+    uint32_t Val = Inst.extractBitsAsZExtValue(32, 0);
+    uint32_t NewVal = ((Val & 0xFF) << 16) | (Val & 0xFF00) | ((Val >> 16) & 0xFF);
+    Inst.insertBits(NewVal, 0, 24);
   }
 
   if (IsLittleEndian) {
@@ -2753,9 +2432,9 @@ void XtensaMCCodeEmitter::getUimm4OpValue(const MCInst &MI, unsigned OpNo, APInt
 
 void XtensaMCCodeEmitter::getUimm4_x8OpValue(const MCInst &MI, unsigned OpNo, APInt &Value, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   const MCOperand &MO = MI.getOperand(OpNo);
-  int32_t Res = static_cast<int32_t>(MO.getImm());
+  uint32_t Res = static_cast<uint32_t>(MO.getImm());
 
-  assert((Res >= -64) && (Res <= 120) && (Res % 8 == 0) && "Unexpected operand value!");
+  assert((Res <= 120) && (Res % 8 == 0) && "Unexpected operand value!");
   Value = (Res / 8) & 0xf;
   return;
 }
