@@ -23,6 +23,7 @@ class FeatureBitset;
 class MCAsmBackend;
 class MCCodeEmitter;
 class MCContext;
+class MCInst;
 class MCInstrInfo;
 class MCObjectTargetWriter;
 class MCObjectWriter;
@@ -48,6 +49,13 @@ std::unique_ptr<MCObjectTargetWriter>
 createXtensaObjectWriter(uint8_t OSABI, bool IsLittleEndian);
 
 namespace Xtensa {
+enum {
+  XtensaJJumpTrampolinesEnabled = 1 << 0,
+  XtensaJJumpTrampolinesDisabled = 1 << 1,
+  XtensaL32RAutoLitpoolsEnabled = 1 << 2,
+  XtensaL32RAutoLitpoolsDisabled = 1 << 3,
+};
+
 // Check address offset for load/store instructions.
 // The offset should be multiple of scale.
 bool isValidAddrOffset(int Scale, int64_t OffsetVal);
@@ -67,6 +75,9 @@ bool checkRegister(MCRegister RegNo, const FeatureBitset &FeatureBits,
 
 // Get Xtensa User Register by register encoding value.
 MCRegister getUserRegister(unsigned Code, const MCRegisterInfo &MRI);
+
+// Compress instruction when density option is enabled.
+bool compress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI);
 } // namespace Xtensa
 } // end namespace llvm
 
