@@ -2622,6 +2622,53 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
         if (!SparcTargetFeatures.empty())
           continue;
         break;
+      case llvm::Triple::xtensa:
+        if (Value == "-auto-litpools" || Value == "--auto-litpools") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-auto-litpools");
+          continue;
+        }
+        if (Value == "-no-auto-litpools" || Value == "--no-auto-litpools") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-no-auto-litpools");
+          continue;
+        }
+        if (Equal.first == "-auto-litpool-limit" || Equal.first == "--auto-litpool-limit") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back(Args.MakeArgString((Twine("-auto-litpool-limit=") + Equal.second).str()));
+          continue;
+        }
+        if (Value == "-mlongcalls" || Value == "--longcalls") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-longcalls");
+          continue;
+        }
+        if (Value == "-mno-longcalls" || Value == "--no-longcalls") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-longcalls=false");
+          continue;
+        }
+        if (Value == "-mtext-section-literals" || Value == "--text-section-literals") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-text-section-literals");
+          continue;
+        }
+        if (Value == "-mno-text-section-literals" || Value == "--no-text-section-literals") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-text-section-literals=false");
+          continue;
+        }
+        if (Value == "-mabsolute-literals" || Value == "--absolute-literals") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-absolute-literals");
+          continue;
+        }
+        if (Value == "-mno-absolute-literals" || Value == "--no-absolute-literals") {
+          CmdArgs.push_back("-mllvm");
+          CmdArgs.push_back("-absolute-literals=false");
+          continue;
+        }
+        break;
       }
 
       if (Value == "-force_cpusubtype_ALL") {
@@ -4922,6 +4969,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                          const InputInfo &Output, const InputInfoList &Inputs,
                          const ArgList &Args, const char *LinkingOutput) const {
   const auto &TC = getToolChain();
+  if (TC.getTriple().getArch() == llvm::Triple::xtensa) {
+    Args.ClaimAllArgs(options::OPT_m_xtensa_Features_Group);
+  }
   const llvm::Triple &RawTriple = TC.getTriple();
   const llvm::Triple &Triple = TC.getEffectiveTriple();
   const std::string &TripleStr = Triple.getTriple();
@@ -7127,6 +7177,33 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
+  if (Triple.getArch() == llvm::Triple::xtensa) {
+    if (Args.hasArg(options::OPT_mlongcalls)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-longcalls");
+    }
+    if (Args.hasArg(options::OPT_mno_longcalls)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-longcalls=false");
+    }
+    if (Args.hasArg(options::OPT_mtext_section_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-text-section-literals");
+    }
+    if (Args.hasArg(options::OPT_mno_text_section_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-text-section-literals=false");
+    }
+    if (Args.hasArg(options::OPT_mabsolute_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-absolute-literals");
+    }
+    if (Args.hasArg(options::OPT_mno_absolute_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-absolute-literals=false");
+    }
+  }
+
   // Forward -cl options to -cc1
   RenderOpenCLOptions(Args, CmdArgs, InputType);
 
@@ -9095,6 +9172,33 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_mno_default_build_attributes, true)) {
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-hexagon-add-build-attributes");
+    }
+    break;
+
+  case llvm::Triple::xtensa:
+    if (Args.hasArg(options::OPT_mlongcalls)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-longcalls");
+    }
+    if (Args.hasArg(options::OPT_mno_longcalls)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-longcalls=false");
+    }
+    if (Args.hasArg(options::OPT_mtext_section_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-text-section-literals");
+    }
+    if (Args.hasArg(options::OPT_mno_text_section_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-text-section-literals=false");
+    }
+    if (Args.hasArg(options::OPT_mabsolute_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-absolute-literals");
+    }
+    if (Args.hasArg(options::OPT_mno_absolute_literals)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-absolute-literals=false");
     }
     break;
   }
