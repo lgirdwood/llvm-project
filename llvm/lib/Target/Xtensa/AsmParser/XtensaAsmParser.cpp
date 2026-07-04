@@ -286,7 +286,7 @@ public:
   bool isUimm2() const { return isImm(0, 3); }
   bool isUimm4() const { return isImm(0, 15); }
   bool isUimm4_x8() const {
-    return isImm(-64, 120) &&
+    return isImm(0, 120) &&
            ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
   }
 
@@ -503,26 +503,6 @@ public:
 
 unsigned XtensaAsmParser::validateTargetOperandClass(MCParsedAsmOperand &AsmOp,
                                                      unsigned Kind) {
-  if (Kind == MCK_FPR && AsmOp.isReg()) {
-    static const unsigned FPRRegs[] = {
-      Xtensa::F0, Xtensa::F1, Xtensa::F2, Xtensa::F3, Xtensa::F4, Xtensa::F5,
-      Xtensa::F6, Xtensa::F7, Xtensa::F8, Xtensa::F9, Xtensa::F10, Xtensa::F11,
-      Xtensa::F12, Xtensa::F13, Xtensa::F14, Xtensa::F15
-    };
-    static const unsigned AEDRegs[] = {
-      Xtensa::AED0, Xtensa::AED1, Xtensa::AED2, Xtensa::AED3, Xtensa::AED4, Xtensa::AED5,
-      Xtensa::AED6, Xtensa::AED7, Xtensa::AED8, Xtensa::AED9, Xtensa::AED10, Xtensa::AED11,
-      Xtensa::AED12, Xtensa::AED13, Xtensa::AED14, Xtensa::AED15
-    };
-    MCRegister Reg = AsmOp.getReg();
-    for (unsigned i = 0; i < 16; ++i) {
-      if (Reg == AEDRegs[i]) {
-        XtensaOperand &Op = static_cast<XtensaOperand &>(AsmOp);
-        Op.Reg.RegNum = FPRRegs[i];
-        return Match_Success;
-      }
-    }
-  }
   return Match_InvalidOperand;
 }
 
@@ -1158,7 +1138,7 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                  "expected immediate in range [-64, 120] and multiple of 8");
   }
 
-  report_fatal_error("Unknown match type detected! Result=" + Twine(Result));
+  report_fatal_error("Unknown match type detected!");
 }
 
 ParseStatus XtensaAsmParser::parsePCRelTarget(OperandVector &Operands) {
@@ -1397,15 +1377,6 @@ bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
                                        StringRef Name, SMLoc NameLoc,
                                        OperandVector &Operands) {
   std::string CleanNameStr = Name.str();
-  // Strip slot suffixes like _s2, _s3, .s2, .s3
-  if (CleanNameStr.size() >= 3) {
-    std::string Suffix = CleanNameStr.substr(CleanNameStr.size() - 3);
-    if ((Suffix[0] == '_' || Suffix[0] == '.') &&
-        Suffix[1] == 's' &&
-        isdigit(Suffix[2])) {
-      CleanNameStr = CleanNameStr.substr(0, CleanNameStr.size() - 3);
-    }
-  }
   // Strip .w15, .w18, etc. suffixes
   if (size_t DotWPos = CleanNameStr.find(".w"); DotWPos != std::string::npos) {
     bool FollowedByDigits = true;
@@ -1423,9 +1394,6 @@ bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
   if (StringRef(CleanNameStr).starts_with("ae_") && StringRef(CleanNameStr).ends_with(".n")) {
     CleanNameStr = CleanNameStr.substr(0, CleanNameStr.size() - 2);
   }
-  if (CleanNameStr == "ae_l16si") CleanNameStr = "l16si";
-  else if (CleanNameStr == "ae_l16ui") CleanNameStr = "l16ui";
-  else if (CleanNameStr == "ae_s16i") CleanNameStr = "s16i";
   Name = getParser().getContext().allocateString(CleanNameStr);
 
   if (Name.starts_with("_"))
@@ -1528,13 +1496,6 @@ bool XtensaAsmParser::parseLiteralDirective(SMLoc L) {
 ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
   StringRef IDVal = DirectiveID.getString();
   SMLoc Loc = getLexer().getLoc();
-
-  if (IDVal == ".frequency" || IDVal == ".asm_spill_slot") {
-    while (getLexer().isNot(AsmToken::EndOfStatement)) {
-      getLexer().Lex();
-    }
-    return parseEOL();
-  }
 
   if (IDVal == ".no") {
     if (getLexer().getTok().is(AsmToken::Minus) &&

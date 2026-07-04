@@ -1321,23 +1321,11 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
   }
 
   // VLIW / FLIX bundle decoding
-  if (hasFLIX() && Bytes.size() >= 6) {
-    uint8_t local_Bytes[6];
-    bool isFormat012 = false;
-    
-    if ((Bytes[0] & 0x0f) == 0x0e) {
-      for (int i = 0; i < 6; ++i) local_Bytes[i] = Bytes[i];
-      isFormat012 = true;
-    } else if ((Bytes[5] & 0x0f) == 0x0e) {
-      for (int i = 0; i < 6; ++i) local_Bytes[i] = Bytes[5 - i];
-      isFormat012 = true;
-    }
-    
-    if (isFormat012) {
-      // 48-bit (6-byte) bundle: Format 0, 1, or 2
-      uint32_t insn0 = local_Bytes[0] | (local_Bytes[1] << 8) | (local_Bytes[2] << 16) | (local_Bytes[3] << 24);
-      uint32_t insn1 = local_Bytes[4] | (local_Bytes[5] << 8);
-      unsigned fmt_bits = local_Bytes[5] & 0xc0;
+  if (hasFLIX() && Bytes.size() >= 6 && (Bytes[0] & 0x0f) == 0x0e) {
+    // 48-bit (6-byte) bundle: Format 0, 1, or 2
+    uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
+    uint32_t insn1 = Bytes[4] | (Bytes[5] << 8);
+    unsigned fmt_bits = Bytes[5] & 0xc0;
       if (hasHIFI5()) {
         fmt_bits = 0x40;
       }
@@ -1450,7 +1438,6 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
       }
     }
   }
-}
 
   if (hasFLIX() && Bytes.size() >= 11 && (Bytes[0] & 0x0f) == 0x0f) {
     // 88-bit (11-byte) bundle: Format 3 (0x1F) or Format 4 (0x0F)
