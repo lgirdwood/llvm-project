@@ -1404,7 +1404,7 @@ def : Pat<(store (v8i8  AEDR:$t), addr_ish8:$addr), (AE_S64_I_HIFI3 AEDR:$t, add
                                  "ae_s32x2.x\t$r, $s, $t",
                                  [(int_xtensa_ae_s32x2_x AEDR:$r, AR:$s, AR:$t)]>;
 
-    def AE_S32X2_XC : RRR_AE_Inst<0x0E, 0x04, 0x08, (outs AR:$s_out), (ins AEDR:$r, AR:$s, AR:$t),
+    def AE_S32X2_XC : RRR_AE_Inst<0x08, 0x04, 0x0E, (outs AR:$s_out), (ins AEDR:$r, AR:$s, AR:$t),
                                   "ae_s32x2.xc\t$r, $s, $t",
                                   [(set AR:$s_out, (int_xtensa_ae_s32x2_xc AEDR:$r, AR:$s, AR:$t))]> {
       let Constraints = "$s = $s_out";
@@ -2670,13 +2670,13 @@ let Predicates = [HasHIFI3] in {
     let DecoderNamespace = "XtensaHIFI3";
   }
 
-  def AE_SLAI24S : RRR_AE_SHIFT_Inst<0x4, 0x1, 0x9,
+  def AE_SLAI24S : RRR_AE_SHIFT_Inst<0x4, 0x4, 0x9,
                                      "ae_slai24s\t$r, $t, $imm",
                                      (outs AEDR:$r), (ins AEDR:$t, uimm5:$imm), []> {
     let DecoderNamespace = "XtensaHIFI3";
   }
 
-  def AE_SLAI64 : RRR_AE_SHIFT64_Inst<0x2, 0x1, 0x8,
+  def AE_SLAI64 : RRR_AE_SHIFT64_Inst<0x2, 0x4, 0x8,
                                      "ae_slai64\t$r, $t, $imm",
                                      (outs AEDR:$r), (ins AEDR:$t, uimm6:$imm), []> {
     let DecoderNamespace = "XtensaHIFI3";
@@ -2734,8 +2734,8 @@ let Predicates = [HasHIFI3] in {
     let Inst{23-20} = 0x2;
     let Inst{19-16} = 0x7;
     let Inst{15-12} = r;
-    let Inst{11-10} = 0x2;
-    let Inst{9-8}   = imm;
+    let Inst{11-10} = imm;
+    let Inst{9-8}   = 0x2;
     let Inst{7-4}   = s;
     let Inst{3-0}   = 0x4;
   }

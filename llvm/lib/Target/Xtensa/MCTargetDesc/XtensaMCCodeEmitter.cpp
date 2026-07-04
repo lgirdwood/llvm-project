@@ -574,6 +574,12 @@ bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name
     APInt Scratch(128, 0);
     getBinaryCodeForInstr(MI, LocalFixups, InstBits, Scratch, STI);
     unsigned Low4 = InstBits.extractBitsAsZExtValue(4, 0);
+    // For RRR_AE_Inst instructions that undergo nibble rearrangement,
+    // Inst{3:0} holds op_7_4 (which ends up in byte2[7:4]), not the
+    // actual byte0 low nibble.  The real byte0[3:0] after rearrangement
+    // comes from Inst{19:16}.  Check the rearranged value instead.
+    if (MI.getOpcode() == Xtensa::AE_S32X2_XC)
+      Low4 = InstBits.extractBitsAsZExtValue(4, 16);
     if (Low4 >= 12) {
       return false;
     }
@@ -1189,9 +1195,9 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     unsigned r = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
     unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
     unsigned t = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(2).getReg());
-    CB.push_back(char(0xbf));
-    CB.push_back(char((r << 4) | s));
     CB.push_back(char((t << 4) | 0x04));
+    CB.push_back(char((r << 4) | s));
+    CB.push_back(char(0xbf));
     return;
   }
 
@@ -2204,12 +2210,75 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
   getBinaryCodeForInstr(MI, Fixups, Inst, Scratch, STI);
   unsigned Size = MCII.get(MI.getOpcode()).getSize();
 
-  if (Opcode == Xtensa::AE_SRAI64_HIFI3 || Opcode == Xtensa::AE_SLAI32_HIFI3 ||
-      Opcode == Xtensa::AE_SLAI32S_HIFI3 ||
-      Opcode == Xtensa::AE_SRAI32_HIFI3 || Opcode == Xtensa::AE_SEXT32X2D16_32) {
-    uint32_t Val = Inst.extractBitsAsZExtValue(32, 0);
-    uint32_t NewVal = ((Val & 0xFF) << 16) | (Val & 0xFF00) | ((Val >> 16) & 0xFF);
-    Inst.insertBits(NewVal, 0, 24);
+  // The AE-specific TableGen base classes (RRR_AE_Inst, AE_Sel_Inst,
+  // RRR_AE_SHIFT_Inst, etc.) define Inst bit positions differently from
+  // how Xtensa hardware maps instruction bits to memory bytes.  Fix up
+  // the byte/nibble ordering to match the hardware encoding (GAS output).
+  //
+  // RRR_AE_Inst: nibble rearrangement (op0 and op_7_4 in wrong nibbles)
+  //   newByte0 = (old0 & 0xF0) | (old2 & 0x0F)
+  //   newByte2 = ((old0 & 0x0F) << 4) | (old2 >> 4)
+  //
+  // AE_Sel_Inst, XtensaInst24, RRR_AE_SHIFT_Inst, RRR_AE_SHIFT64_Inst:
+  //   simple byte0 <-> byte2 swap
+  if (Size == 3) {
+    bool NeedNibbleRearrange = false;
+    bool NeedByteSwap = false;
+
+    switch (Opcode) {
+    // RRR_AE_Inst class — nibble rearrangement
+    case Xtensa::AE_ADD24S:
+    case Xtensa::AE_CVT48A32:
+    case Xtensa::AE_CVTP24A16X2_LL:
+    case Xtensa::AE_MOV:
+    case Xtensa::AE_SLAA16S:
+    case Xtensa::AE_SLAA32:
+    case Xtensa::AE_SLAA64:
+    case Xtensa::AE_SRAA32S:
+    case Xtensa::AE_SRAA64:
+    case Xtensa::AE_SRAAQ56:
+    case Xtensa::AE_S32X2_XC:
+      NeedNibbleRearrange = true;
+      break;
+
+    // AE_Sel_Inst / XtensaInst24 classes — byte swap
+    case Xtensa::AE_SEL16I:
+    case Xtensa::AE_SEL32_HH_Pseudo_HIFI3:
+    case Xtensa::AE_SEL32_HL_Pseudo_HIFI3:
+    case Xtensa::AE_SEL32_LH_Pseudo_HIFI3:
+    case Xtensa::AE_SEL32_LL_Pseudo_HIFI3:
+    case Xtensa::AE_SELP24_HH_Pseudo_HIFI3:
+    case Xtensa::AE_SELP24_LH_Pseudo_HIFI3:
+    case Xtensa::AE_S16_0_XP:
+    // RRR_AE_SHIFT_Inst / RRR_AE_SHIFT64_Inst classes — byte swap
+    case Xtensa::AE_SRAI64_HIFI3:
+    case Xtensa::AE_SLAI32_HIFI3:
+    case Xtensa::AE_SLAI32S_HIFI3:
+    case Xtensa::AE_SRAI32_HIFI3:
+    case Xtensa::AE_SRAI32R_HIFI3:
+    case Xtensa::AE_SLAI24S:
+    case Xtensa::AE_SLAI64:
+    case Xtensa::AE_SEXT32X2D16_32:
+      NeedByteSwap = true;
+      break;
+    default:
+      break;
+    }
+
+    if (NeedNibbleRearrange) {
+      uint32_t Val = Inst.extractBitsAsZExtValue(24, 0);
+      uint8_t b0 = Val & 0xFF;
+      uint8_t b1 = (Val >> 8) & 0xFF;
+      uint8_t b2 = (Val >> 16) & 0xFF;
+      uint8_t newB0 = (b0 & 0xF0) | (b2 & 0x0F);
+      uint8_t newB2 = ((b0 & 0x0F) << 4) | ((b2 >> 4) & 0x0F);
+      uint32_t NewVal = newB0 | (b1 << 8) | (newB2 << 16);
+      Inst.insertBits(NewVal, 0, 24);
+    } else if (NeedByteSwap) {
+      uint32_t Val = Inst.extractBitsAsZExtValue(32, 0);
+      uint32_t NewVal = ((Val & 0xFF) << 16) | (Val & 0xFF00) | ((Val >> 16) & 0xFF);
+      Inst.insertBits(NewVal, 0, 24);
+    }
   }
 
   if (IsLittleEndian) {
