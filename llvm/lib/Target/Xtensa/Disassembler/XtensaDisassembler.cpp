@@ -1522,6 +1522,148 @@ bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Addres
     return true;
   }
 
+  // Check manual remapped scalar instructions
+  unsigned prefix = Val >> 16;
+  if (prefix == 0x17 || prefix == 0x07 || prefix == 0x15 || prefix == 0x05 ||
+      prefix == 0x14 || prefix == 0x04 || prefix == 0x16 || prefix == 0x06) {
+    unsigned s = Val & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned imm8 = (Val >> 8) & 0xff;
+    unsigned Opc = Xtensa::L8UI;
+    unsigned scale = 1;
+    if (prefix == 0x15 || prefix == 0x05) { Opc = Xtensa::L16UI; scale = 2; }
+    else if (prefix == 0x14 || prefix == 0x04) { Opc = Xtensa::L16SI; scale = 2; }
+    else if (prefix == 0x16 || prefix == 0x06) { Opc = Xtensa::L32I; scale = 4; }
+    MI.setOpcode(Opc);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createImm(imm8 * scale));
+    return true;
+  }
+
+  if (prefix == 0x1a || prefix == 0x18 || prefix == 0x19) {
+    unsigned s = Val & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned imm8 = (Val >> 8) & 0xff;
+    unsigned Opc = Xtensa::S8I;
+    unsigned scale = 1;
+    if (prefix == 0x18) { Opc = Xtensa::S16I; scale = 2; }
+    else if (prefix == 0x19) { Opc = Xtensa::S32I; scale = 4; }
+    MI.setOpcode(Opc);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createImm(imm8 * scale));
+    return true;
+  }
+
+  if (prefix == 0x12 || prefix == 0x02) {
+    unsigned s = Val & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned imm8 = (Val >> 8) & 0xff;
+    int sign_imm = (imm8 ^ 0x80) - 0x80;
+    MI.setOpcode(Xtensa::ADDI);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createImm(sign_imm));
+    return true;
+  }
+
+  if (prefix == 0x1b || prefix == 0x08) {
+    unsigned imm_low = Val & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned imm_high = (Val >> 8) & 0xff;
+    unsigned imm12 = (imm_high << 4) | imm_low;
+    int sign_imm = (imm12 ^ 0x800) - 0x800;
+    MI.setOpcode(Xtensa::MOVI);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    MI.addOperand(MCOperand::createImm(sign_imm));
+    return true;
+  }
+
+  if (prefix == 0x1c || prefix == 0x0a || prefix == 0x1d || prefix == 0x0b) {
+    unsigned s = Val & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned dest = (Val >> 8) & 0xf;
+    unsigned opcExt = (Val >> 12) & 0xf;
+    unsigned Opc = 0;
+    if (prefix == 0x1c || prefix == 0x0a) {
+      if (opcExt == 4) Opc = Xtensa::ADD;
+      else if (opcExt == 5) Opc = Xtensa::ADDX2;
+      else if (opcExt == 6) Opc = Xtensa::ADDX4;
+      else if (opcExt == 7) Opc = Xtensa::ADDX8;
+      else if (opcExt == 9 || opcExt == 0xb) Opc = Xtensa::AND;
+      else if (opcExt == 1) Opc = Xtensa::SLLI;
+      else if (opcExt == 2) Opc = Xtensa::SRAI;
+    } else {
+      if (opcExt == 3 || opcExt == 6) Opc = Xtensa::SUB;
+      else if (opcExt == 2 || opcExt == 4) Opc = Xtensa::OR;
+      else if (opcExt == 7 || opcExt == 0xa) Opc = Xtensa::XOR;
+      else if (opcExt == 9) Opc = Xtensa::SEXT;
+    }
+    
+    if (Opc) {
+      MI.setOpcode(Opc);
+      if (Opc == Xtensa::SLLI) {
+        unsigned shift_val = (16 - t) & 0xf;
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[dest]));
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+        MI.addOperand(MCOperand::createImm(shift_val));
+      } else if (Opc == Xtensa::SRAI) {
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[dest]));
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+        MI.addOperand(MCOperand::createImm(t));
+      } else if (Opc == Xtensa::SEXT) {
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[dest]));
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+        MI.addOperand(MCOperand::createImm(7));
+      } else {
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[dest]));
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+        MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      }
+      return true;
+    }
+  }
+
+  if (prefix == 0x24 || prefix == 0x0e) {
+    unsigned shift_val = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned dest = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::SRLI);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createImm(shift_val));
+    return true;
+  }
+
+  if (prefix == 0x26 || prefix == 0x0f) {
+    unsigned s = Val & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned dest = (Val >> 8) & 0xf;
+    unsigned opcExt = (Val >> 12) & 0xf;
+    if (opcExt == 8 || opcExt == 3) {
+      MI.setOpcode(Xtensa::NEG);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[dest]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      return true;
+    }
+  }
+
+  if (prefix == 0x10 || prefix == 0x00) {
+    unsigned shift = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned dest = (Val >> 8) & 0xf;
+    unsigned opcExt = (Val >> 12) & 0xf;
+    if (opcExt == 0xe) {
+      MI.setOpcode(Xtensa::EXTUI);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[dest]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createImm(shift));
+      MI.addOperand(MCOperand::createImm(8));
+      return true;
+    }
+  }
+
   // Check manual remapped instructions
   if ((Val & 0xfffff0) == 0x17f700) {
     unsigned d = Val & 0xf;
