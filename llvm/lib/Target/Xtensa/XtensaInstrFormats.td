@@ -25,11 +25,32 @@ class XtensaInst<int size, dag outs, dag ins, string asmstr, list<dag> pattern,
 
 }
 
+class XtensaInst96<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : Instruction {
+  field bits<96> Inst;
+  int Size = 11;
+
+  let Namespace = "Xtensa";
+  dag OutOperandList = outs;
+  dag InOperandList = ins;
+  let AsmString = asmstr;
+  let Pattern = pattern;
+  let Itinerary = itin;
+}
+
 // Base class for Xtensa 24 bit Format
 class XtensaInst24<dag outs, dag ins, string asmstr, list<dag> pattern,
                    InstrItinClass itin = NoItinerary>
   : XtensaInst<3, outs, ins, asmstr, pattern, itin> {
   field bits<24> Inst;
+}
+
+// Base class for Xtensa 48 bit Format (FLIX bundles)
+class XtensaInst48<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : XtensaInst<6, outs, ins, asmstr, pattern, itin> {
+  field bits<48> Inst;
 }
 
 // Base class for Xtensa 64 bit Format (FLIX bundles)
@@ -38,6 +59,29 @@ class XtensaInst64<dag outs, dag ins, string asmstr, list<dag> pattern,
   : XtensaInst<8, outs, ins, asmstr, pattern, itin> {
   field bits<64> Inst;
 }
+
+// Base class for Xtensa 128 bit Format (FLIX bundles)
+class XtensaInst128<dag outs, dag ins, string asmstr, list<dag> pattern,
+                    InstrItinClass itin = NoItinerary>
+  : XtensaInst<16, outs, ins, asmstr, pattern, itin> {
+  field bits<128> Inst;
+}
+
+// Base class for Xtensa 88 bit Format (11-byte macros)
+class XtensaInst88<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : XtensaInst<11, outs, ins, asmstr, pattern, itin> {
+  field bits<88> Inst;
+}
+
+// Base class for Xtensa 40 bit Format (5-byte macros)
+class XtensaInst40<dag outs, dag ins, string asmstr, list<dag> pattern,
+                   InstrItinClass itin = NoItinerary>
+  : XtensaInst<5, outs, ins, asmstr, pattern, itin> {
+  field bits<40> Inst;
+}
+
+
 
 // Base class for Xtensa 16 bit Format
 class XtensaInst16<dag outs, dag ins, string asmstr, list<dag> pattern,
@@ -141,12 +185,12 @@ class RRR_AE_Inst<bits<4> op0, bits<4> op1, bits<4> op_7_4, dag outs, dag ins,
   bits<4> s;
   bits<4> t;
 
-  let Inst{23-20} = t;
+  let Inst{23-20} = op0;
   let Inst{19-16} = op1;
   let Inst{15-12} = r;
   let Inst{11-8} = s;
-  let Inst{7-4} = op_7_4;
-  let Inst{3-0} = op0;
+  let Inst{7-4} = t;
+  let Inst{3-0} = op_7_4;
 }
 
 class RRI4_Inst<bits<4> op0, bits<4> op1, dag outs, dag ins,

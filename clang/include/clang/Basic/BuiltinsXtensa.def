@@ -104,6 +104,7 @@ TARGET_BUILTIN(__builtin_xtensa_ae_mul32_ll, "LLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mul32_hh, "LLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulaaaafq32x16, "LLiLLiLLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulaaf2d32ra_hh_ll, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_mula4o4x16, "vLLi*LLi*LLi*LLi*LLiLLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulaafd24_hh_ll, "LLiLLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulaafd32ra_hh_ll, "LLiLLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulaafp24s_hh_ll, "LLiLLiLLiLLi", "n", "")
@@ -380,6 +381,26 @@ TARGET_BUILTIN(__builtin_xtensa_ae_mula2q32x16_fir_h5, "vLLi*LLi*LLiLLiLLiLLi", 
 TARGET_BUILTIN(__builtin_xtensa_ae_mulf32x2r_hh_ll, "vLLi*LLi*LLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulf2p32x16x4rs, "vLLi*LLi*LLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mulf2p32x4rs, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+
+// Batch 1 & 2 Porting
+TARGET_BUILTIN(__builtin_xtensa_ae_abs24s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abs32, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abs64, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abs64s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_abssq56s, "LLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_addsq56s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_addsub32, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_addsub32s, "LLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16_x, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16m_i, "LLivC*i", "n", "")
+
+// Batch 3 Porting (16x4 Loads/Stores)
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x4_i, "LLivC*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_l16x4_xc, "LLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_i, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_x, "vLLiv*i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_xc, "vLLiv**i", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ae_s16x4_xp, "vLLiv**i", "n", "")
 
 #undef BUILTIN
 #undef TARGET_BUILTIN
