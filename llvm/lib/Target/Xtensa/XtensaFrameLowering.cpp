@@ -111,18 +111,29 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
     // Store FP register in A8, because FP may be used to pass function
     // arguments
     if (XtensaFI->isSaveFrameRegister()) {
-      BuildMI(MBB, MBBI, DL, TII.get(Xtensa::OR), Xtensa::A8)
-          .addReg(FP)
-          .addReg(FP);
+      if (STI.hasDensity()) {
+        BuildMI(MBB, MBBI, DL, TII.get(Xtensa::MOV_N), Xtensa::A8)
+            .addReg(FP);
+      } else {
+        BuildMI(MBB, MBBI, DL, TII.get(Xtensa::OR), Xtensa::A8)
+            .addReg(FP)
+            .addReg(FP);
+      }
     }
 
     // if framepointer enabled, set it to point to the stack pointer.
     if (hasFP(MF)) {
       // Insert instruction "move $fp, $sp" at this location.
-      BuildMI(MBB, MBBI, DL, TII.get(Xtensa::OR), FP)
-          .addReg(SP)
-          .addReg(SP)
-          .setMIFlag(MachineInstr::FrameSetup);
+      if (STI.hasDensity()) {
+        BuildMI(MBB, MBBI, DL, TII.get(Xtensa::MOV_N), FP)
+            .addReg(SP)
+            .setMIFlag(MachineInstr::FrameSetup);
+      } else {
+        BuildMI(MBB, MBBI, DL, TII.get(Xtensa::OR), FP)
+            .addReg(SP)
+            .addReg(SP)
+            .setMIFlag(MachineInstr::FrameSetup);
+      }
 
       MCCFIInstruction Inst = MCCFIInstruction::cfiDefCfa(
           nullptr, MRI->getDwarfRegNum(FP, true), StackSize);
@@ -197,10 +208,16 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
     // if framepointer enabled, set it to point to the stack pointer.
     if (hasFP(MF)) {
       // Insert instruction "move $fp, $sp" at this location.
-      BuildMI(MBB, MBBI, DL, TII.get(Xtensa::OR), FP)
-          .addReg(SP)
-          .addReg(SP)
-          .setMIFlag(MachineInstr::FrameSetup);
+      if (STI.hasDensity()) {
+        BuildMI(MBB, MBBI, DL, TII.get(Xtensa::MOV_N), FP)
+            .addReg(SP)
+            .setMIFlag(MachineInstr::FrameSetup);
+      } else {
+        BuildMI(MBB, MBBI, DL, TII.get(Xtensa::OR), FP)
+            .addReg(SP)
+            .addReg(SP)
+            .setMIFlag(MachineInstr::FrameSetup);
+      }
 
       // emit ".cfi_def_cfa_register $fp"
       unsigned CFIIndex =
@@ -276,7 +293,11 @@ void XtensaFrameLowering::emitEpilogue(MachineFunction &MF,
       // the window of the caller (including the old stack pointer) gets
       // restored anyways.
     } else {
-      BuildMI(MBB, I, DL, TII.get(Xtensa::OR), SP).addReg(FP).addReg(FP);
+      if (STI.hasDensity()) {
+        BuildMI(MBB, I, DL, TII.get(Xtensa::MOV_N), SP).addReg(FP);
+      } else {
+        BuildMI(MBB, I, DL, TII.get(Xtensa::OR), SP).addReg(FP).addReg(FP);
+      }
     }
   }
 
