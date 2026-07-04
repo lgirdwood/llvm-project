@@ -30,8 +30,8 @@ using namespace llvm;
 #define MIN_FRAME_SIZE (8 * UNITS_PER_WORD)
 
 XtensaFrameLowering::XtensaFrameLowering(const XtensaSubtarget &STI)
-    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(16), 0,
-                          Align(16)),
+    : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(4), 0,
+                          Align(4)),
       STI(STI), TII(*STI.getInstrInfo()), TRI(STI.getRegisterInfo()) {}
 
 bool XtensaFrameLowering::hasFPImpl(const MachineFunction &MF) const {
@@ -55,14 +55,16 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
   uint64_t StackSize = MFI.getStackSize();
   uint64_t PrevStackSize = StackSize;
 
-  // Round up StackSize to 16*N
-  StackSize += (16 - StackSize) & 0xf;
+  // Round up StackSize to stack alignment
+  StackSize = alignTo(StackSize, getStackAlign());
 
   if (STI.isWindowedABI()) {
+    StackSize = alignTo(StackSize, Align(8));
     StackSize += 32;
     uint64_t MaxAlignment = MFI.getMaxAlign().value();
     if (MaxAlignment > 32)
       StackSize += MaxAlignment;
+    StackSize = alignTo(StackSize, Align(8));
 
     if (StackSize <= 32760) {
       BuildMI(MBB, MBBI, DL, TII.get(Xtensa::ENTRY))
@@ -88,7 +90,9 @@ void XtensaFrameLowering::emitPrologue(MachineFunction &MF,
     // diff_to_128_aligned_address = (128 - (SP & 127))
     // new_offset = SP + diff_to_128_aligned_address
     // This is safe to do because we increased the stack size by MaxAlignment.
-    MCRegister Reg, RegMisAlign;
+    MCRegister Reg = Xtensa::A8;
+    MCRegister RegMisAlign = Xtensa::A9;
+
     if (MaxAlignment > 32) {
       TII.loadImmediate(MBB, MBBI, &RegMisAlign, MaxAlignment - 1);
       TII.loadImmediate(MBB, MBBI, &Reg, MaxAlignment);
