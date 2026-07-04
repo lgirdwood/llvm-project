@@ -44,6 +44,7 @@
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
@@ -1156,6 +1157,7 @@ public:
   std::shared_ptr<MCInstrAnalysis> InstrAnalysis;
   std::shared_ptr<MCInstPrinter> InstPrinter;
   PrettyPrinter *Printer;
+  const MCInstrInfo *getInstrInfo() const { return InstrInfo.get(); }
 
   DisassemblerTarget(const Target *TheTarget, ObjectFile &Obj,
                      StringRef TripleName, StringRef MCPU,
@@ -2464,6 +2466,43 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
         for (const auto &Label : AllLabels) {
           if (Label.first > MaxBranchTarget && Label.first < End) {
             MaxBranchTarget = Label.first;
+          }
+        }
+        // Pre-scan instructions to find branch targets
+        uint64_t ScanIndex = Start;
+        while (ScanIndex < End) {
+          MCInst TmpInst;
+          uint64_t TmpSize = 0;
+          ArrayRef<uint8_t> TmpBytes = Bytes.slice(ScanIndex);
+          bool Disassembled = DT->DisAsm->getInstruction(TmpInst, TmpSize, TmpBytes, SectionAddr + ScanIndex + VMAAdjustment, nulls());
+          if (Disassembled && TmpSize > 0) {
+            uint64_t Target = 0;
+            if (DT->InstrAnalysis && DT->InstrAnalysis->isBranch(TmpInst)) {
+              if (DT->InstrAnalysis->evaluateBranch(TmpInst, SectionAddr + ScanIndex + VMAAdjustment, TmpSize, Target)) {
+                uint64_t TargetIndex = Target - SectionAddr - VMAAdjustment;
+                if (TargetIndex > MaxBranchTarget && TargetIndex < End) {
+                  MaxBranchTarget = TargetIndex;
+                }
+              }
+            } else if (DT->getInstrInfo() && DT->getInstrInfo()->getName(TmpInst.getOpcode()) == "BUNDLE") {
+              for (unsigned i = 0; i < TmpInst.getNumOperands(); ++i) {
+                const MCOperand &Op = TmpInst.getOperand(i);
+                if (Op.isInst()) {
+                  const MCInst &SubInst = *Op.getInst();
+                  if (DT->InstrAnalysis && DT->InstrAnalysis->isBranch(SubInst)) {
+                    if (DT->InstrAnalysis->evaluateBranch(SubInst, SectionAddr + ScanIndex + VMAAdjustment, TmpSize, Target)) {
+                      uint64_t TargetIndex = Target - SectionAddr - VMAAdjustment;
+                      if (TargetIndex > MaxBranchTarget && TargetIndex < End) {
+                        MaxBranchTarget = TargetIndex;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            ScanIndex += TmpSize;
+          } else {
+            ScanIndex += 1;
           }
         }
       }
