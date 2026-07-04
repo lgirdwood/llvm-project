@@ -415,6 +415,17 @@ public:
   void addSymbols(ThunkSection &isec) override;
 };
 
+class XtensaThunk : public Thunk {
+public:
+  XtensaThunk(Ctx &ctx, Symbol &dest, int64_t addend)
+      : Thunk(ctx, dest, addend) {
+    alignment = 4;
+  }
+  uint32_t size() override { return 12; }
+  void writeTo(uint8_t *buf) override;
+  void addSymbols(ThunkSection &isec) override;
+};
+
 // Hexagon CPUs need thunks for R_HEX_B{9,1{3,5},22}_PCREL,
 // R_HEX_{,GD_}PLT_B22_PCREL when their destination is out of
 // range.
@@ -1245,6 +1256,27 @@ void AVRThunk::addSymbols(ThunkSection &isec) {
             isec);
 }
 
+void XtensaThunk::writeTo(uint8_t *buf) {
+  // l32r a8, PC + 8
+  buf[0] = 0x81;
+  buf[1] = 0x02;
+  buf[2] = 0x00;
+  // jx a8
+  buf[3] = 0x80;
+  buf[4] = 0x08;
+  buf[5] = 0x00;
+  // padding
+  buf[6] = 0x00;
+  buf[7] = 0x00;
+  // literal
+  llvm::support::endian::write32le(buf + 8, destination.getVA(ctx) + addend);
+}
+
+void XtensaThunk::addSymbols(ThunkSection &isec) {
+  addSymbol(ctx.saver.save("__XtensaThunk_" + destination.getName()), STT_FUNC, 0,
+            isec);
+}
+
 // Write MIPS LA25 thunk code to call PIC function from the non-PIC one.
 void MipsThunk::writeTo(uint8_t *buf) {
   uint64_t s = destination.getVA(ctx);
@@ -1830,9 +1862,11 @@ std::unique_ptr<Thunk> elf::addThunk(Ctx &ctx, const InputSection &isec,
     return addThunkPPC64(ctx, rel.type, s, a);
   case EM_HEXAGON:
     return addThunkHexagon(ctx, isec, rel, s);
+  case EM_XTENSA:
+    return std::make_unique<XtensaThunk>(ctx, s, a);
   default:
     llvm_unreachable(
-        "add Thunk only supported for ARM, AVR, Hexagon, Mips and PowerPC");
+        "add Thunk only supported for ARM, AVR, Hexagon, Mips, PowerPC and Xtensa");
   }
 }
 
