@@ -182,11 +182,24 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
 
   // HiFi instructions
   if (Name.starts_with("AE_")) {
+    if (Name == "AE_MIN_S" || Name == "AE_MAX_S") {
+      Allowed.Slot2 = true;
+      return Allowed;
+    }
     if (Name.starts_with("AE_ABS32_HIFI3") || Name.starts_with("AE_ABS64S_HIFI3") ||
         Name.starts_with("AE_ABSSQ56S_HIFI3") || Name.starts_with("AE_ADDSQ56S_HIFI3") ||
         Name.starts_with("AE_ADDSUB32_HIFI3") || Name.starts_with("AE_ADDSUB32S_HIFI3") ||
+        Name.starts_with("AE_ADDANDSUB32S") ||
         Name == "AE_SLAI64S_HIFI3" || Name.starts_with("AE_SEXT32X2D16_10")) {
       Allowed.Slot0 = true;
+      return Allowed;
+    }
+    if (Name.ends_with("_S2")) {
+      Allowed.Slot2 = true;
+      return Allowed;
+    }
+    if (Name.ends_with("_S3")) {
+      Allowed.Slot3 = true;
       return Allowed;
     }
     if (Desc.mayLoad() && !Desc.mayStore()) {
@@ -195,7 +208,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
     if (Name.starts_with("AE_MUL")) {
-      Allowed.Slot2 = true;
+      Allowed.Slot3 = true;
       return Allowed;
     }
     if (Name.starts_with("AE_ROUND") || Name.starts_with("AE_SAT") ||
@@ -204,6 +217,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
         Name.starts_with("AE_MIN") || Name.starts_with("AE_ABS") ||
         Name.starts_with("AE_NEG") || Name.starts_with("AE_TRUNC") ||
         Name.starts_with("AE_PKSR") || Name.starts_with("AE_SEXT")) {
+      Allowed.Slot2 = true;
       Allowed.Slot3 = true;
       return Allowed;
     }
@@ -213,14 +227,21 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
 
+    if (Name.starts_with("AE_MOV") &&
+        !Name.starts_with("AE_MOVAE") &&
+        !Name.starts_with("AE_MOVEA") &&
+        !Name.starts_with("AE_MOVFCRFSRV") &&
+        !Name.starts_with("AE_MOVVFCRFSR")) {
+      Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
+      Allowed.Slot2 = true;
+      Allowed.Slot3 = true;
+      return Allowed;
+    }
+
     if (Name.starts_with("AE_ADD") || Name.starts_with("AE_SUB") ||
         Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
         Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
-        (Name.starts_with("AE_MOV") &&
-         !Name.starts_with("AE_MOVAE") &&
-         !Name.starts_with("AE_MOVEA") &&
-         !Name.starts_with("AE_MOVFCRFSRV") &&
-         !Name.starts_with("AE_MOVVFCRFSR")) ||
         Name.starts_with("AE_ZERO")) {
       Allowed.Slot1 = true;
       Allowed.Slot2 = true;
@@ -238,6 +259,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::L8UI:
   case Xtensa::L16UI:
   case Xtensa::L16SI:
+  case Xtensa::L32I_N:
     Allowed.Slot0 = true;
     Allowed.Slot1 = true;
     break;
@@ -247,6 +269,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::L32R:
   case Xtensa::S8I:
   case Xtensa::S16I:
+  case Xtensa::S32I_N:
     Allowed.Slot0 = true;
     break;
 
@@ -294,12 +317,78 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
     Allowed.Slot1 = true;
     break;
 
+  // Scalar float compare instructions (Slot 0 only)
+  case Xtensa::OLT_S:
+  case Xtensa::OLE_S:
+  case Xtensa::OEQ_S:
+  case Xtensa::UEQ_S:
+  case Xtensa::ULT_S:
+  case Xtensa::ULE_S:
+  case Xtensa::UN_S:
+    Allowed.Slot0 = true;
+    break;
+
+  // Scalar float min/max/abs (Slot 2 only)
+  case Xtensa::MIN_S:
+  case Xtensa::MAX_S:
+  case Xtensa::ABS_S:
+  case Xtensa::ADDEXP_S:
+  case Xtensa::ADDEXPM_S:
+  case Xtensa::CEIL_S:
+  case Xtensa::CONST_S:
+  case Xtensa::DIV0_S:
+  case Xtensa::DIVN_S:
+  case Xtensa::FLOAT_S:
+  case Xtensa::FLOOR_S:
+  case Xtensa::MADDN_S:
+  case Xtensa::MKDADJ_S:
+  case Xtensa::MKSADJ_S:
+  case Xtensa::MOV_S:
+  case Xtensa::MOVEQZ_S:
+  case Xtensa::MOVF_S:
+  case Xtensa::MOVGEZ_S:
+  case Xtensa::MOVLTZ_S:
+  case Xtensa::MOVNEZ_S:
+  case Xtensa::MOVT_S:
+  case Xtensa::NEXP01_S:
+  case Xtensa::RECIP0_S:
+  case Xtensa::RFR:
+  case Xtensa::ROUND_S:
+  case Xtensa::RSQRT0_S:
+  case Xtensa::SQRT0_S:
+  case Xtensa::TRUNC_S:
+  case Xtensa::UFLOAT_S:
+  case Xtensa::UTRUNC_S:
+  case Xtensa::WFR:
+    Allowed.Slot2 = true;
+    break;
+
+  // Scalar float math instructions (Slot 2 or Slot 3)
+  case Xtensa::ADD_S:
+  case Xtensa::SUB_S:
+  case Xtensa::MUL_S:
+  case Xtensa::NEG_S:
+  case Xtensa::MADD_S:
+  case Xtensa::MSUB_S:
+    Allowed.Slot2 = true;
+    Allowed.Slot3 = true;
+    break;
+
 
   default:
     if (Desc.isConditionalBranch() || Desc.isUnconditionalBranch()) {
       Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
+      Allowed.Slot2 = true;
+      Allowed.Slot3 = true;
+    } else if (Desc.mayStore()) {
+      Allowed.Slot0 = true;
+    } else if (Desc.mayLoad()) {
+      Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
     } else {
       Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
     }
     break;
   }
@@ -1635,6 +1724,151 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         return Val;
       }
 
+      auto getRegNum = [&](const MCOperand &MO) -> unsigned {
+        if (!MO.isReg()) return 0;
+        const MCRegisterInfo *MRI = Ctx.getRegisterInfo();
+        return MRI->getEncodingValue(MO.getReg());
+      };
+
+      if (Opc == Xtensa::L8UI || Opc == Xtensa::L16UI || Opc == Xtensa::L16SI || Opc == Xtensa::L32I) {
+        unsigned t = getRegNum(SlotInst.getOperand(0));
+        unsigned s = getRegNum(SlotInst.getOperand(1));
+        int64_t imm = SlotInst.getOperand(2).getImm();
+        unsigned scale = 1;
+        if (Opc == Xtensa::L16UI || Opc == Xtensa::L16SI) scale = 2;
+        else if (Opc == Xtensa::L32I) scale = 4;
+        unsigned imm8 = (imm / scale) & 0xff;
+        unsigned prefix = (SlotIdx == 0) ? 0x17 : 0x07;
+        if (Opc == Xtensa::L16UI) prefix = (SlotIdx == 0) ? 0x15 : 0x05;
+        else if (Opc == Xtensa::L16SI) prefix = (SlotIdx == 0) ? 0x14 : 0x04;
+        else if (Opc == Xtensa::L32I) prefix = (SlotIdx == 0) ? 0x16 : 0x06;
+        Val = (prefix << 16) | (imm8 << 8) | (t << 4) | s;
+        return Val;
+      }
+
+      if (Opc == Xtensa::S8I || Opc == Xtensa::S16I || Opc == Xtensa::S32I) {
+        unsigned t = getRegNum(SlotInst.getOperand(0));
+        unsigned s = getRegNum(SlotInst.getOperand(1));
+        int64_t imm = SlotInst.getOperand(2).getImm();
+        unsigned scale = 1;
+        if (Opc == Xtensa::S16I) scale = 2;
+        else if (Opc == Xtensa::S32I) scale = 4;
+        unsigned imm8 = (imm / scale) & 0xff;
+        unsigned prefix = 0x1a;
+        if (Opc == Xtensa::S16I) prefix = 0x18;
+        else if (Opc == Xtensa::S32I) prefix = 0x19;
+        Val = (prefix << 16) | (imm8 << 8) | (t << 4) | s;
+        return Val;
+      }
+
+      if (Opc == Xtensa::AE_ADDANDSUB32S_PSEUDO) {
+        unsigned sum = getRegNum(SlotInst.getOperand(0));
+        unsigned diff = getRegNum(SlotInst.getOperand(1));
+        unsigned a = getRegNum(SlotInst.getOperand(2));
+        unsigned b = getRegNum(SlotInst.getOperand(3));
+        Val = (0x2ff << 16) | (a << 12) | (b << 8) | (diff << 4) | sum;
+        return Val;
+      }
+
+      if (Opc == Xtensa::ADDI) {
+        unsigned t = getRegNum(SlotInst.getOperand(0));
+        unsigned s = getRegNum(SlotInst.getOperand(1));
+        unsigned imm8 = SlotInst.getOperand(2).getImm() & 0xff;
+        unsigned prefix = (SlotIdx == 0) ? 0x12 : 0x02;
+        Val = (prefix << 16) | (imm8 << 8) | (t << 4) | s;
+        return Val;
+      }
+
+      if (Opc == Xtensa::MOVI) {
+        unsigned t = getRegNum(SlotInst.getOperand(0));
+        unsigned imm12 = SlotInst.getOperand(1).getImm() & 0xfff;
+        unsigned prefix = (SlotIdx == 0) ? 0x1b : 0x08;
+        Val = (prefix << 16) | (((imm12 >> 4) & 0xff) << 8) | (t << 4) | (imm12 & 0xf);
+        return Val;
+      }
+
+      if (Opc == Xtensa::ADD || Opc == Xtensa::SUB || Opc == Xtensa::AND || Opc == Xtensa::OR || Opc == Xtensa::XOR ||
+          Opc == Xtensa::ADDX2 || Opc == Xtensa::ADDX4 || Opc == Xtensa::ADDX8) {
+        unsigned dest = getRegNum(SlotInst.getOperand(0));
+        unsigned s = getRegNum(SlotInst.getOperand(1));
+        unsigned t = getRegNum(SlotInst.getOperand(2));
+        unsigned prefix = (SlotIdx == 0) ? 0x1c : 0x0a;
+        unsigned opcExt = 4;
+        if (Opc == Xtensa::SUB) {
+          prefix = (SlotIdx == 0) ? 0x1d : 0xb;
+          opcExt = (SlotIdx == 0) ? 3 : 6;
+        } else if (Opc == Xtensa::AND) {
+          opcExt = (SlotIdx == 0) ? 9 : 0xb;
+        } else if (Opc == Xtensa::OR) {
+          prefix = (SlotIdx == 0) ? 0x1d : 0xb;
+          opcExt = (SlotIdx == 0) ? 2 : 4;
+        } else if (Opc == Xtensa::XOR) {
+          prefix = (SlotIdx == 0) ? 0x1d : 0xb;
+          opcExt = (SlotIdx == 0) ? 7 : 0xa;
+        } else if (Opc == Xtensa::ADDX2) {
+          opcExt = 5;
+        } else if (Opc == Xtensa::ADDX4) {
+          opcExt = 6;
+        } else if (Opc == Xtensa::ADDX8) {
+          opcExt = 7;
+        }
+        Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (t << 4) | s;
+        return Val;
+      }
+
+      if (Opc == Xtensa::NEG) {
+        unsigned dest = getRegNum(SlotInst.getOperand(0));
+        unsigned t = getRegNum(SlotInst.getOperand(1));
+        unsigned prefix = (SlotIdx == 0) ? 0x26 : 0x0f;
+        unsigned opcExt = (SlotIdx == 0) ? 8 : 3;
+        unsigned val_s = (SlotIdx == 0) ? dest : t;
+        Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (t << 4) | val_s;
+        return Val;
+      }
+
+      if (Opc == Xtensa::EXTUI) {
+        unsigned dest = getRegNum(SlotInst.getOperand(0));
+        unsigned s = getRegNum(SlotInst.getOperand(1));
+        unsigned shift = SlotInst.getOperand(2).getImm() & 0xf;
+        unsigned len = SlotInst.getOperand(3).getImm();
+        unsigned opcExt = (len - 1) << 1;
+        unsigned prefix = (SlotIdx == 0) ? 0x10 : 0x00;
+        prefix |= (opcExt >> 4) & 1;
+        Val = (prefix << 16) | ((opcExt & 0xf) << 12) | (dest << 8) | (s << 4) | shift;
+        return Val;
+      }
+
+      if (Opc == Xtensa::SEXT) {
+        unsigned dest = getRegNum(SlotInst.getOperand(0));
+        unsigned s = getRegNum(SlotInst.getOperand(1));
+        unsigned prefix = (SlotIdx == 0) ? 0x1d : 0x0d;
+        unsigned opcExt = (SlotIdx == 0) ? 9 : 10;
+        Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | s;
+        return Val;
+      }
+
+      if (Opc == Xtensa::SLLI || Opc == Xtensa::SRLI || Opc == Xtensa::SRAI) {
+        unsigned dest = getRegNum(SlotInst.getOperand(0));
+        unsigned s = getRegNum(SlotInst.getOperand(1));
+        unsigned shift = SlotInst.getOperand(2).getImm() & 0xf;
+        unsigned prefix = (SlotIdx == 0) ? 0x1c : 0x0a;
+        unsigned opcExt = 1;
+        if (Opc == Xtensa::SRLI) {
+          prefix = (SlotIdx == 0) ? 0x24 : 0x0e;
+          opcExt = 1;
+        } else if (Opc == Xtensa::SRAI) {
+          prefix = (SlotIdx == 0) ? 0x1c : 0x0a;
+          opcExt = 2;
+        }
+        if (Opc == Xtensa::SLLI) {
+          unsigned shift_val = (32 - shift) & 0xf;
+          Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (shift_val << 4) | s;
+        } else {
+          Val = (prefix << 16) | (opcExt << 12) | (dest << 8) | (s << 4) | shift;
+        }
+        return Val;
+      }
+
       if (SlotIdx == 0) {
         if (Opc == Xtensa::AE_L32X2_I) {
           unsigned r = (Val >> 12) & 0xf;
@@ -2662,9 +2896,9 @@ void XtensaMCCodeEmitter::getUimm4OpValue(const MCInst &MI, unsigned OpNo, APInt
 
 void XtensaMCCodeEmitter::getUimm4_x8OpValue(const MCInst &MI, unsigned OpNo, APInt &Value, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   const MCOperand &MO = MI.getOperand(OpNo);
-  uint32_t Res = static_cast<uint32_t>(MO.getImm());
+  int32_t Res = static_cast<int32_t>(MO.getImm());
 
-  assert((Res <= 120) && (Res % 8 == 0) && "Unexpected operand value!");
+  assert((Res >= -64) && (Res <= 120) && (Res % 8 == 0) && "Unexpected operand value!");
   Value = (Res / 8) & 0xf;
   return;
 }
