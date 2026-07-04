@@ -618,24 +618,67 @@ struct XtBundleOp {
 struct XtBundleEnc {
   const char *name; // LLVM instruction name (MCII.getName)
   uint8_t len;      // bundle length in bytes
-  uint8_t tmpl[11]; // opcode + NOP-filled slots, operands zeroed
+  uint8_t tmpl[16]; // opcode + NOP-filled slots, operands zeroed
   uint8_t nops;
   XtBundleOp ops[8];
 };
 } // namespace
 
-// The table is generated from the target core's xtensa-modules.c. By default we
-// use the checked-in copy for the ACE15 core; a build that passes
-// -DXTENSA_MODULES_C=<core xtensa-modules.c> regenerates it and points
-// XTENSA_ENC_INC at the build-dir copy (see MCTargetDesc/gen/README.md).
-#ifndef XTENSA_ENC_INC
-#define XTENSA_ENC_INC "ace15_enc.inc"
+// The tables are generated per target core from its xtensa-modules.c. Each
+// supported core ships a checked-in table; a build may regenerate one by
+// passing -DXTENSA_MODULES_C_<CORE>=<core xtensa-modules.c>, which points
+// XTENSA_ENC_INC_<CORE> at the build-dir copy (see MCTargetDesc/gen/README.md).
+#ifndef XTENSA_ENC_INC_ACE15
+#define XTENSA_ENC_INC_ACE15 "ace15_enc.inc"
+#endif
+#ifndef XTENSA_ENC_INC_TGL
+#define XTENSA_ENC_INC_TGL "tgl_enc.inc"
+#endif
+#ifndef XTENSA_ENC_INC_ACE30
+#define XTENSA_ENC_INC_ACE30 "ace30_enc.inc"
+#endif
+#ifndef XTENSA_ENC_INC_ACE40
+#define XTENSA_ENC_INC_ACE40 "ace40_enc.inc"
 #endif
 #define XTENSA_BUNDLE_ENC(N, L, ...) {#N, (uint8_t)(L), __VA_ARGS__},
-static const XtBundleEnc XtBundleTable[] = {
-#include XTENSA_ENC_INC
+static const XtBundleEnc XtBundleTableAce15[] = {
+#include XTENSA_ENC_INC_ACE15
+};
+static const XtBundleEnc XtBundleTableTgl[] = {
+#include XTENSA_ENC_INC_TGL
+};
+static const XtBundleEnc XtBundleTableAce30[] = {
+#include XTENSA_ENC_INC_ACE30
+};
+static const XtBundleEnc XtBundleTableAce40[] = {
+#include XTENSA_ENC_INC_ACE40
 };
 #undef XTENSA_BUNDLE_ENC
+
+namespace {
+struct XtBundleTableRef {
+  const XtBundleEnc *ops;
+  size_t n;
+};
+} // namespace
+
+// Select the bundle-encoding table for the target core named by -mcpu. HiFi4
+// (ACE15, ACE30) and HiFi3 (cavs2.5 / Tiger Lake) bundle-only AE ops are
+// encoded identically for ACE15 and ACE30 (verified by diff of their
+// xtensa-modules.c), but we keep separate tables for explicitness and to
+// automatically pick up any future ACE30-specific divergence.
+static XtBundleTableRef selectBundleTable(StringRef CPU) {
+  if (CPU == "intel_tgl_adsp")
+    return {XtBundleTableTgl, sizeof(XtBundleTableTgl) / sizeof(XtBundleEnc)};
+  if (CPU == "intel_ace30_adsp" || CPU == "intel_ace30_ptl")
+    return {XtBundleTableAce30,
+            sizeof(XtBundleTableAce30) / sizeof(XtBundleEnc)};
+  if (CPU == "intel_ace40_adsp" || CPU == "intel_ace40_nvl")
+    return {XtBundleTableAce40,
+            sizeof(XtBundleTableAce40) / sizeof(XtBundleEnc)};
+  // Default: ACE15/HiFi4 table (intel_ace15_adsp, intel_ace15_mtpm).
+  return {XtBundleTableAce15, sizeof(XtBundleTableAce15) / sizeof(XtBundleEnc)};
+}
 
 void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
                                             SmallVectorImpl<char> &CB,
@@ -646,12 +689,14 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
   // Table-driven encoding for bundle-only AE instructions. clang emits these
   // lone (non-BUNDLE), classified as "standalone", but they have no valid
-  // standalone packet and must be emitted as a 6- or 11-byte FLIX bundle
-  // { op; NOP... }. The table is auto-generated from the ACE15 xtensa-modules.c
+  // standalone packet and must be emitted as a FLIX bundle { op; NOP... }. The
+  // per-core table is auto-generated from that core's xtensa-modules.c
   // (Tensilica libisa) and is byte-exact with GNU as. Copy the NOP-filled
   // template, then OR each register operand's encoding into its bit positions.
   if (Opcode != Xtensa::BUNDLE) {
-    for (const XtBundleEnc &E : XtBundleTable) {
+    XtBundleTableRef Tbl = selectBundleTable(STI.getCPU());
+    for (size_t Ti = 0; Ti < Tbl.n; ++Ti) {
+      const XtBundleEnc &E = Tbl.ops[Ti];
       if (Name != E.name)
         continue;
       // Only use the table if every mapped operand is in range and of the
