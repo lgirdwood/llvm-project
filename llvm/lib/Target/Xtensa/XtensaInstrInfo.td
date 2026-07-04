@@ -1769,7 +1769,25 @@ let Predicates = [HasESP32S2Ops] in {
   }
 }
 
+// L32AI / S32RI
+//===----------------------------------------------------------------------===//
+
+let mayLoad = 1, mayStore = 0 in {
+  def L32AI : RRI8_Inst<0x02, (outs AR:$t), (ins AR:$s, uimm8_x4:$imm8),
+                        "l32ai\t$t, $s, $imm8", []> {
+    let r = 0x0b;
+  }
+}
+
+let mayStore = 1, mayLoad = 0 in {
+  def S32RI : RRI8_Inst<0x02, (outs), (ins AR:$t, AR:$s, uimm8_x4:$imm8),
+                        "s32ri\t$t, $s, $imm8", []> {
+    let r = 0x0f;
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // DSP Instructions
 //===----------------------------------------------------------------------===//
 include "XtensaDSPInstrInfo.td"
+
