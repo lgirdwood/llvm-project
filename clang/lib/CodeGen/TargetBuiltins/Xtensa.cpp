@@ -199,6 +199,29 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   case Xtensa::BI__builtin_xtensa_ae_neg32s:
     ID = Intrinsic::xtensa_ae_neg32s; break;
 
+  // Batch 1 & 2 Porting
+  case Xtensa::BI__builtin_xtensa_ae_abs24s:
+    ID = Intrinsic::xtensa_ae_abs24s; break;
+  case Xtensa::BI__builtin_xtensa_ae_abs32:
+    ID = Intrinsic::xtensa_ae_abs32; break;
+  case Xtensa::BI__builtin_xtensa_ae_abs64:
+    ID = Intrinsic::xtensa_ae_abs64; break;
+  case Xtensa::BI__builtin_xtensa_ae_abs64s:
+    ID = Intrinsic::xtensa_ae_abs64s; break;
+  case Xtensa::BI__builtin_xtensa_ae_abssq56s:
+    ID = Intrinsic::xtensa_ae_abssq56s; break;
+  case Xtensa::BI__builtin_xtensa_ae_addsq56s:
+    ID = Intrinsic::xtensa_ae_addsq56s; break;
+  case Xtensa::BI__builtin_xtensa_ae_addsub32:
+    ID = Intrinsic::xtensa_ae_addsub32; break;
+  case Xtensa::BI__builtin_xtensa_ae_addsub32s:
+    ID = Intrinsic::xtensa_ae_addsub32s; break;
+  case Xtensa::BI__builtin_xtensa_ae_l16_x:
+    ID = Intrinsic::xtensa_ae_l16_x; break;
+  case Xtensa::BI__builtin_xtensa_ae_l16m_i:
+    ID = Intrinsic::xtensa_ae_l16m_i; break;
+
+
   case Xtensa::BI__builtin_xtensa_ae_and16:
     ID = Intrinsic::xtensa_ae_and16; break;
   case Xtensa::BI__builtin_xtensa_ae_or16:
@@ -428,6 +451,32 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     Value *AOut = Builder.CreateExtractValue(Call, 1);
     Builder.CreateStore(Builder.CreateBitCast(BOut, Builder.getInt64Ty()), BAddr);
     Builder.CreateStore(Builder.CreateBitCast(AOut, Builder.getInt64Ty()), AAddr);
+    return llvm::UndefValue::get(CGM.VoidTy);
+  }
+
+  case Xtensa::BI__builtin_xtensa_ae_mula4o4x16: {
+    llvm::Type *V2I32Ty = llvm::FixedVectorType::get(Builder.getInt32Ty(), 2);
+    Address Addr0 = EmitPointerWithAlignment(E->getArg(0));
+    Address Addr1 = EmitPointerWithAlignment(E->getArg(1));
+    Address Addr2 = EmitPointerWithAlignment(E->getArg(2));
+    Address Addr3 = EmitPointerWithAlignment(E->getArg(3));
+    Value *V0 = Builder.CreateBitCast(Builder.CreateLoad(Addr0), V2I32Ty);
+    Value *V1 = Builder.CreateBitCast(Builder.CreateLoad(Addr1), V2I32Ty);
+    Value *V2 = Builder.CreateBitCast(Builder.CreateLoad(Addr2), V2I32Ty);
+    Value *V3 = Builder.CreateBitCast(Builder.CreateLoad(Addr3), V2I32Ty);
+    SmallVector<Value *, 8> Args = {V0, V1, V2, V3};
+    for (unsigned i = 4; i <= 7; ++i)
+      Args.push_back(Builder.CreateBitCast(Ops[i], V2I32Ty));
+    Function *F = CGM.getIntrinsic(Intrinsic::xtensa_ae_mula4o4x16);
+    Value *Call = Builder.CreateCall(F, Args);
+    Value *Out0 = Builder.CreateExtractValue(Call, 0);
+    Value *Out1 = Builder.CreateExtractValue(Call, 1);
+    Value *Out2 = Builder.CreateExtractValue(Call, 2);
+    Value *Out3 = Builder.CreateExtractValue(Call, 3);
+    Builder.CreateStore(Builder.CreateBitCast(Out0, Builder.getInt64Ty()), Addr0);
+    Builder.CreateStore(Builder.CreateBitCast(Out1, Builder.getInt64Ty()), Addr1);
+    Builder.CreateStore(Builder.CreateBitCast(Out2, Builder.getInt64Ty()), Addr2);
+    Builder.CreateStore(Builder.CreateBitCast(Out3, Builder.getInt64Ty()), Addr3);
     return llvm::UndefValue::get(CGM.VoidTy);
   }
 
@@ -698,6 +747,8 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_l16x4_ip; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l16x4_xp:
     ID = Intrinsic::xtensa_ae_l16x4_xp; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
+  case Xtensa::BI__builtin_xtensa_ae_l16x4_xc:
+    ID = Intrinsic::xtensa_ae_l16x4_xc; IsPostUpdateLoad = NeedsAlignedPtr8 = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32_ip:
     ID = Intrinsic::xtensa_ae_l32_ip; IsPostUpdateLoad = true; break;
   case Xtensa::BI__builtin_xtensa_ae_l32_xp:
@@ -872,6 +923,10 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     ID = Intrinsic::xtensa_ae_s16_0_ip; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s16x4_ip:
     ID = Intrinsic::xtensa_ae_s16x4_ip; IsPostUpdateStore = true; break;
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_xp:
+    ID = Intrinsic::xtensa_ae_s16x4_xp; IsPostUpdateStore = true; break;
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_xc:
+    ID = Intrinsic::xtensa_ae_s16x4_xc; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s16_0_xp:
     ID = Intrinsic::xtensa_ae_s16_0_xp; IsPostUpdateStore = true; break;
   case Xtensa::BI__builtin_xtensa_ae_s32_l_xp:
@@ -889,6 +944,9 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     break;
   case Xtensa::BI__builtin_xtensa_ae_l16x4_x:
     ID = Intrinsic::xtensa_ae_l16x4_x; NeedsAlignedPtr8 = true;
+    break;
+  case Xtensa::BI__builtin_xtensa_ae_l16x4_i:
+    ID = Intrinsic::xtensa_ae_l16x4_i; NeedsAlignedPtr8 = true;
     break;
 
   case Xtensa::BI__builtin_xtensa_ae_l16m_x:
@@ -925,6 +983,12 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     break;
   case Xtensa::BI__builtin_xtensa_ae_s32x2_x:
     ID = Intrinsic::xtensa_ae_s32x2_x;
+    break;
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_i:
+    ID = Intrinsic::xtensa_ae_s16x4_i;
+    break;
+  case Xtensa::BI__builtin_xtensa_ae_s16x4_x:
+    ID = Intrinsic::xtensa_ae_s16x4_x;
     break;
   }
 
