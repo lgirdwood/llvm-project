@@ -33,7 +33,7 @@ XtensaMCAsmInfo::XtensaMCAsmInfo(const Triple &TT,
   // Don't emit .cfi_* directives — the Xtensa GCC assembler doesn't
   // support them, and they cause errors with -fno-integrated-as.
   ExceptionsType = ExceptionHandling::None;
-  AlignmentIsInBytes = false;
+  AlignmentIsInBytes = true;
 }
 
 void XtensaMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
@@ -46,10 +46,18 @@ void XtensaMCAsmInfo::printSpecifierExpr(raw_ostream &OS,
     OS << ')';
 }
 
-uint8_t Xtensa::parseSpecifier(StringRef name) { return 0; }
+uint8_t Xtensa::parseSpecifier(StringRef name) {
+  if (name == "PLT")
+    return S_PLT;
+  return 0;
+}
 
 StringRef Xtensa::getSpecifierName(uint8_t S) {
   switch (S) {
+  case S_TPOFF:
+    return "tpoff";
+  case S_PLT:
+    return "PLT";
   default:
     llvm_unreachable("Invalid ELF symbol kind");
   }

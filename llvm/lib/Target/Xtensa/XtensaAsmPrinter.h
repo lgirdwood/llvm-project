@@ -37,6 +37,7 @@ public:
 
   StringRef getPassName() const override { return "Xtensa Assembly Printer"; }
   void emitInstruction(const MachineInstr *MI) override;
+  void EmitToStreamer(MCStreamer &S, const MCInst &Inst);
 
   void emitConstantPool() override;
 
