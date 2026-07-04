@@ -222,6 +222,10 @@ public:
   ArrayRef<char> getVarContents() const;
 
   size_t getFixedSize() const { return FixedSize; }
+  void setFixedSize(size_t Size) { FixedSize = Size; }
+  void setFixupStart(uint32_t Start) { FixupStart = Start; }
+  void setFixupEnd(uint32_t End) { FixupEnd = End; }
+  uint32_t getFixupStart() const { return FixupStart; }
   size_t getVarSize() const { return VarContentEnd - VarContentStart; }
   size_t getSize() const {
     return FixedSize + (VarContentEnd - VarContentStart);
@@ -639,6 +643,8 @@ public:
 
   StringRef getName() const { return Name; }
   bool isText() const { return IsText; }
+  SmallVectorImpl<MCFixup> &getFixupStorage() { return FixupStorage; }
+  const SmallVectorImpl<MCFixup> &getFixupStorage() const { return FixupStorage; }
 
   MCSymbol *getBeginSymbol() { return Begin; }
   const MCSymbol *getBeginSymbol() const {

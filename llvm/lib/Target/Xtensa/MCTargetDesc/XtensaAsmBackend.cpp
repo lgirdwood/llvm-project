@@ -23,6 +23,7 @@
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/MC/MCRegisterInfo.h"
 
 using namespace llvm;
 
@@ -347,28 +348,101 @@ static bool isAutoLitpoolsEnabled(const MCInst &Inst) {
   return AutoLitpools;
 }
 
+static unsigned getInvertedBranchOpcode(unsigned Opcode) {
+  switch (Opcode) {
+  case Xtensa::BEQ: return Xtensa::BNE;
+  case Xtensa::BNE: return Xtensa::BEQ;
+  case Xtensa::BLT: return Xtensa::BGE;
+  case Xtensa::BGE: return Xtensa::BLT;
+  case Xtensa::BLTU: return Xtensa::BGEU;
+  case Xtensa::BGEU: return Xtensa::BLTU;
+  case Xtensa::BEQI: return Xtensa::BNEI;
+  case Xtensa::BNEI: return Xtensa::BEQI;
+  case Xtensa::BLTI: return Xtensa::BGEI;
+  case Xtensa::BGEI: return Xtensa::BLTI;
+  case Xtensa::BLTUI: return Xtensa::BGEUI;
+  case Xtensa::BGEUI: return Xtensa::BLTUI;
+  case Xtensa::BEQZ: return Xtensa::BNEZ;
+  case Xtensa::BNEZ: return Xtensa::BEQZ;
+  case Xtensa::BGEZ: return Xtensa::BLTZ;
+  case Xtensa::BLTZ: return Xtensa::BGEZ;
+  case Xtensa::BEQZ_N: return Xtensa::BNEZ_N;
+  case Xtensa::BNEZ_N: return Xtensa::BEQZ_N;
+  case Xtensa::BANY: return Xtensa::BNONE;
+  case Xtensa::BNONE: return Xtensa::BANY;
+  case Xtensa::BALL: return Xtensa::BNALL;
+  case Xtensa::BNALL: return Xtensa::BALL;
+  case Xtensa::BBC: return Xtensa::BBS;
+  case Xtensa::BBS: return Xtensa::BBC;
+  case Xtensa::BBCI: return Xtensa::BBSI;
+  case Xtensa::BBSI: return Xtensa::BBCI;
+  case Xtensa::BT: return Xtensa::BF;
+  case Xtensa::BF: return Xtensa::BT;
+  default: return 0;
+  }
+}
+
+static unsigned getBundleBranchOpcode(const MCInst &BundleInst) {
+  for (unsigned i = 0; i < BundleInst.getNumOperands(); ++i) {
+    const MCOperand &Op = BundleInst.getOperand(i);
+    if (Op.isInst()) {
+      unsigned Opc = Op.getInst()->getOpcode();
+      if (getInvertedBranchOpcode(Opc) != 0) {
+        return Opc;
+      }
+    }
+  }
+  return 0;
+}
+
+static MCInst *getBundleBranchInst(MCInst &BundleInst) {
+  for (unsigned i = 0; i < BundleInst.getNumOperands(); ++i) {
+    MCOperand &Op = BundleInst.getOperand(i);
+    if (Op.isInst()) {
+      unsigned Opc = const_cast<MCInst *>(Op.getInst())->getOpcode();
+      if (getInvertedBranchOpcode(Opc) != 0) {
+        return const_cast<MCInst *>(Op.getInst());
+      }
+    }
+  }
+  return nullptr;
+}
+
 bool XtensaAsmBackend::mayNeedRelaxation(unsigned Opcode,
                                          ArrayRef<MCOperand> Operands,
                                          const MCSubtargetInfo &STI) const {
+  bool Res = false;
   if (Opcode == Xtensa::BUNDLE) {
-    return false;
-  }
-  if (Opcode == Xtensa::J || Opcode == Xtensa::L32R) {
-    return true;
-  }
-  if (Opcode == Xtensa::BEQZ_N || Opcode == Xtensa::BNEZ_N) {
-    return true;
-  }
-  if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::MOVI_N || Opcode == Xtensa::L32I_N) {
-    return true;
-  }
-  if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
+    for (unsigned i = 0; i < Operands.size(); ++i) {
+      const MCOperand &Op = Operands[i];
+      if (Op.isInst()) {
+        unsigned SubOpc = Op.getInst()->getOpcode();
+        if (SubOpc == Xtensa::J || SubOpc == Xtensa::L32R ||
+            SubOpc == Xtensa::LOOP || SubOpc == Xtensa::LOOPNEZ || SubOpc == Xtensa::LOOPGTZ ||
+            getInvertedBranchOpcode(SubOpc) != 0) {
+          Res = true;
+          break;
+        }
+      }
+    }
+  } else if (getInvertedBranchOpcode(Opcode) != 0) {
+    Res = true;
+  } else if (Opcode == Xtensa::LOOP || Opcode == Xtensa::LOOPNEZ || Opcode == Xtensa::LOOPGTZ) {
+    Res = true;
+  } else if (Opcode == Xtensa::J || Opcode == Xtensa::L32R) {
+    Res = true;
+  } else if (Opcode == Xtensa::BEQZ_N || Opcode == Xtensa::BNEZ_N) {
+    Res = true;
+  } else if (Opcode == Xtensa::MOV_N || Opcode == Xtensa::MOVI_N || Opcode == Xtensa::L32I_N) {
+    Res = true;
+  } else if (Opcode == Xtensa::CALL0 || Opcode == Xtensa::CALL4 ||
       Opcode == Xtensa::CALL8 || Opcode == Xtensa::CALL12 ||
       Opcode == Xtensa::CALLX0 || Opcode == Xtensa::CALLX4 ||
       Opcode == Xtensa::CALLX8 || Opcode == Xtensa::CALLX12) {
-    return true;
+    Res = true;
   }
-  return false;
+  // No debug prints in production
+  return Res;
 }
 
 bool XtensaAsmBackend::fixupNeedsRelaxationAdvanced(const MCFragment &F,
@@ -430,7 +504,7 @@ bool XtensaAsmBackend::finishLayout() const {
   bool Changed = false;
   DenseSet<const MCFragment *> AutoLitpools;
 
-  for (unsigned Iter = 0; Iter < 100; ++Iter) {
+  for (unsigned Iter = 0; Iter < 1000; ++Iter) {
     bool IterChanged = false;
     DenseSet<const MCFragment *> LabeledFragments;
     for (const MCSymbol &S : Asm->symbols()) {
@@ -442,7 +516,7 @@ bool XtensaAsmBackend::finishLayout() const {
     }
 
     for (MCSection &Sec : *Asm) {
-      if (!Sec.isText())
+      if (!Sec.isText() && !Sec.getName().starts_with(".text") && !Sec.getName().starts_with(".cold"))
         continue;
 
       // ---- Target Alignment Widening Pass ----
@@ -523,11 +597,377 @@ bool XtensaAsmBackend::finishLayout() const {
                  Asm->getEmitter().encodeInstruction(Inst, Data, Fixups, *PF->getSubtargetInfo());
                  PF->setVarContents(Data);
                  PF->setVarFixups(Fixups);
-                 
                  IterChanged = true;
                  Changed = true;
            }
            PrevFragments.clear();
+        }
+      }
+
+      if (!IterChanged) {
+        // ---- Loop Relaxation Pass ----
+        for (MCSection::iterator I = Sec.begin(), E = Sec.end(); I != E; ++I) {
+          MCFragment &F = *I;
+          if (F.getKind() == MCFragment::FT_Relaxable) {
+            MCInst Inst = F.getInst();
+            unsigned Opcode = Inst.getOpcode();
+            const MCInst *RealInst = &Inst;
+            if (Opcode == Xtensa::BUNDLE) {
+              for (unsigned i = 0; i < Inst.getNumOperands(); ++i) {
+                const MCOperand &Op = Inst.getOperand(i);
+                if (Op.isInst()) {
+                  unsigned SubOpc = Op.getInst()->getOpcode();
+                  if (SubOpc == Xtensa::LOOP || SubOpc == Xtensa::LOOPNEZ || SubOpc == Xtensa::LOOPGTZ) {
+                    RealInst = Op.getInst();
+                    Opcode = SubOpc;
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (Opcode == Xtensa::LOOP || Opcode == Xtensa::LOOPNEZ || Opcode == Xtensa::LOOPGTZ) {
+              auto Fixups = F.getVarFixups();
+              if (!Fixups.empty()) {
+                const MCFixup &Fixup = Fixups[0];
+                const MCExpr *Expr = Fixup.getValue();
+                if (Expr) {
+                  MCValue TargetVal;
+                  if (Expr->evaluateAsRelocatable(TargetVal, Asm)) {
+                    const MCSymbol *TargetSym = TargetVal.getAddSym();
+                    if (TargetSym && TargetSym->isDefined() && TargetSym->getFragment()) {
+                      if (TargetSym->getFragment()->getParent() == &Sec) {
+                        uint64_t TargetOffset = Asm->getSymbolOffset(*TargetSym) + TargetVal.getConstant();
+                        uint64_t SourceOffset = Asm->getFragmentOffset(F) + Fixup.getOffset();
+                        int64_t OffsetVal = (int64_t)TargetOffset - (int64_t)SourceOffset;
+                        int64_t RelOffset = OffsetVal - 4;
+
+                        if (RelOffset < 0 || RelOffset > 255) {
+                          unsigned Reg = RealInst->getOperand(0).getReg();
+                          unsigned RegNum = Ctx.getRegisterInfo()->getEncodingValue(Reg);
+
+                          uint8_t LoopByte0 = 0x76;
+                          uint8_t LoopByte1 = 0x80 | RegNum;
+                          if (Opcode == Xtensa::LOOPNEZ) {
+                            LoopByte1 = 0x90 | RegNum;
+                          } else if (Opcode == Xtensa::LOOPGTZ) {
+                            LoopByte1 = 0xa0 | RegNum;
+                          }
+                          uint8_t LoopByte2 = 20;
+
+                          int64_t TargetRelOffset = OffsetVal - 24;
+                          int64_t Low = TargetRelOffset & 0xff;
+                          if (Low >= 128) Low -= 256;
+                          int64_t High = (TargetRelOffset - Low) >> 8;
+
+                          SmallVector<char, 24> Data;
+                          Data.push_back(LoopByte0);
+                          Data.push_back(LoopByte1);
+                          Data.push_back(LoopByte2);
+
+                          Data.push_back(RegNum << 4);
+                          Data.push_back(1);
+                          Data.push_back(3);
+
+                          Data.push_back(RegNum << 4);
+                          Data.push_back(0);
+                          Data.push_back(0x13);
+
+                          Data.push_back(RegNum << 4);
+                          Data.push_back(0);
+                          Data.push_back(3);
+
+                          Data.push_back((RegNum << 4) | 2);
+                          Data.push_back(0xd0 | RegNum);
+                          Data.push_back(High);
+
+                          Data.push_back((RegNum << 4) | 2);
+                          Data.push_back(0xc0 | RegNum);
+                          Data.push_back(Low);
+
+                          Data.push_back(RegNum << 4);
+                          Data.push_back(1);
+                          Data.push_back(0x13);
+
+                          Data.push_back(0);
+                          Data.push_back(0x20);
+                          Data.push_back(0);
+
+                          F.setVarContents(Data);
+                          SmallVector<MCFixup, 1> EmptyFixups;
+                          F.setVarFixups(EmptyFixups);
+
+                          const_cast<MCAssembler *>(Asm)->layoutSection(Sec);
+                          IterChanged = true;
+                          Changed = true;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } else if (F.getKind() == MCFragment::FT_Data) {
+            MCFragment &DF = F;
+            auto Fixups = DF.getFixups();
+            for (size_t fixup_idx = 0; fixup_idx < Fixups.size(); ++fixup_idx) {
+              MCFixup Fixup = Fixups[fixup_idx];
+              unsigned FixupKind = Fixup.getKind();
+              if (FixupKind == (MCFixupKind)Xtensa::fixup_xtensa_loop_8) {
+                uint32_t FixupOffset = Fixup.getOffset();
+                size_t InstOffset = FixupOffset;
+                if (InstOffset + 3 <= DF.getContents().size()) {
+                  uint8_t Byte0 = DF.getContents()[InstOffset];
+                  uint8_t Byte1 = DF.getContents()[InstOffset + 1];
+                  unsigned s = Byte1 & 0x0f;
+                  unsigned r = Byte1 >> 4;
+                  if (Byte0 == 0x76 && (r == 8 || r == 9 || r == 10)) {
+                    const MCExpr *Expr = Fixup.getValue();
+                    if (Expr) {
+                      MCValue TargetVal;
+                      if (Expr->evaluateAsRelocatable(TargetVal, Asm)) {
+                        const MCSymbol *TargetSym = TargetVal.getAddSym();
+                        if (TargetSym && TargetSym->isDefined() && TargetSym->getFragment()) {
+                          if (TargetSym->getFragment()->getParent() == &Sec) {
+                            uint64_t TargetOffset = Asm->getSymbolOffset(*TargetSym) + TargetVal.getConstant();
+                            uint64_t SourceOffset = Asm->getFragmentOffset(DF) + InstOffset;
+                            int64_t OffsetVal = (int64_t)TargetOffset - (int64_t)SourceOffset;
+                            int64_t RelOffset = OffsetVal - 4;
+
+                            if (RelOffset < 0 || RelOffset > 255) {
+                              unsigned RegNum = s;
+
+                              uint8_t LoopByte0 = 0x76;
+                              uint8_t LoopByte1 = Byte1;
+                              uint8_t LoopByte2 = 20;
+
+                              int64_t TargetRelOffset = OffsetVal - 24;
+                              int64_t Low = TargetRelOffset & 0xff;
+                              if (Low >= 128) Low -= 256;
+                              int64_t High = (TargetRelOffset - Low) >> 8;
+
+                              SmallVector<char, 24> RelaxedData;
+                              RelaxedData.push_back(LoopByte0);
+                              RelaxedData.push_back(LoopByte1);
+                              RelaxedData.push_back(LoopByte2);
+
+                              RelaxedData.push_back(RegNum << 4);
+                              RelaxedData.push_back(1);
+                              RelaxedData.push_back(3);
+
+                              RelaxedData.push_back(RegNum << 4);
+                              RelaxedData.push_back(0);
+                              RelaxedData.push_back(0x13);
+
+                              RelaxedData.push_back(RegNum << 4);
+                              RelaxedData.push_back(0);
+                              RelaxedData.push_back(3);
+
+                              RelaxedData.push_back((RegNum << 4) | 2);
+                              RelaxedData.push_back(0xd0 | RegNum);
+                              RelaxedData.push_back(High);
+
+                              RelaxedData.push_back((RegNum << 4) | 2);
+                              RelaxedData.push_back(0xc0 | RegNum);
+                              RelaxedData.push_back(Low);
+
+                              RelaxedData.push_back(RegNum << 4);
+                              RelaxedData.push_back(1);
+                              RelaxedData.push_back(0x13);
+
+                              RelaxedData.push_back(0);
+                              RelaxedData.push_back(0x20);
+                              RelaxedData.push_back(0);
+
+                              SmallVector<MCFixup, 8> NewFixedFixups;
+                              SmallVector<MCFixup, 8> NewVarFixups;
+
+                              auto AdjustAndAddFixup = [&](MCFixup Fxp) {
+                                uint32_t Offset = Fxp.getOffset();
+                                if (Fxp.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_loop_8 && Offset == FixupOffset) {
+                                  return;
+                                }
+                                if (Offset > FixupOffset) {
+                                  Offset += 21;
+                                }
+                                Fxp.setOffset(Offset);
+
+                                if (Offset < InstOffset) {
+                                  NewFixedFixups.push_back(Fxp);
+                                } else {
+                                  Fxp.setOffset(Offset - InstOffset);
+                                  NewVarFixups.push_back(Fxp);
+                                }
+                              };
+
+                              for (const MCFixup &Fxp : DF.getFixups()) {
+                                AdjustAndAddFixup(Fxp);
+                              }
+                              for (const MCFixup &Fxp : DF.getVarFixups()) {
+                                AdjustAndAddFixup(Fxp);
+                              }
+
+                              SmallVector<char, 128> NewVarContents;
+                              NewVarContents.append(RelaxedData.begin(), RelaxedData.end());
+
+                              ArrayRef<char> FixedContents = DF.getContents();
+                              if (FixedContents.size() > InstOffset + 3) {
+                                NewVarContents.append(FixedContents.begin() + InstOffset + 3, FixedContents.end());
+                              }
+
+                              ArrayRef<char> OldVarContents = DF.getVarContents();
+                              NewVarContents.append(OldVarContents.begin(), OldVarContents.end());
+
+                              DF.setFixedSize(InstOffset);
+
+                              DF.clearFixups();
+                              DF.clearVarFixups();
+
+                              DF.setFixupStart(DF.getParent()->getFixupStorage().size());
+                              DF.setFixupEnd(DF.getParent()->getFixupStorage().size());
+
+                              DF.appendFixups(NewFixedFixups);
+                              DF.setVarContents(NewVarContents);
+                              DF.setVarFixups(NewVarFixups);
+
+                              const_cast<MCAssembler *>(Asm)->layoutSection(Sec);
+                              IterChanged = true;
+                              Changed = true;
+                              break;
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              if (IterChanged)
+                break;
+            }
+          }
+          if (IterChanged)
+            break;
+        }
+      }
+      if (!IterChanged) {
+        // ---- Branch Trampoline Relaxation Pass ----
+        for (MCSection::iterator I = Sec.begin(), E = Sec.end(); I != E; ++I) {
+          MCFragment &F = *I;
+          if (F.getKind() != MCFragment::FT_Relaxable)
+            continue;
+
+          MCInst Inst = F.getInst();
+          unsigned Opc = Inst.getOpcode();
+          if (Opc == Xtensa::BUNDLE) {
+            Opc = getBundleBranchOpcode(Inst);
+          }
+          unsigned InvOpc = getInvertedBranchOpcode(Opc);
+          if (InvOpc == 0)
+            continue;
+
+
+          auto Fixups = F.getVarFixups();
+          if (Fixups.empty())
+            continue;
+
+          const MCFixup &Fixup = Fixups[0];
+          const MCExpr *Expr = Fixup.getValue();
+          if (!Expr)
+            continue;
+
+          MCValue TargetVal;
+          if (!Expr->evaluateAsRelocatable(TargetVal, Asm))
+            continue;
+
+          const MCSymbol *TargetSym = TargetVal.getAddSym();
+          if (!TargetSym || !TargetSym->isDefined() || !TargetSym->getFragment())
+            continue;
+
+          if (TargetSym->getFragment()->getParent() != &Sec)
+            continue;
+
+          uint64_t TargetOffset = Asm->getSymbolOffset(*TargetSym) + TargetVal.getConstant();
+          uint64_t SourceOffset = Asm->getFragmentOffset(F) + Fixup.getOffset();
+          int64_t OffsetVal = (int64_t)TargetOffset - (int64_t)SourceOffset;
+          int64_t RelOffset = OffsetVal - 4;
+
+          bool OutOfRange = false;
+          if (Opc == Xtensa::BEQZ || Opc == Xtensa::BNEZ || Opc == Xtensa::BGEZ || Opc == Xtensa::BLTZ) {
+            OutOfRange = (RelOffset < -2000 || RelOffset > 2000);
+          } else if (Opc == Xtensa::BEQZ_N || Opc == Xtensa::BNEZ_N) {
+            OutOfRange = (RelOffset < 0 || RelOffset > 46);
+          } else {
+            OutOfRange = (RelOffset < -120 || RelOffset > 120);
+          }
+
+          if (!OutOfRange)
+            continue;
+
+          const MCSubtargetInfo &STI = *F.getSubtargetInfo();
+          MCSymbol *ResumeSym = Ctx.createTempSymbol();
+
+          MCFragment *Tramp = new (Ctx.allocate(sizeof(MCFragment))) MCFragment(MCFragment::FT_Relaxable);
+          Tramp->setHasInstructions(STI);
+          Tramp->setParent(&Sec);
+
+          MCInst TrampInst;
+          TrampInst.setOpcode(Xtensa::J);
+          TrampInst.addOperand(MCOperand::createExpr(MCSymbolRefExpr::create(TargetSym, Ctx)));
+          TrampInst.setFlags(Xtensa::XtensaJJumpTrampolinesEnabled);
+
+          SmallVector<char, 16> DataTramp;
+          SmallVector<MCFixup, 1> FixupsTramp;
+          Asm->getEmitter().encodeInstruction(TrampInst, DataTramp, FixupsTramp, STI);
+          Tramp->setVarContents(DataTramp);
+          Tramp->setInst(TrampInst);
+          Tramp->setVarFixups(FixupsTramp);
+
+          MCFragment *Resume = new (Ctx.allocate(sizeof(MCFragment))) MCFragment();
+          Resume->setParent(&Sec);
+
+          Resume->setNext(F.getNext());
+          Tramp->setNext(Resume);
+          F.setNext(Tramp);
+
+          if (Sec.curFragList()->Tail == &F) {
+            Sec.curFragList()->Tail = Resume;
+          }
+
+          ResumeSym->setFragment(Resume);
+          ResumeSym->setOffset(0);
+          const_cast<MCAssembler *>(Asm)->registerSymbol(*ResumeSym);
+
+          unsigned LayoutOrder = 0;
+          for (MCFragment &Frag : Sec) {
+            Frag.setLayoutOrder(LayoutOrder++);
+          }
+
+          MCInst NewInst = F.getInst();
+          if (Inst.getOpcode() == Xtensa::BUNDLE) {
+            MCInst *SubInst = getBundleBranchInst(NewInst);
+            SubInst->setOpcode(InvOpc);
+            unsigned TargetOpIdx = SubInst->getNumOperands() - 1;
+            SubInst->getOperand(TargetOpIdx).setExpr(MCSymbolRefExpr::create(ResumeSym, Ctx));
+          } else {
+            NewInst.setOpcode(InvOpc);
+            unsigned TargetOpIdx = NewInst.getNumOperands() - 1;
+            NewInst.getOperand(TargetOpIdx).setExpr(MCSymbolRefExpr::create(ResumeSym, Ctx));
+          }
+          F.setInst(NewInst);
+
+          SmallVector<char, 16> DataF;
+          SmallVector<MCFixup, 1> FixupsF;
+          Asm->getEmitter().encodeInstruction(NewInst, DataF, FixupsF, STI);
+          F.setVarContents(DataF);
+          F.setVarFixups(FixupsF);
+
+          const_cast<MCAssembler *>(Asm)->layoutSection(Sec);
+
+          IterChanged = true;
+          Changed = true;
+          break;
         }
       }
 
@@ -802,7 +1242,7 @@ bool XtensaAsmBackend::finishLayout() const {
     if (!IterChanged) {
       // Check automatic literal pools
       for (MCSection &Sec : *Asm) {
-        if (!Sec.isText())
+        if (!Sec.isText() && !Sec.getName().starts_with(".text") && !Sec.getName().starts_with(".cold"))
           continue;
 
         for (MCSection::iterator I = Sec.begin(), E = Sec.end(); I != E; ++I) {
