@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -119,12 +120,21 @@ bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     const XtensaInstrInfo &TII = *static_cast<const XtensaInstrInfo *>(
         MBB.getParent()->getSubtarget().getInstrInfo());
 
-    TII.loadImmediate(MBB, II, &Reg, Offset);
-    BuildMI(MBB, II, DL, TII.get(ADD), Reg)
-        .addReg(FrameReg)
-        .addReg(Reg, RegState::Kill);
+    if (!RS)
+      report_fatal_error("eliminateFrameIndex: RegScavenger is null");
+      
+    Register TmpReg = RS->scavengeRegisterBackwards(Xtensa::ARRegClass, II, false, SPAdj);
+    if (TmpReg == 0)
+      report_fatal_error("eliminateFrameIndex: Could not scavenge register");
 
-    FrameReg = Reg;
+    MCRegister MCReg = TmpReg.asMCReg();
+    TII.loadImmediate(MBB, II, &MCReg, Offset);
+
+    BuildMI(MBB, II, DL, TII.get(Xtensa::ADD), TmpReg)
+        .addReg(FrameReg)
+        .addReg(TmpReg, RegState::Kill);
+
+    FrameReg = TmpReg;
     Offset = 0;
     IsKill = true;
   }
