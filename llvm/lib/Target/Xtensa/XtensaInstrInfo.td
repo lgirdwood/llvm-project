@@ -44,6 +44,11 @@ def ADDX2 : ADDX<0x09, "addx2", [(set AR:$r, (add AR:$t, (shl AR:$s, (i32 1))))]
 def ADDX4 : ADDX<0x0A, "addx4", [(set AR:$r, (add AR:$t, (shl AR:$s, (i32 2))))]>;
 def ADDX8 : ADDX<0x0B, "addx8", [(set AR:$r, (add AR:$t, (shl AR:$s, (i32 3))))]>;
 
+def SALT  : RRR_Inst<0x00, 0x02, 0x07, (outs AR:$r), (ins AR:$s, AR:$t),
+                     "salt\t$r, $s, $t", []>;
+def SALTU : RRR_Inst<0x00, 0x02, 0x06, (outs AR:$r), (ins AR:$s, AR:$t),
+                     "saltu\t$r, $s, $t", []>;
+
 class SUBX<bits<4> oper, string instrAsm, list<dag> pattern>
   : RRR_Inst<0x00, 0x00, oper, (outs AR:$r), (ins AR:$s, AR:$t),
              instrAsm#"\t$r, $s, $t", pattern>;
