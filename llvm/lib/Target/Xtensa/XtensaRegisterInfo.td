@@ -32,14 +32,14 @@ class ARReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n> {
 }
 
 // Return Address
-def A0 : ARReg<0, "a0">, DwarfRegNum<[0]>;
+def A0 : ARReg<0, "a0", ["u0"]>, DwarfRegNum<[0]>;
 
 // Stack Pointer (callee-saved)
-def SP : ARReg<1, "a1", ["sp"]>, DwarfRegNum<[1]>;
+def SP : ARReg<1, "a1", ["sp", "u1"]>, DwarfRegNum<[1]>;
 
 // Function Arguments
-def A2 : ARReg<2, "a2">, DwarfRegNum<[2]>;
-def A3 : ARReg<3, "a3">, DwarfRegNum<[3]>;
+def A2 : ARReg<2, "a2", ["u2"]>, DwarfRegNum<[2]>;
+def A3 : ARReg<3, "a3", ["u3"]>, DwarfRegNum<[3]>;
 def A4 : ARReg<4, "a4">, DwarfRegNum<[4]>;
 def A5 : ARReg<5, "a5">, DwarfRegNum<[5]>;
 def A6 : ARReg<6, "a6">, DwarfRegNum<[6]>;
@@ -95,15 +95,34 @@ def WINDOWBASE : SRReg<72, "windowbase", ["WINDOWBASE", "72"]>;
 def WINDOWSTART : SRReg<73, "windowstart", ["WINDOWSTART", "73"]>;
 
 // Instuction breakpoint enable register
+// MMU Option Registers
+def PTEVADDR : SRReg<83, "ptevaddr", ["PTEVADDR", "83"]>;
+def MMID : SRReg<89, "mmid", ["MMID", "89"]>;
+def RASID : SRReg<90, "rasid", ["RASID", "90"]>;
+def ITLBCFG : SRReg<91, "itlbcfg", ["ITLBCFG", "91"]>;
+def DTLBCFG : SRReg<92, "dtlbcfg", ["DTLBCFG", "92"]>;
+
 def IBREAKENABLE : SRReg<96, "ibreakenable", ["IBREAKENABLE", "96"]>;
 
 // Memory Control Register
 def MEMCTL : SRReg<97, "memctl", ["MEMCTL", "97"]>;
 
+// Cache Address Disable Register
+def CACHEADRDIS : SRReg<98, "cacheadrdis", ["CACHEADRDIS", "98"]>;
+
 // Atomic Operation Control
 def ATOMCTL : SRReg<99, "atomctl", ["ATOMCTL", "99"]>;
 
 def DDR : SRReg<104, "ddr", ["DDR", "104"]>;
+
+// Memory Error Save Register
+def MESAVE : SRReg<108, "mesave", ["MESAVE", "108"]>;
+
+// Memory Error Control Register
+def MECR : SRReg<110, "mecr", ["MECR", "110"]>;
+
+// Memory Error Status Register
+def MESR : SRReg<115, "mesr", ["MESR", "115"]>;
 
 // Instuction break address register 0
 def IBREAKA0 : SRReg<128, "ibreaka0", ["IBREAKA0", "128"]>;
@@ -219,35 +238,41 @@ def M1    : SRReg<33, "m1", ["M1", "33"]>;
 def M2    : SRReg<34, "m2", ["M2", "34"]>;
 def M3    : SRReg<35, "m3", ["M3", "35"]>;
 
+// Cache Prefetch Control Register
+def PREFCTL : SRReg<40, "prefctl", ["PREFCTL", "40"]>;
+
 def MR01 :  RegisterClass<"Xtensa", [i32], 32, (add M0, M1)>;
 def MR23 :  RegisterClass<"Xtensa", [i32], 32, (add M2, M3)>;
 def MR   :  RegisterClass<"Xtensa", [i32], 32, (add MR01, MR23)>;
 
 def SR :  RegisterClass<"Xtensa", [i32], 32, (add
-  LBEG, LEND, LCOUNT, SAR, BREG, SCOMPARE1, LITBASE, ACCLO, ACCHI, MR,
-  WINDOWBASE, WINDOWSTART, IBREAKENABLE, MEMCTL, ATOMCTL, DDR, IBREAKA0, IBREAKA1,
+  LBEG, LEND, LCOUNT, SAR, BREG, SCOMPARE1, LITBASE, ACCLO, ACCHI, MR, PREFCTL,
+  WINDOWBASE, WINDOWSTART, IBREAKENABLE, MEMCTL, CACHEADRDIS, ATOMCTL, DDR, MESAVE, MECR, MESR, IBREAKA0, IBREAKA1,
   DBREAKA0, DBREAKA1, DBREAKC0, DBREAKC1, CONFIGID0, EPC1, EPC2, EPC3, EPC4, EPC5,
   EPC6, EPC7, DEPC, EPS2, EPS3, EPS4, EPS5, EPS6, EPS7, CONFIGID1, EXCSAVE1, EXCSAVE2,
   EXCSAVE3, EXCSAVE4, EXCSAVE5, EXCSAVE6, EXCSAVE7, CPENABLE, INTERRUPT, INTSET, INTCLEAR, INTENABLE,
   PS, VECBASE, EXCCAUSE, DEBUGCAUSE, CCOUNT, PRID, ICOUNT, ICOUNTLEVEL, EXCVADDR, CCOMPARE0,
-  CCOMPARE1, CCOMPARE2, MISC0, MISC1, MISC2, MISC3)>;
+  CCOMPARE1, CCOMPARE2, MISC0, MISC1, MISC2, MISC3,
+  PTEVADDR, MMID, RASID, ITLBCFG, DTLBCFG)>;
 
 //===----------------------------------------------------------------------===//
 // HiFi Audio Engine registers
 //===----------------------------------------------------------------------===//
 
-class AEDRReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n> {
-  let HWEncoding{3-0} = num;
+class AEDRReg<bits<5> num, string n, list<string> alt = []> : XtensaReg<n> {
+  let HWEncoding{4-0} = num;
   let AltNames = alt;
 }
 
-foreach i = 0-15 in {
+foreach i = 0-31 in {
   def AED#i : AEDRReg<i, "aed"#i>;
 }
 
 def AEDR : RegisterClass<"Xtensa", [v2i32, v4i16, v8i8, i64, f64], 64, (add
   AED0, AED1, AED2, AED3, AED4, AED5, AED6, AED7,
-  AED8, AED9, AED10, AED11, AED12, AED13, AED14, AED15)>;
+  AED8, AED9, AED10, AED11, AED12, AED13, AED14, AED15,
+  AED16, AED17, AED18, AED19, AED20, AED21, AED22, AED23,
+  AED24, AED25, AED26, AED27, AED28, AED29, AED30, AED31)>;
 
 //===----------------------------------------------------------------------===//
 // USER registers
@@ -265,19 +290,7 @@ def GPIO_OUT_S2 : URReg<0, "gpio_out", ["GPIO_OUT"]>;
 // HiFi4 has four alignment registers (u0-u3).
 // HWEncoding[1:0] = the u-register number; this matches the instruction
 // T-nibble[1:0] used by ae_la32x2.ip, ae_sa32x2.ip, ae_la64.pp, etc.
-class URAlignReg<bits<2> num, string n, list<string> altnames = []> : XtensaReg<n> {
-  let HWEncoding{1-0} = num;
-  let AltNames = altnames;
-}
-def U0 : URAlignReg<0, "u0", ["ae_valign", "AE_VALIGN"]>;
-def U1 : URAlignReg<1, "u1">;
-def U2 : URAlignReg<2, "u2">;
-def U3 : URAlignReg<3, "u3">;
 
-// Legacy name for use in hasSideEffects Defs lists; U0 IS the hardware u0
-// alignment register.  Any Defs = [AE_VALIGN] in instruction definitions
-// should use U0 directly.
-// Note: no separate AE_VALIGN register -- that caused duplicate "u0" names.
 
 // Alignment token register class.
 // The alignment state token is tracked as an i32 value in the general-purpose
@@ -290,13 +303,13 @@ def U3 : URAlignReg<3, "u3">;
 //
 // VALIGN is defined as a subclass of AR so that copyPhysReg, storeRegToStackSlot,
 // and loadRegFromStackSlot all fall through to their existing AR cases without
-// special handling.
-def VALIGN : RegisterClass<"Xtensa", [i32], 32,
-  (add A8, A9, A10, A11, A12, A13, A14, A15,
-       A7, A6, A5, A4, A3, A2, A0, SP)>;
+def VALIGN : RegisterClass<"Xtensa", [i32], 32, (add A0, SP, A2, A3)>;
 
 // Thread Pointer register
 def THREADPTR : URReg<231, "threadptr", ["THREADPTR"]>;
+
+// Neural Network Engine registers
+def XNNE_RERR : URReg<0, "xnne_rerr", ["XNNE_RERR"]>;
 
 def FCR : URReg<232, "fcr", ["FCR"]>;
 def FSR : URReg<233, "fsr", ["FSR"]>;
@@ -306,14 +319,22 @@ def F64R_LO : URReg<234, "f64r_lo", ["F64R_LO"]>;
 def F64R_HI : URReg<235, "f64r_hi", ["F64R_HI"]>;
 def F64S : URReg<236, "f64s", ["F64S"]>;
 
+def AE_OVF_SAR      : URReg<240, "ae_ovf_sar", ["AE_OVF_SAR"]>;
+def AE_BITHEAD      : URReg<241, "ae_bithead", ["AE_BITHEAD"]>;
+def AE_TS_FTS_BU_BP : URReg<242, "ae_ts_fts_bu_bp", ["AE_TS_FTS_BU_BP"]>;
+def AE_CW_SD_NO     : URReg<243, "ae_cw_sd_no", ["AE_CW_SD_NO"]>;
+
 def AE_CBEGIN0 : URReg<246, "ae_cbegin0", ["AE_CBEGIN0"]>;
 def AE_CEND0   : URReg<247, "ae_cend0", ["AE_CEND0"]>;
 def AE_CBEGIN1 : URReg<248, "ae_cbegin1", ["AE_CBEGIN1"]>;
 def AE_CEND1   : URReg<249, "ae_cend1", ["AE_CEND1"]>;
+def AE_CBEGIN2 : URReg<250, "ae_cbegin2", ["AE_CBEGIN2"]>;
+def AE_CEND2   : URReg<251, "ae_cend2", ["AE_CEND2"]>;
 
-def UR :  RegisterClass<"Xtensa", [i32], 32, (add
-  GPIO_OUT_S2, THREADPTR, FCR, FSR, F64R_LO, F64R_HI, F64S,
-  AE_CBEGIN0, AE_CEND0, AE_CBEGIN1, AE_CEND1)>;
+  GPIO_OUT_S2, THREADPTR, XNNE_RERR, FCR, FSR, F64R_LO, F64R_HI, F64S,
+  AE_OVF_SAR, AE_BITHEAD, AE_TS_FTS_BU_BP, AE_CW_SD_NO,
+  AE_CBEGIN0, AE_CEND0, AE_CBEGIN1, AE_CEND1,
+  AE_CBEGIN2, AE_CEND2)>;
 
 //===----------------------------------------------------------------------===//
 // Floating-Point registers
@@ -349,11 +370,17 @@ def FPR : RegisterClass<"Xtensa", [f32], 32, (add
 //===----------------------------------------------------------------------===//
 // Boolean registers
 //===----------------------------------------------------------------------===//
-class BReg<bits<4> num, string n> : XtensaReg<n> {
+class BReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n> {
   let HWEncoding{3-0} = num;
+  let AltNames = alt;
 }
 
-foreach i = 0-15 in {
+def B0 : BReg<0, "b0", ["aep0", "AEP0"]>;
+def B1 : BReg<1, "b1", ["aep1", "AEP1"]>;
+def B2 : BReg<2, "b2", ["aep2", "AEP2"]>;
+def B3 : BReg<3, "b3", ["aep3", "AEP3"]>;
+
+foreach i = 4-15 in {
   def B#i  : BReg<i, "b"#i>;
 }
 
@@ -362,3 +389,9 @@ def BR : RegisterClass<"Xtensa", [v1i1], 8, (add B0, B1,
   B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15)> {
   let Size = 8;
 }
+
+// Boolean sub-register class for AEP (b0-b3)
+def BR_AEP : RegisterClass<"Xtensa", [v1i1], 8, (add B0, B1, B2, B3)> {
+  let Size = 8;
+}
+
