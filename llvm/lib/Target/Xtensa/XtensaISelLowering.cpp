@@ -105,8 +105,8 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
       setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
       setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Custom);
       // Load/Store of these vector types is legal since they fit in AEDR regs
-      setOperationAction(ISD::LOAD, VT, Legal);
-      setOperationAction(ISD::STORE, VT, Legal);
+      setOperationAction(ISD::LOAD, VT, Expand);
+      setOperationAction(ISD::STORE, VT, Expand);
       setTruncStoreAction(VT, MVT::v2i16, Expand);
       setTruncStoreAction(VT, MVT::v4i8, Expand);
       setTruncStoreAction(VT, MVT::v2i8, Expand);
@@ -786,9 +786,16 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
     }
   }
 
-  // Join the stores, which are independent of one another.
+  // Joint the stores, which are independent of one another.
   if (!MemOpChains.empty())
     Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
+
+  // if (Subtarget.isWindowedABI()) {
+  //   if (!StackPtr.getNode())
+  //     StackPtr = DAG.getCopyFromReg(Chain, DL, Xtensa::SP, PtrVT);
+  //   RegsToPass.push_back(std::make_pair(Xtensa::A9, StackPtr));
+  // }
+
 
   // Build a sequence of copy-to-reg nodes, chained and glued together.
   SDValue Glue;
@@ -802,23 +809,34 @@ XtensaTargetLowering::LowerCall(CallLoweringInfo &CLI,
   std::string name;
   unsigned char TF = 0;
 
+  bool UsePLT = false;
+  if (isPositionIndependent()) {
+    if (isa<ExternalSymbolSDNode>(Callee)) {
+      UsePLT = true;
+    } else if (const auto *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
+      const GlobalValue *GV = G->getGlobal();
+      if (!GV->isDSOLocal()) {
+        UsePLT = true;
+      }
+    }
+  }
+
   // Accept direct calls by converting symbolic call addresses to the
   // associated Target* opcodes.
   if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee)) {
     name = E->getSymbol();
     TF = E->getTargetFlags();
-    if (isPositionIndependent()) {
-      report_fatal_error("PIC relocations is not supported");
-    } else
+    if (!isPositionIndependent())
       Callee = DAG.getTargetExternalSymbol(E->getSymbol(), PtrVT, TF);
   } else if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee)) {
     const GlobalValue *GV = G->getGlobal();
     name = GV->getName().str();
   }
 
-  if ((!name.empty()) && isLongCall(name.c_str())) {
+  if ((!name.empty()) && (isLongCall(name.c_str()) || UsePLT)) {
     // Create a constant pool entry for the callee address
-    XtensaCP::XtensaCPModifier Modifier = XtensaCP::no_modifier;
+    XtensaCP::XtensaCPModifier Modifier =
+        UsePLT ? XtensaCP::PLT : XtensaCP::no_modifier;
     XtensaMachineFunctionInfo *XtensaFI =
         MF.getInfo<XtensaMachineFunctionInfo>();
     unsigned LabelId = XtensaFI->createCPLabelId();
@@ -1701,7 +1719,47 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
                          Op1, Op0);
     }
 
-    // v4i16: return UNDEF for now (extend later if needed)
+    if (VT == MVT::v4i16) {
+      SDValue Op0 = Op.getOperand(0);
+      SDValue Op1 = Op.getOperand(1);
+      SDValue Op2 = Op.getOperand(2);
+      SDValue Op3 = Op.getOperand(3);
+
+      // Check for all-zero vector
+      bool AllZero = true;
+      for (unsigned i = 0, e = Op.getNumOperands(); i != e; ++i) {
+        if (!isNullConstant(Op.getOperand(i)) && !Op.getOperand(i).isUndef()) {
+          AllZero = false;
+          break;
+        }
+      }
+      if (AllZero) {
+        return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, MVT::v4i16,
+                           DAG.getTargetConstant(Intrinsic::xtensa_ae_zero16, DL, MVT::i32));
+      }
+
+      if (Op0.isUndef()) Op0 = DAG.getConstant(0, DL, MVT::i32);
+      if (Op1.isUndef()) Op1 = DAG.getConstant(0, DL, MVT::i32);
+      if (Op2.isUndef()) Op2 = DAG.getConstant(0, DL, MVT::i32);
+      if (Op3.isUndef()) Op3 = DAG.getConstant(0, DL, MVT::i32);
+
+      Op0 = DAG.getZExtOrTrunc(Op0, DL, MVT::i32);
+      Op1 = DAG.getZExtOrTrunc(Op1, DL, MVT::i32);
+      Op2 = DAG.getZExtOrTrunc(Op2, DL, MVT::i32);
+      Op3 = DAG.getZExtOrTrunc(Op3, DL, MVT::i32);
+
+      SDValue LoSh = DAG.getNode(ISD::SHL, DL, MVT::i32, Op1, DAG.getConstant(16, DL, MVT::i32));
+      SDValue LoMask = DAG.getNode(ISD::AND, DL, MVT::i32, Op0, DAG.getConstant(0xffff, DL, MVT::i32));
+      SDValue Lo = DAG.getNode(ISD::OR, DL, MVT::i32, LoSh, LoMask);
+
+      SDValue HiSh = DAG.getNode(ISD::SHL, DL, MVT::i32, Op3, DAG.getConstant(16, DL, MVT::i32));
+      SDValue HiMask = DAG.getNode(ISD::AND, DL, MVT::i32, Op2, DAG.getConstant(0xffff, DL, MVT::i32));
+      SDValue Hi = DAG.getNode(ISD::OR, DL, MVT::i32, HiSh, HiMask);
+
+      SDValue V2 = DAG.getNode(ISD::BUILD_VECTOR, DL, MVT::v2i32, Lo, Hi);
+      return DAG.getNode(ISD::BITCAST, DL, MVT::v4i16, V2);
+    }
+
     return DAG.getUNDEF(VT);
   }
   case ISD::EXTRACT_VECTOR_ELT: {
@@ -1902,3 +1960,14 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
     llvm_unreachable("Unexpected instr type to insert");
   }
 }
+
+bool XtensaTargetLowering::allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
+                                              unsigned AddrSpace, Align Alignment,
+                                              MachineMemOperand::Flags Flags,
+                                              unsigned *Fast) const {
+  if (VT.isVector())
+    return false;
+  return TargetLowering::allowsMemoryAccess(Context, DL, VT, AddrSpace, Alignment, Flags, Fast);
+}
+
+
