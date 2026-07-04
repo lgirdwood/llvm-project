@@ -2166,6 +2166,58 @@ let mayStore = 1 in {
       let Constraints = "$s = $s_out";
       let isCodeGenOnly = 1;
     }
+
+    let mayStore = 1 in {
+      def AE_S32X2F24_IP_ASM : RRR_AE_Inst<0x02, 0x04, 0x06, (outs), (ins AEDR:$r, AR:$s, imm8_x4_add8:$t),
+                                           "ae_s32x2f24.ip\t$r, $s, $t", []>;
+
+      def AE_S32X2F24_X : RRR_Inst<0x04, 0x0E, 0x0E, (outs), (ins AEDR:$r, AR:$s, AR:$t),
+                                   "ae_s32x2f24.x\t$r, $s, $t", []>;
+
+      def AE_SA16X4_IP_ASM : XtensaInst24<(outs), (ins AEDR:$r, valign_op:$align_in, AR:$s),
+                                          "ae_sa16x4.ip\t$r, $align_in, $s", []> {
+        bits<4> r;
+        bits<4> s;
+        bits<2> align_in;
+
+        let Inst{23-20} = 0;
+        let Inst{19-16} = 0xc;
+        let Inst{15-12} = r;
+        let Inst{11-8}  = s;
+        let Inst{7-6}   = 0x2;
+        let Inst{5-4}   = align_in;
+        let Inst{3-0}   = 0x4;
+      }
+    }
+
+    let mayLoad = 1 in {
+      def AE_L32F24_IP : RRR_Inst<0x04, 0x0B, 0x07, (outs AEDR:$r, AR:$s_out), (ins AR:$s, imm8n_7_x4:$t),
+                                  "ae_l32f24.ip\t$r, $s, $t", []> {
+        let Constraints = "$s = $s_out";
+        let isCodeGenOnly = 1;
+      }
+
+      def AE_L32F24_IP_ASM : RRR_Inst<0x04, 0x0B, 0x07, (outs), (ins AEDR:$r, AR:$s, imm8n_7_x4:$t),
+                                      "ae_l32f24.ip\t$r, $s, $t", []>;
+
+      def AE_L16X2M_IU : RRR_Inst<0x04, 0x0B, 0x09, (outs AEDR:$r, AR:$s_out), (ins AR:$s, imm8n_7_x4:$t),
+                                  "ae_l16x2m.iu\t$r, $s, $t", []> {
+        let Constraints = "$s = $s_out";
+        let isCodeGenOnly = 1;
+      }
+
+      def AE_L16X2M_IU_ASM : RRR_Inst<0x04, 0x0B, 0x09, (outs), (ins AEDR:$r, AR:$s, imm8n_7_x4:$t),
+                                      "ae_l16x2m.iu\t$r, $s, $t", []>;
+
+      def AE_L16X2M_XU : RRR_Inst<0x04, 0x0B, 0x0B, (outs AEDR:$r, AR:$s_out), (ins AR:$s, AR:$t),
+                                  "ae_l16x2m.xu\t$r, $s, $t", []> {
+        let Constraints = "$s = $s_out";
+        let isCodeGenOnly = 1;
+      }
+
+      def AE_L16X2M_XU_ASM : RRR_Inst<0x04, 0x0B, 0x0B, (outs), (ins AEDR:$r, AR:$s, AR:$t),
+                                      "ae_l16x2m.xu\t$r, $s, $t", []>;
+    }
   }
 }
 
