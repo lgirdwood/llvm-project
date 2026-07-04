@@ -9,6 +9,7 @@ Currently shipped: `ace15_enc.inc` (ACE15 / HiFi4, `-mcpu=intel_ace15_adsp`),
 byte-for-byte identical to ace15_enc.inc — AE bundle encodings are the same),
 `ace40_enc.inc` (ACE40 / HiFi5, `-mcpu=intel_ace40_adsp` / `intel_ace40_nvl`), and
 `tgl_enc.inc` (Tiger Lake / cavs2.5 / HiFi3, `-mcpu=intel_tgl_adsp`).
+See `ADDING_NEW_TARGET.md` for the step-by-step recipe to add another core.
 
 ## Inputs (external, not in-tree)
 - Generic libisa: `xtensa-isa.c`, `xtensa-isa.h`, `xtensa-isa-internal.h`
