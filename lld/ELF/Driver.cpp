@@ -178,6 +178,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(Ctx &ctx,
           .Case("elf64loongarch", {ELF64LEKind, EM_LOONGARCH})
           .Case("elf64_s390", {ELF64BEKind, EM_S390})
           .Case("hexagonelf", {ELF32LEKind, EM_HEXAGON})
+          .Case("elf32xtensa", {ELF32LEKind, EM_XTENSA})
           .Default({ELFNoneKind, EM_NONE});
 
   if (ret.first == ELFNoneKind)
@@ -2063,6 +2064,7 @@ static void setConfigs(Ctx &ctx, opt::InputArgList &args) {
       args.hasFlag(OPT_toc_optimize, OPT_no_toc_optimize, m == EM_PPC64);
   ctx.arg.pcRelOptimize =
       args.hasFlag(OPT_pcrel_optimize, OPT_no_pcrel_optimize, m == EM_PPC64);
+  ctx.arg.zText = getZFlag(args, "text", "notext", m != EM_XTENSA);
 
   if (!args.hasArg(OPT_hash_style)) {
     if (ctx.arg.emachine == EM_MIPS)
