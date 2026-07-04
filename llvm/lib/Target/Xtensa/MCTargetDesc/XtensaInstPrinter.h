@@ -58,11 +58,17 @@ private:
   void printPCRelImm(uint64_t Address, int64_t Offset, raw_ostream &O);
 
   void printImm8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+  void printVALIGNOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm8_sh8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm12_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm12m_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+  void printUimm2_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printUimm4_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printUimm4_x8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+  void printUimm4_x16_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+  void printUimm8_x4_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+  void printUimm8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+
   void printUimm5_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printUimm6_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printShimm1_31_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
@@ -83,6 +89,7 @@ private:
   void printImm8_x4_add8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm8n_7_x2_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
   void printImm8n_7_x4_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
+  void printImm8n_7_x8_AsmOperand(const MCInst *MI, int OpNum, raw_ostream &O);
 };
 } // end namespace llvm
 
