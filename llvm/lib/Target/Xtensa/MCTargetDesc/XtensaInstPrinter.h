@@ -31,7 +31,7 @@ public:
   std::pair<const char *, uint64_t>
   getMnemonic(const MCInst &MI) const override;
   void printInstruction(const MCInst *MI, uint64_t Address, raw_ostream &O);
-  static const char *getRegisterName(MCRegister Reg);
+  static const char *getRegisterName(MCRegister Reg, unsigned AltIdx = 0);
 
   // Print the given operand.
   static void printOperand(const MCOperand &MO, raw_ostream &O);
