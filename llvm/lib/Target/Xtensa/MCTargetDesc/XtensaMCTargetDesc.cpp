@@ -12,6 +12,7 @@
 #include "XtensaInstPrinter.h"
 #include "XtensaMCAsmInfo.h"
 #include "XtensaTargetStreamer.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -19,7 +20,26 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/CommandLine.h"
+
+namespace llvm {
+cl::opt<bool> Trampolines(
+    "trampolines",
+    cl::desc("Enable trampolines relaxation"),
+    cl::init(true));
+
+cl::opt<bool> AutoLitpools(
+    "auto-litpools",
+    cl::desc("Enable automatic literal pools"),
+    cl::init(false));
+
+cl::opt<int> AutoLitpoolLimit(
+    "auto-litpool-limit",
+    cl::desc("Set limit for automatic literal pools"),
+    cl::init(262144));
+}
 
 #define GET_INSTRINFO_MC_DESC
 #include "XtensaGenInstrInfo.inc"
@@ -210,6 +230,18 @@ bool Xtensa::checkRegister(MCRegister RegNo, const FeatureBitset &FeatureBits,
   case Xtensa::F64R_HI:
   case Xtensa::F64S:
     return FeatureBits[FeatureDFPAccel];
+  case Xtensa::AE_OVF_SAR:
+  case Xtensa::AE_BITHEAD:
+  case Xtensa::AE_TS_FTS_BU_BP:
+  case Xtensa::AE_CW_SD_NO:
+  case Xtensa::AE_CBEGIN0:
+  case Xtensa::AE_CEND0:
+  case Xtensa::AE_CBEGIN1:
+  case Xtensa::AE_CEND1:
+    return FeatureBits[Xtensa::FeatureHIFI3];
+  case Xtensa::AE_CBEGIN2:
+  case Xtensa::AE_CEND2:
+    return FeatureBits[Xtensa::FeatureHIFI5];
   case Xtensa::WINDOWBASE:
   case Xtensa::WINDOWSTART:
     return FeatureBits[Xtensa::FeatureWindowed];
@@ -240,21 +272,179 @@ MCRegister Xtensa::getUserRegister(unsigned Code, const MCRegisterInfo &MRI) {
     UserReg = Xtensa::F64R_HI;
   } else if (MRI.getEncodingValue(Xtensa::F64S) == Code) {
     UserReg = Xtensa::F64S;
+  } else if (MRI.getEncodingValue(Xtensa::AE_OVF_SAR) == Code) {
+    UserReg = Xtensa::AE_OVF_SAR;
+  } else if (MRI.getEncodingValue(Xtensa::AE_BITHEAD) == Code) {
+    UserReg = Xtensa::AE_BITHEAD;
+  } else if (MRI.getEncodingValue(Xtensa::AE_TS_FTS_BU_BP) == Code) {
+    UserReg = Xtensa::AE_TS_FTS_BU_BP;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CW_SD_NO) == Code) {
+    UserReg = Xtensa::AE_CW_SD_NO;
   } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN0) == Code) {
     UserReg = Xtensa::AE_CBEGIN0;
   } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN1) == Code) {
     UserReg = Xtensa::AE_CBEGIN1;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CBEGIN2) == Code) {
+    UserReg = Xtensa::AE_CBEGIN2;
   } else if (MRI.getEncodingValue(Xtensa::AE_CEND0) == Code) {
     UserReg = Xtensa::AE_CEND0;
   } else if (MRI.getEncodingValue(Xtensa::AE_CEND1) == Code) {
     UserReg = Xtensa::AE_CEND1;
+  } else if (MRI.getEncodingValue(Xtensa::AE_CEND2) == Code) {
+    UserReg = Xtensa::AE_CEND2;
   } else if (MRI.getEncodingValue(Xtensa::THREADPTR) == Code) {
     UserReg = Xtensa::THREADPTR;
   } else if (MRI.getEncodingValue(Xtensa::GPIO_OUT_S2) == Code) {
     UserReg = Xtensa::GPIO_OUT_S2;
   }
 
+
   return UserReg;
+}
+
+bool Xtensa::compress(MCInst &OutInst, const MCInst &MI, const MCSubtargetInfo &STI) {
+  if (!STI.hasFeature(Xtensa::FeatureDensity))
+    return false;
+
+  unsigned Opcode = MI.getOpcode();
+  switch (Opcode) {
+  case Xtensa::OR: {
+    if (MI.getNumOperands() == 3 && MI.getOperand(0).isReg() &&
+        MI.getOperand(1).isReg() && MI.getOperand(2).isReg() &&
+        MI.getOperand(1).getReg() == MI.getOperand(2).getReg()) {
+      OutInst.setOpcode(Xtensa::MOV_N);
+      OutInst.addOperand(MI.getOperand(0));
+      OutInst.addOperand(MI.getOperand(1));
+      return true;
+    }
+    break;
+  }
+  case Xtensa::ADD: {
+    if (MI.getNumOperands() == 3 && MI.getOperand(0).isReg() &&
+        MI.getOperand(1).isReg() && MI.getOperand(2).isReg()) {
+      OutInst.setOpcode(Xtensa::ADD_N);
+      OutInst.addOperand(MI.getOperand(0));
+      OutInst.addOperand(MI.getOperand(1));
+      OutInst.addOperand(MI.getOperand(2));
+      return true;
+    }
+    break;
+  }
+  case Xtensa::ADDI: {
+    if (MI.getNumOperands() == 3 && MI.getOperand(0).isReg() &&
+        MI.getOperand(1).isReg() && MI.getOperand(2).isImm()) {
+      int64_t Imm = MI.getOperand(2).getImm();
+      if (Imm == -1 || (Imm >= 1 && Imm <= 15)) {
+        OutInst.setOpcode(Xtensa::ADDI_N);
+        OutInst.addOperand(MI.getOperand(0));
+        OutInst.addOperand(MI.getOperand(1));
+        OutInst.addOperand(MI.getOperand(2));
+        return true;
+      }
+    }
+    break;
+  }
+  case Xtensa::L32I: {
+    if (MI.getNumOperands() == 3 && MI.getOperand(0).isReg() &&
+        MI.getOperand(1).isReg() && MI.getOperand(2).isImm()) {
+      int64_t Offset = MI.getOperand(2).getImm();
+      if (Offset >= 0 && Offset <= 60 && (Offset % 4 == 0)) {
+        OutInst.setOpcode(Xtensa::L32I_N);
+        OutInst.addOperand(MI.getOperand(0));
+        OutInst.addOperand(MI.getOperand(1));
+        OutInst.addOperand(MI.getOperand(2));
+        return true;
+      }
+    }
+    break;
+  }
+  case Xtensa::S32I: {
+    if (MI.getNumOperands() == 3 && MI.getOperand(0).isReg() &&
+        MI.getOperand(1).isReg() && MI.getOperand(2).isImm()) {
+      int64_t Offset = MI.getOperand(2).getImm();
+      if (Offset >= 0 && Offset <= 60 && (Offset % 4 == 0)) {
+        OutInst.setOpcode(Xtensa::S32I_N);
+        OutInst.addOperand(MI.getOperand(0));
+        OutInst.addOperand(MI.getOperand(1));
+        OutInst.addOperand(MI.getOperand(2));
+        return true;
+      }
+    }
+    break;
+  }
+  case Xtensa::BEQZ: {
+    if (MI.getNumOperands() == 2 && MI.getOperand(0).isReg() &&
+        (MI.getOperand(1).isExpr() || MI.getOperand(1).isImm())) {
+      OutInst.setOpcode(Xtensa::BEQZ_N);
+      OutInst.addOperand(MI.getOperand(0));
+      OutInst.addOperand(MI.getOperand(1));
+      return true;
+    }
+    break;
+  }
+  case Xtensa::BNEZ: {
+    if (MI.getNumOperands() == 2 && MI.getOperand(0).isReg() &&
+        (MI.getOperand(1).isExpr() || MI.getOperand(1).isImm())) {
+      OutInst.setOpcode(Xtensa::BNEZ_N);
+      OutInst.addOperand(MI.getOperand(0));
+      OutInst.addOperand(MI.getOperand(1));
+      return true;
+    }
+    break;
+  }
+  case Xtensa::NOP: {
+    OutInst.setOpcode(Xtensa::NOP_N);
+    return true;
+  }
+  case Xtensa::RET: {
+    OutInst.setOpcode(Xtensa::RET_N);
+    return true;
+  }
+  case Xtensa::RETW: {
+    OutInst.setOpcode(Xtensa::RETW_N);
+    return true;
+  }
+  case Xtensa::MOVI: {
+    if (MI.getNumOperands() == 2 && MI.getOperand(0).isReg() && MI.getOperand(1).isImm()) {
+      int64_t Imm = MI.getOperand(1).getImm();
+      if (Imm >= -32 && Imm <= 95) {
+        OutInst.setOpcode(Xtensa::MOVI_N);
+        OutInst.addOperand(MI.getOperand(0));
+        OutInst.addOperand(MI.getOperand(1));
+        return true;
+      }
+    }
+    break;
+  }
+  }
+
+  return false;
+}
+
+namespace {
+class XtensaMCInstrAnalysis : public MCInstrAnalysis {
+public:
+  XtensaMCInstrAnalysis(const MCInstrInfo *Info) : MCInstrAnalysis(Info) {}
+
+  bool evaluateBranch(const MCInst &Inst, uint64_t Addr, uint64_t Size,
+                      uint64_t &Target) const override {
+    unsigned NumOps = Inst.getNumOperands();
+    if (NumOps == 0)
+      return false;
+
+    const MCOperand &LastOp = Inst.getOperand(NumOps - 1);
+    if (!LastOp.isImm())
+      return false;
+
+    int64_t Offset = LastOp.getImm();
+    Target = Addr + Offset + 4;
+    return true;
+  }
+};
+} // end anonymous namespace
+
+static MCInstrAnalysis *createXtensaMCInstrAnalysis(const MCInstrInfo *Info) {
+  return new XtensaMCInstrAnalysis(Info);
 }
 
 static MCAsmInfo *createXtensaMCAsmInfo(const MCRegisterInfo &MRI,
@@ -286,7 +476,9 @@ static MCRegisterInfo *createXtensaMCRegisterInfo(const Triple &TT) {
 
 static MCSubtargetInfo *
 createXtensaMCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS) {
-  return createXtensaMCSubtargetInfoImpl(TT, CPU, CPU, FS);
+  if (CPU.empty())
+    CPU = "generic";
+  return createXtensaMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 
 static MCTargetStreamer *
@@ -297,7 +489,7 @@ createXtensaAsmTargetStreamer(MCStreamer &S, formatted_raw_ostream &OS,
 
 static MCTargetStreamer *
 createXtensaObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
-  return new XtensaTargetELFStreamer(S);
+  return new XtensaTargetELFStreamer(S, STI);
 }
 
 static MCTargetStreamer *createXtensaNullTargetStreamer(MCStreamer &S) {
@@ -344,4 +536,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTargetMC() {
   // Register the null target streamer.
   TargetRegistry::RegisterNullTargetStreamer(getTheXtensaTarget(),
                                              createXtensaNullTargetStreamer);
+
+  // Register the MCInstrAnalysis.
+  TargetRegistry::RegisterMCInstrAnalysis(getTheXtensaTarget(),
+                                          createXtensaMCInstrAnalysis);
 }

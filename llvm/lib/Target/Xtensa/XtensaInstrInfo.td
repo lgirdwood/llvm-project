@@ -181,6 +181,13 @@ def SSA8L : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
   let t = 0x0;
 }
 
+def SSA8B : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins AR:$s),
+                    "ssa8b\t$s", []> {
+  let r = 0x3;
+  let t = 0x0;
+}
+
+
 def SSAI : RRR_Inst<0x00, 0x00, 0x04, (outs), (ins uimm5:$imm),
                    "ssai\t$imm", []> {
   bits<5> imm;
@@ -260,6 +267,94 @@ let isCodeGenOnly = 1, mayLoad = 1 in {
     let imm8{7-0} = addr{11-4};
     let s{3-0} = addr{3-0};
   }
+}
+
+//===----------------------------------------------------------------------===//
+// Cache instructions
+//===----------------------------------------------------------------------===//
+let mayLoad = 1, mayStore = 1, hasSideEffects = 1 in {
+  class Cache_Inst<bits<4> t_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm8_x4:$imm8),
+                instrAsm#"\t$s, $imm8", []> {
+    let r = 0x7;
+    let t = t_val;
+  }
+
+  def DHWB  : Cache_Inst<0x4, "dhwb">;
+  def DHWBI : Cache_Inst<0x5, "dhwbi">;
+  def DHI   : Cache_Inst<0x6, "dhi">;
+  def DII   : Cache_Inst<0x7, "dii">;
+  def DPFR  : Cache_Inst<0x0, "dpfr">;
+  def DPFW  : Cache_Inst<0x1, "dpfw">;
+
+  class Cache_Lock_Inst<bits<4> t_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm8:$imm8),
+                instrAsm#"\t$s, $imm8", []> {
+    let r = 0x7;
+    let t = t_val;
+  }
+
+  def DPFL  : Cache_Lock_Inst<0x8, "dpfl">;
+  def IPFL  : Cache_Lock_Inst<0xd, "ipfl">;
+
+  class Cache_Ind_Inst<bits<4> op1_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm4_x16:$imm),
+                instrAsm#"\t$s, $imm", []> {
+    bits<4> imm;
+    
+    let r = 0x7;
+    let t = 0x8;
+    let Inst{23-20} = imm;
+    let Inst{19-16} = op1_val;
+  }
+
+  def DIWB  : Cache_Ind_Inst<0x4, "diwb">;
+  def DIWBI : Cache_Ind_Inst<0x5, "diwbi">;
+
+  def IHI   : Cache_Inst<0xe, "ihi">;
+  def III   : Cache_Inst<0xf, "iii">;
+
+  class Cache_Ind_T_Inst<bits<4> t_val, bits<4> op1_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s, uimm4_x16:$imm),
+                instrAsm#"\t$s, $imm", []> {
+    bits<4> imm;
+    
+    let r = 0x7;
+    let t = t_val;
+    let Inst{23-20} = imm;
+    let Inst{19-16} = op1_val;
+  }
+
+  def DHU  : Cache_Ind_T_Inst<0x8, 0x2, "dhu">;
+  def DIU  : Cache_Ind_T_Inst<0x8, 0x3, "diu">;
+  def IHU  : Cache_Ind_T_Inst<0xd, 0x2, "ihu">;
+  def IIU  : Cache_Ind_T_Inst<0xd, 0x3, "iiu">;
+
+  class Cache_Tag_Inst<bits<4> op1_val, string instrAsm>
+    : RRR_Inst<0x00, op1_val, 0x0f, (outs AR:$t), (ins AR:$s),
+               instrAsm#"\t$t, $s", []> {
+    let r = 0x1;
+  }
+
+  def LICT : Cache_Tag_Inst<0x0, "lict">;
+  def LICW : Cache_Tag_Inst<0x2, "licw">;
+  def LDCT : Cache_Tag_Inst<0x8, "ldct">;
+  def LDCW : Cache_Tag_Inst<0xa, "ldcw">;
+  def SICT : Cache_Tag_Inst<0x1, "sict">;
+  def SICW : Cache_Tag_Inst<0x3, "sicw">;
+  def SDCT : Cache_Tag_Inst<0x9, "sdct">;
+  def SDCW : Cache_Tag_Inst<0xb, "sdcw">;
+
+
+  class Cache_Inc_Inst<bits<4> t_val, bits<8> imm_val, string instrAsm>
+    : RRI8_Inst<0x02, (outs), (ins AR:$s),
+                instrAsm#"\t$s", []> {
+    let r = 0x7;
+    let t = t_val;
+    let imm8 = imm_val;
+  }
+
+  def DIWBUI_P : Cache_Inc_Inst<0x8, 0x0f, "diwbui.p">;
 }
 
 //extending loads
@@ -510,6 +605,21 @@ def ILL : CALLX_Inst<0x00, 0x00, 0x00, (outs), (ins),
   let r = 0;
   let s = 0;
   let isTrap = 1;
+}
+
+def SIMCALL : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins),
+                      "simcall", []> {
+  let r = 0x5;
+  let s = 0x1;
+  let t = 0x0;
+  let hasSideEffects = 1;
+}
+
+def SIMCALL_IMM : RRR_Inst<0x00, 0x00, 0x00, (outs), (ins uimm4:$t),
+                          "simcall\t$t", []> {
+  let r = 0x5;
+  let s = 0x1;
+  let hasSideEffects = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1327,6 +1437,12 @@ let AddedComplexity = 10 in
 def : Pat<(f32 (load (Xtensa_pcrel_wrapper tconstpool:$in))),
           (WFR (L32R tconstpool:$in))>;
 
+def : Pat<(Xtensa_pcrel_wrapper tconstpool:$in), (L32R tconstpool:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper tglobaladdr:$in), (L32R tglobaladdr:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper tjumptable:$in), (L32R tjumptable:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper tblockaddress:$in), (L32R tblockaddress:$in)>;
+def : Pat<(Xtensa_pcrel_wrapper texternalsym:$in), (L32R texternalsym:$in)>;
+
 //===----------------------------------------------------------------------===//
 // SelectCC and BranchCC instructions with FP operands
 //===----------------------------------------------------------------------===//
@@ -1411,6 +1527,8 @@ let Predicates = [HasRegionProtection] in {
                       "witlb\t$t, $s", []> {
     let r = 0x6;
   }
+
+  def : InstAlias<"wptlb\t$t, $s", (WDTLB AR:$t, AR:$s)>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1549,6 +1667,37 @@ let mayStore = 1, mayLoad = 1, Predicates = [HasS32C1I] in {
     let imm8{7-0} = addr{11-4};
     let s{3-0} = addr{3-0};
   }
+}
+
+//===----------------------------------------------------------------------===//
+// Exclusive Access Option
+//===----------------------------------------------------------------------===//
+
+let mayLoad = 1 in {
+  def L32EX : RRR_AE_Inst<0x01, 0x00, 0x0f, (outs AR:$t), (ins AR:$s),
+                         "l32ex\t$t, $s", []> {
+    let r = 0x04;
+  }
+}
+
+let mayStore = 1 in {
+  def S32EX : RRR_AE_Inst<0x01, 0x00, 0x0f, (outs), (ins AR:$t, AR:$s),
+                         "s32ex\t$t, $s", []> {
+    let r = 0x05;
+  }
+}
+
+def GETEX : RRR_Inst<0x00, 0x00, 0x04, (outs AR:$t), (ins),
+                     "getex\t$t", []> {
+  let r = 0x0a;
+  let s = 0x00;
+}
+
+def CLREX : RRR_Inst<0x00, 0x00, 0x02, (outs), (ins),
+                     "clrex", []> {
+  let r = 0x03;
+  let s = 0x01;
+  let t = 0x00;
 }
 
 //===----------------------------------------------------------------------===//

@@ -40,6 +40,14 @@ using namespace llvm;
 
 #define DEBUG_TYPE "xtensa-packetizer"
 
+#include "llvm/Support/CommandLine.h"
+
+static llvm::cl::list<std::string> FlixAllowedTypes(
+    "xtensa-flix-types", llvm::cl::CommaSeparated, llvm::cl::Hidden,
+    llvm::cl::desc("Comma-separated list of enabled FLIX categories (mem, alu, narrow, branch, hifimem, hifimac, hififmt, hifils, hifialu, hifisetup)"));
+
+static unsigned AllowedFlixSlotsMask = ~0u;
+
 namespace {
 
 /// Classify instructions into FLIX slot categories.
@@ -58,16 +66,16 @@ enum FLIXSlot {
   FLIX_HiFiSetup,    // HiFi setup (ae_zalign*, ae_la64.pp, ae_sa64pos.fp, ae_cbegin/cend)
 };
 
-static bool isHiFiOpcode(unsigned Opc) {
-  // HiFi opcodes span from AE_ADD16S_PSEUDO to AE_ZEXT16_PSEUDO
-  return Opc >= Xtensa::AE_ADD16S_PSEUDO && Opc <= Xtensa::AE_ZEXT16_PSEUDO;
+static bool isHiFiOpcode(unsigned Opc, const TargetInstrInfo &TII) {
+  StringRef Name = TII.getName(Opc);
+  return Name.starts_with("AE_");
 }
 
 /// Classify an Xtensa instruction for FLIX slot assignment.
 /// We are very conservative here — only instructions that we have verified
 /// work in FLIX bundles are classified as bundleable.
-static FLIXSlot classifyInstr(const MachineInstr &MI,
-                              const TargetInstrInfo &TII) {
+static FLIXSlot classifyInstrImpl(const MachineInstr &MI,
+                                  const TargetInstrInfo &TII) {
   if (MI.isDebugInstr() || MI.isImplicitDef() || MI.isCFIInstruction())
     return FLIX_None;
 
@@ -107,7 +115,7 @@ static FLIXSlot classifyInstr(const MachineInstr &MI,
     return FLIX_Branch;
 
   // HiFi instructions — classify by execution unit for multi-HiFi bundling
-  if (isHiFiOpcode(Opc)) {
+  if (isHiFiOpcode(Opc, TII)) {
     // Loads go to Slot 0/1 (can dual-issue)
     if (MI.mayLoad() && !MI.mayStore())
       return FLIX_HiFiMem;
@@ -180,6 +188,7 @@ static FLIXSlot classifyInstr(const MachineInstr &MI,
   case Xtensa::SRAI:
   case Xtensa::SRC:
   case Xtensa::SSA8L:
+  case Xtensa::SSA8B:
   case Xtensa::SSAI:
   case Xtensa::SSL:
   case Xtensa::SSR:
@@ -200,6 +209,16 @@ static FLIXSlot classifyInstr(const MachineInstr &MI,
   // Everything else (unrecognized instructions, etc.)
   // is NOT bundled — these have slot restrictions we don't fully model yet.
   return FLIX_None;
+}
+
+static FLIXSlot classifyInstr(const MachineInstr &MI,
+                              const TargetInstrInfo &TII) {
+  FLIXSlot Slot = classifyInstrImpl(MI, TII);
+  if (Slot != FLIX_None) {
+    if (!((AllowedFlixSlotsMask >> (unsigned)Slot) & 1))
+      return FLIX_None;
+  }
+  return Slot;
 }
 
 /// Check if two instructions have data dependencies (RAW, WAR, WAW).
@@ -298,6 +317,11 @@ static bool canBundle2(const MachineInstr &A, const MachineInstr &B,
   // 1. Scalar Memory + Scalar ALU (Slot 0 = Mem, Slot 1 = ALU)
   if (AisMem && BisALU)
     return true;
+
+  // Scalar ALU + Scalar ALU (Slot 0 = ALU, Slot 1 = ALU)
+  if (AisALU && BisALU)
+    return true;
+
 
   // 2. Branch + Scalar ALU (Slot 0 = Branch, Slot 1 = ALU)
   if (AisBranch && BisALU)
@@ -472,6 +496,29 @@ INITIALIZE_PASS(XtensaPacketizer, "xtensa-packetizer",
                 "Xtensa FLIX VLIW Packetizer", false, false)
 
 bool XtensaPacketizer::runOnMachineFunction(MachineFunction &MF) {
+  static bool MaskInitialized = false;
+  if (!MaskInitialized) {
+    if (!FlixAllowedTypes.empty()) {
+      unsigned Mask = 0;
+      for (const std::string &Type : FlixAllowedTypes) {
+        if (Type == "mem") Mask |= (1u << FLIX_Mem);
+        else if (Type == "alu") Mask |= (1u << FLIX_ALU);
+        else if (Type == "narrow") Mask |= (1u << FLIX_ScalarNarrow);
+        else if (Type == "branch") Mask |= (1u << FLIX_Branch);
+        else if (Type == "hifimem") Mask |= (1u << FLIX_HiFiMem);
+        else if (Type == "hifimac") Mask |= (1u << FLIX_HiFiMAC);
+        else if (Type == "hififmt") Mask |= (1u << FLIX_HiFiFmt);
+        else if (Type == "hifils") Mask |= (1u << FLIX_HiFiLS);
+        else if (Type == "hifialu") Mask |= (1u << FLIX_HiFiALU);
+        else if (Type == "hifisetup") Mask |= (1u << FLIX_HiFiSetup);
+      }
+      AllowedFlixSlotsMask = Mask;
+    } else {
+      AllowedFlixSlotsMask = ~0u;
+    }
+    MaskInitialized = true;
+  }
+
   const XtensaSubtarget &ST = MF.getSubtarget<XtensaSubtarget>();
   if (!ST.hasFLIX())
     return false;
