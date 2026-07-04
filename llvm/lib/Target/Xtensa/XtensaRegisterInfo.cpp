@@ -74,6 +74,17 @@ bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineFunction &MF = *MI.getParent()->getParent();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   uint64_t StackSize = MF.getFrameInfo().getStackSize();
+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+  StackSize = alignTo(StackSize, TFI->getStackAlign());
+
+  if (MF.getSubtarget<XtensaSubtarget>().isWindowedABI()) {
+    StackSize = alignTo(StackSize, Align(8));
+    StackSize += 32;
+    uint64_t MaxAlignment = MF.getFrameInfo().getMaxAlign().value();
+    if (MaxAlignment > 32)
+      StackSize += MaxAlignment;
+    StackSize = alignTo(StackSize, Align(8));
+  }
   int64_t SPOffset = MF.getFrameInfo().getObjectOffset(FrameIndex);
   MachineFrameInfo &MFI = MF.getFrameInfo();
   const std::vector<CalleeSavedInfo> &CSI = MFI.getCalleeSavedInfo();
@@ -115,7 +126,6 @@ bool XtensaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (!MI.isDebugValue() && !Valid) {
     MachineBasicBlock &MBB = *MI.getParent();
     DebugLoc DL = II->getDebugLoc();
-    unsigned ADD = Xtensa::ADD;
     MCRegister Reg;
     const XtensaInstrInfo &TII = *static_cast<const XtensaInstrInfo *>(
         MBB.getParent()->getSubtarget().getInstrInfo());
