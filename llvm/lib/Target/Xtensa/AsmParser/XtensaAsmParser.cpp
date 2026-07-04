@@ -1394,6 +1394,9 @@ bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
   if (StringRef(CleanNameStr).starts_with("ae_") && StringRef(CleanNameStr).ends_with(".n")) {
     CleanNameStr = CleanNameStr.substr(0, CleanNameStr.size() - 2);
   }
+  if (CleanNameStr == "ae_l16si") CleanNameStr = "l16si";
+  else if (CleanNameStr == "ae_l16ui") CleanNameStr = "l16ui";
+  else if (CleanNameStr == "ae_s16i") CleanNameStr = "s16i";
   Name = getParser().getContext().allocateString(CleanNameStr);
 
   if (Name.starts_with("_"))
