@@ -106,7 +106,6 @@ private:
   /// (increased in size, in order to hold its value correctly).
   bool fixupNeedsRelaxation(const MCFragment &, const MCFixup &) const;
 
-  void layoutSection(MCSection &Sec);
   /// Perform one layout iteration and return the index of the first stable
   /// section for subsequent optimization.
   unsigned relaxOnce(unsigned FirstStable);
@@ -141,6 +140,8 @@ public:
 
   // Get the offset of the given fragment inside its containing section.
   uint64_t getFragmentOffset(const MCFragment &F) const { return F.Offset; }
+
+  LLVM_ABI void layoutSection(MCSection &Sec);
 
   LLVM_ABI uint64_t getSectionAddressSize(const MCSection &Sec) const;
   LLVM_ABI uint64_t getSectionFileSize(const MCSection &Sec) const;
