@@ -167,9 +167,18 @@ struct AllowedSlots {
 
 static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII) {
   unsigned Opc = Inst.getOpcode();
+  AllowedSlots Allowed;
+
+  if (Opc == Xtensa::NOP || Opc == Xtensa::NOP_N) {
+    Allowed.Slot0 = true;
+    Allowed.Slot1 = true;
+    Allowed.Slot2 = true;
+    Allowed.Slot3 = true;
+    return Allowed;
+  }
+
   const MCInstrDesc &Desc = MCII.get(Opc);
   StringRef Name = MCII.getName(Opc);
-  AllowedSlots Allowed;
 
   // HiFi instructions
   if (Name.starts_with("AE_")) {
@@ -214,6 +223,8 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
          !Name.starts_with("AE_MOVVFCRFSR")) ||
         Name.starts_with("AE_ZERO")) {
       Allowed.Slot1 = true;
+      Allowed.Slot2 = true;
+      Allowed.Slot3 = true;
       return Allowed;
     }
     Allowed.Slot0 = true;
@@ -222,13 +233,18 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
 
   // Scalar instructions
   switch (Opc) {
-  // Memory (Strictly Slot 0)
+  // Memory Loads (Slot 0 or Slot 1)
   case Xtensa::L32I:
-  case Xtensa::S32I:
-  case Xtensa::L32R:
   case Xtensa::L8UI:
   case Xtensa::L16UI:
   case Xtensa::L16SI:
+    Allowed.Slot0 = true;
+    Allowed.Slot1 = true;
+    break;
+
+  // Memory Stores and L32R (Strictly Slot 0)
+  case Xtensa::S32I:
+  case Xtensa::L32R:
   case Xtensa::S8I:
   case Xtensa::S16I:
     Allowed.Slot0 = true;
@@ -1418,6 +1434,12 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     }
 
     if (!Found) {
+      for (size_t i = 0; i < N; ++i) {
+        AllowedSlots A = getAllowedSlots(*SubInsts[i], MCII);
+        llvm::dbgs() << "SubInst " << i << ": " << MCII.getName(SubInsts[i]->getOpcode())
+                     << " AllowedSlots: Slot0=" << A.Slot0 << " Slot1=" << A.Slot1
+                     << " Slot2=" << A.Slot2 << " Slot3=" << A.Slot3 << "\n";
+      }
       report_fatal_error("Could not find a valid VLIW slot assignment for instructions in bundle!");
     }
 
@@ -1457,7 +1479,6 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       SmallVector<MCFixup, 4> LocalFixups;
       APInt SlotInstBits(128, 0);
       APInt SlotScratch(128, 0);
-      llvm::dbgs() << "Encoding slot inst: " << MCII.getName(SlotInst.getOpcode()) << "\n";
       getBinaryCodeForInstr(SlotInst, LocalFixups, SlotInstBits, SlotScratch, STI);
       uint32_t Val = SlotInstBits.extractBitsAsZExtValue(32, 0);
       for (const auto &F : LocalFixups) {
