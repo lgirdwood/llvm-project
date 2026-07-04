@@ -1161,6 +1161,13 @@ def ADD_S : FPArith_RRR<0x00, 0x0A, "add.s", fadd, 1>;
 def SUB_S : FPArith_RRR<0x01, 0x0A, "sub.s", fsub>;
 def MUL_S : FPArith_RRR<0x02, 0x0A, "mul.s", fmul, 1>;
 
+let Predicates = [HasSingleFloat, HasMINMAX], DecoderNamespace = "XtensaDummy" in {
+  def MIN_S : RRR_Inst<0x00, 0x0A, 0x03, (outs FPR:$r), (ins FPR:$s, FPR:$t),
+                       "min.s\t$r, $s, $t", []>;
+  def MAX_S : RRR_Inst<0x00, 0x0A, 0x04, (outs FPR:$r), (ins FPR:$s, FPR:$t),
+                       "max.s\t$r, $s, $t", []>;
+}
+
 // FP load instructions
 let mayLoad = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
   def LSI : RRI8_Inst<0x03, (outs FPR:$t), (ins mem32:$addr),

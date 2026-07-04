@@ -183,11 +183,24 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
 
   // HiFi instructions
   if (Name.starts_with("AE_")) {
+    if (Name == "AE_MIN_S" || Name == "AE_MAX_S") {
+      Allowed.Slot2 = true;
+      return Allowed;
+    }
     if (Name.starts_with("AE_ABS32_HIFI3") || Name.starts_with("AE_ABS64S_HIFI3") ||
         Name.starts_with("AE_ABSSQ56S_HIFI3") || Name.starts_with("AE_ADDSQ56S_HIFI3") ||
         Name.starts_with("AE_ADDSUB32_HIFI3") || Name.starts_with("AE_ADDSUB32S_HIFI3") ||
+        Name.starts_with("AE_ADDANDSUB32S") ||
         Name == "AE_SLAI64S_HIFI3" || Name.starts_with("AE_SEXT32X2D16_10")) {
       Allowed.Slot0 = true;
+      return Allowed;
+    }
+    if (Name.ends_with("_S2")) {
+      Allowed.Slot2 = true;
+      return Allowed;
+    }
+    if (Name.ends_with("_S3")) {
+      Allowed.Slot3 = true;
       return Allowed;
     }
     if (Desc.mayLoad() && !Desc.mayStore()) {
@@ -196,7 +209,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
     if (Name.starts_with("AE_MUL")) {
-      Allowed.Slot2 = true;
+      Allowed.Slot3 = true;
       return Allowed;
     }
     if (Name.starts_with("AE_ROUND") || Name.starts_with("AE_SAT") ||
@@ -205,6 +218,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
         Name.starts_with("AE_MIN") || Name.starts_with("AE_ABS") ||
         Name.starts_with("AE_NEG") || Name.starts_with("AE_TRUNC") ||
         Name.starts_with("AE_PKSR") || Name.starts_with("AE_SEXT")) {
+      Allowed.Slot2 = true;
       Allowed.Slot3 = true;
       return Allowed;
     }
@@ -214,14 +228,21 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
       return Allowed;
     }
 
+    if (Name.starts_with("AE_MOV") &&
+        !Name.starts_with("AE_MOVAE") &&
+        !Name.starts_with("AE_MOVEA") &&
+        !Name.starts_with("AE_MOVFCRFSRV") &&
+        !Name.starts_with("AE_MOVVFCRFSR")) {
+      Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
+      Allowed.Slot2 = true;
+      Allowed.Slot3 = true;
+      return Allowed;
+    }
+
     if (Name.starts_with("AE_ADD") || Name.starts_with("AE_SUB") ||
         Name.starts_with("AE_SEL") || Name.starts_with("AE_AND") ||
         Name.starts_with("AE_OR") || Name.starts_with("AE_XOR") ||
-        (Name.starts_with("AE_MOV") &&
-         !Name.starts_with("AE_MOVAE") &&
-         !Name.starts_with("AE_MOVEA") &&
-         !Name.starts_with("AE_MOVFCRFSRV") &&
-         !Name.starts_with("AE_MOVVFCRFSR")) ||
         Name.starts_with("AE_ZERO")) {
       Allowed.Slot1 = true;
       Allowed.Slot2 = true;
@@ -239,6 +260,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::L8UI:
   case Xtensa::L16UI:
   case Xtensa::L16SI:
+  case Xtensa::L32I_N:
     Allowed.Slot0 = true;
     Allowed.Slot1 = true;
     break;
@@ -248,6 +270,7 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
   case Xtensa::L32R:
   case Xtensa::S8I:
   case Xtensa::S16I:
+  case Xtensa::S32I_N:
     Allowed.Slot0 = true;
     break;
 
@@ -295,12 +318,78 @@ static AllowedSlots getAllowedSlots(const MCInst &Inst, const MCInstrInfo &MCII)
     Allowed.Slot1 = true;
     break;
 
+  // Scalar float compare instructions (Slot 0 only)
+  case Xtensa::OLT_S:
+  case Xtensa::OLE_S:
+  case Xtensa::OEQ_S:
+  case Xtensa::UEQ_S:
+  case Xtensa::ULT_S:
+  case Xtensa::ULE_S:
+  case Xtensa::UN_S:
+    Allowed.Slot0 = true;
+    break;
+
+  // Scalar float min/max/abs (Slot 2 only)
+  case Xtensa::MIN_S:
+  case Xtensa::MAX_S:
+  case Xtensa::ABS_S:
+  case Xtensa::ADDEXP_S:
+  case Xtensa::ADDEXPM_S:
+  case Xtensa::CEIL_S:
+  case Xtensa::CONST_S:
+  case Xtensa::DIV0_S:
+  case Xtensa::DIVN_S:
+  case Xtensa::FLOAT_S:
+  case Xtensa::FLOOR_S:
+  case Xtensa::MADDN_S:
+  case Xtensa::MKDADJ_S:
+  case Xtensa::MKSADJ_S:
+  case Xtensa::MOV_S:
+  case Xtensa::MOVEQZ_S:
+  case Xtensa::MOVF_S:
+  case Xtensa::MOVGEZ_S:
+  case Xtensa::MOVLTZ_S:
+  case Xtensa::MOVNEZ_S:
+  case Xtensa::MOVT_S:
+  case Xtensa::NEXP01_S:
+  case Xtensa::RECIP0_S:
+  case Xtensa::RFR:
+  case Xtensa::ROUND_S:
+  case Xtensa::RSQRT0_S:
+  case Xtensa::SQRT0_S:
+  case Xtensa::TRUNC_S:
+  case Xtensa::UFLOAT_S:
+  case Xtensa::UTRUNC_S:
+  case Xtensa::WFR:
+    Allowed.Slot2 = true;
+    break;
+
+  // Scalar float math instructions (Slot 2 or Slot 3)
+  case Xtensa::ADD_S:
+  case Xtensa::SUB_S:
+  case Xtensa::MUL_S:
+  case Xtensa::NEG_S:
+  case Xtensa::MADD_S:
+  case Xtensa::MSUB_S:
+    Allowed.Slot2 = true;
+    Allowed.Slot3 = true;
+    break;
+
 
   default:
     if (Desc.isConditionalBranch() || Desc.isUnconditionalBranch()) {
       Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
+      Allowed.Slot2 = true;
+      Allowed.Slot3 = true;
+    } else if (Desc.mayStore()) {
+      Allowed.Slot0 = true;
+    } else if (Desc.mayLoad()) {
+      Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
     } else {
       Allowed.Slot0 = true;
+      Allowed.Slot1 = true;
     }
     break;
   }
@@ -1107,9 +1196,10 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
 
 
   if (Opcode == Xtensa::AE_LA16X4POS_PC_REAL) {
-    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned align = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(1).getReg());
 
-    CB.push_back(char(0x2e));
+    CB.push_back(char((align << 4) | 0x0e));
     CB.push_back(char(0x30 | s));
     CB.push_back(char(0x06));
     CB.push_back(char(0x01));
@@ -1530,6 +1620,15 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
         if (Opc == Xtensa::S16I) prefix = 0x18;
         else if (Opc == Xtensa::S32I) prefix = 0x19;
         Val = (prefix << 16) | (imm8 << 8) | (t << 4) | s;
+        return Val;
+      }
+
+      if (Opc == Xtensa::AE_ADDANDSUB32S_PSEUDO) {
+        unsigned sum = getRegNum(SlotInst.getOperand(0));
+        unsigned diff = getRegNum(SlotInst.getOperand(1));
+        unsigned a = getRegNum(SlotInst.getOperand(2));
+        unsigned b = getRegNum(SlotInst.getOperand(3));
+        Val = (0x2ff << 16) | (a << 12) | (b << 8) | (diff << 4) | sum;
         return Val;
       }
 
@@ -2654,9 +2753,9 @@ void XtensaMCCodeEmitter::getUimm4OpValue(const MCInst &MI, unsigned OpNo, APInt
 
 void XtensaMCCodeEmitter::getUimm4_x8OpValue(const MCInst &MI, unsigned OpNo, APInt &Value, SmallVectorImpl<MCFixup> &Fixups, const MCSubtargetInfo &STI) const {
   const MCOperand &MO = MI.getOperand(OpNo);
-  uint32_t Res = static_cast<uint32_t>(MO.getImm());
+  int32_t Res = static_cast<int32_t>(MO.getImm());
 
-  assert((Res <= 120) && (Res % 8 == 0) && "Unexpected operand value!");
+  assert((Res >= -64) && (Res <= 120) && (Res % 8 == 0) && "Unexpected operand value!");
   Value = (Res / 8) & 0xf;
   return;
 }

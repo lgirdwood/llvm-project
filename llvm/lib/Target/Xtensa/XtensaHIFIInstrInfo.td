@@ -163,6 +163,27 @@ let Predicates = [HasHIFI3] in {
       let mayLoad = 1;
     }
 
+    // ae_la32x2.ic: reads valign_op:$align_in, produces data + valign_op:$align_out
+    // T-nibble: Inst[7:6]=t_base=0b10, Inst[5:4]=u-reg#
+    def AE_LA32X2_IC_HIFI4 : RRR_TC_U_Inst<0x04, 0x0D, 0x00, 0b10,
+                                           (outs AEDR:$r, valign_op:$align_out, AR:$s_out),
+                                           (ins valign_op:$align_in, AR:$s),
+                                           "ae_la32x2.ic\t$r, $align_in, $s", []> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
+      let DecoderNamespace = "XtensaHIFIX";
+      let Predicates = [HasHIFI4];
+      let mayLoad = 1;
+    }
+    def AE_LA32X2_IC_HIFI3 : RRR_TC_U_Inst<0x04, 0x0D, 0x00, 0b10,
+                                           (outs AEDR:$r, valign_op:$align_out, AR:$s_out),
+                                           (ins valign_op:$align_in, AR:$s),
+                                           "ae_la32x2.ic\t$r, $align_in, $s", []> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
+      let DecoderNamespace = "XtensaHIFI3";
+      let Predicates = [HasHIFI3, HasNoHIFI4];
+      let mayLoad = 1;
+    }
+
     def AE_LA16X4_IP_HIFI4 : RRR_TC_U_Inst<0x04, 0x07, 0x03, 0b11,
                                            (outs AEDR:$r, valign_op:$align_out, AR:$s_out),
                                            (ins valign_op:$align_in, AR:$s),
@@ -180,6 +201,27 @@ let Predicates = [HasHIFI3] in {
                                            "ae_la16x4.ip\t$r, $align_in, $s",
                                            [(set AEDR:$r, valign_op:$align_out, AR:$s_out,
                                              (int_xtensa_ae_la16x4_ip valign_op:$align_in, AR:$s))]> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
+      let DecoderNamespace = "XtensaHIFI3";
+      let Predicates = [HasHIFI3, HasNoHIFI4];
+      let mayLoad = 1;
+    }
+
+    // ae_la16x4.ic: reads valign_op:$align_in, produces data + valign_op:$align_out
+    // T-nibble: Inst[7:6]=t_base=0b10, Inst[5:4]=u-reg#
+    def AE_LA16X4_IC_HIFI4 : RRR_TC_U_Inst<0x04, 0x07, 0x03, 0b10,
+                                           (outs AEDR:$r, valign_op:$align_out, AR:$s_out),
+                                           (ins valign_op:$align_in, AR:$s),
+                                           "ae_la16x4.ic\t$r, $align_in, $s", []> {
+      let Constraints = "$s = $s_out, $align_in = $align_out";
+      let DecoderNamespace = "XtensaHIFIX";
+      let Predicates = [HasHIFI4];
+      let mayLoad = 1;
+    }
+    def AE_LA16X4_IC_HIFI3 : RRR_TC_U_Inst<0x04, 0x07, 0x03, 0b10,
+                                           (outs AEDR:$r, valign_op:$align_out, AR:$s_out),
+                                           (ins valign_op:$align_in, AR:$s),
+                                           "ae_la16x4.ic\t$r, $align_in, $s", []> {
       let Constraints = "$s = $s_out, $align_in = $align_out";
       let DecoderNamespace = "XtensaHIFI3";
       let Predicates = [HasHIFI3, HasNoHIFI4];
@@ -2089,6 +2131,7 @@ def AE_ADDANDSUB32S_PSEUDO : Pseudo<(outs AEDR:$sum, AEDR:$diff), (ins AEDR:$a, 
                                     "ae_addandsub32s\t$sum, $diff, $a, $b",
                                     [(set AEDR:$sum, AEDR:$diff, (int_xtensa_ae_addandsub32s AEDR:$a, AEDR:$b))]> {
   let Predicates = [HasHIFI3];
+  let isCodeGenOnly = 0;
 }
 
 // --- ae_l16x2m_xu: load 16x2 with register post-increment ---
@@ -2706,7 +2749,7 @@ let Predicates = [HasHIFI3] in {
 
   def AE_MUL32_HH_REAL : RRR_Slot3_Inst<0x0e, 0x04, 0x00, (outs AEDR:$r), (ins AEDR:$s, AEDR:$t),
                                        "ae_mul32.hh\t$r, $s, $t", []> {
-    let isCodeGenOnly = 1;
+    let isAsmParserOnly = 1;
     let Predicates = [HasHIFI3];
   }
 
@@ -2779,7 +2822,7 @@ let Predicates = [HasHIFI3] in {
   def AE_MUL16X4_REAL : XtensaInst64<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$r, AEDR:$s),
                                      "ae_mul16x4\t$q0, $q1, $r, $s", []> {
     let Constraints = "$q0 = $t1, $q1 = $t2";
-    let isCodeGenOnly = 1;
+    let isAsmParserOnly = 1;
     bits<4> t1;
     bits<4> t2;
     bits<4> q0;
@@ -2957,24 +3000,24 @@ let Predicates = [HasHIFI3] in {
 
   def AE_MULAF16SS_11_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
                                           "ae_mulaf16ss.11\t$t, $s, $r", []> {
+    let isAsmParserOnly = 1;
     let Constraints = "$acc = $t";
-    let isCodeGenOnly = 1;
     bits<4> t; bits<4> s; bits<4> r;
     let Inst{3-0} = t; let Inst{7-4} = s; let Inst{11-8} = r; let Inst{63-12} = 0;
     let DecoderNamespace = "XtensaHIFI3";
   }
   def AE_MULAF16SS_22_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
                                           "ae_mulaf16ss.22\t$t, $s, $r", []> {
+    let isAsmParserOnly = 1;
     let Constraints = "$acc = $t";
-    let isCodeGenOnly = 1;
     bits<4> t; bits<4> s; bits<4> r;
     let Inst{3-0} = t; let Inst{7-4} = s; let Inst{11-8} = r; let Inst{63-12} = 0;
     let DecoderNamespace = "XtensaHIFI3";
   }
   def AE_MULAF16SS_33_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$acc, AEDR:$s, AEDR:$r),
                                           "ae_mulaf16ss.33\t$t, $s, $r", []> {
+    let isAsmParserOnly = 1;
     let Constraints = "$acc = $t";
-    let isCodeGenOnly = 1;
     bits<4> t; bits<4> s; bits<4> r;
     let Inst{3-0} = t; let Inst{7-4} = s; let Inst{11-8} = r; let Inst{63-12} = 0;
     let DecoderNamespace = "XtensaHIFI3";
@@ -2982,21 +3025,21 @@ let Predicates = [HasHIFI3] in {
 
   def AE_MULF16SS_11_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$s, AEDR:$r),
                                          "ae_mulf16ss.11\t$t, $s, $r", []> {
-    let isCodeGenOnly = 1;
+    let isAsmParserOnly = 1;
     bits<4> t; bits<4> s; bits<4> r;
     let Inst{3-0} = t; let Inst{7-4} = s; let Inst{11-8} = r; let Inst{63-12} = 0;
     let DecoderNamespace = "XtensaHIFI3";
   }
   def AE_MULF16SS_22_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$s, AEDR:$r),
                                          "ae_mulf16ss.22\t$t, $s, $r", []> {
-    let isCodeGenOnly = 1;
+    let isAsmParserOnly = 1;
     bits<4> t; bits<4> s; bits<4> r;
     let Inst{3-0} = t; let Inst{7-4} = s; let Inst{11-8} = r; let Inst{63-12} = 0;
     let DecoderNamespace = "XtensaHIFI3";
   }
   def AE_MULF16SS_33_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$s, AEDR:$r),
                                          "ae_mulf16ss.33\t$t, $s, $r", []> {
-    let isCodeGenOnly = 1;
+    let isAsmParserOnly = 1;
     bits<4> t; bits<4> s; bits<4> r;
     let Inst{3-0} = t; let Inst{7-4} = s; let Inst{11-8} = r; let Inst{63-12} = 0;
     let DecoderNamespace = "XtensaHIFI3";
@@ -3080,11 +3123,32 @@ let Predicates = [HasHIFI3] in {
 
   def AE_ROUND24X2F48SSYM_REAL : XtensaInst64<(outs AEDR:$t), (ins AEDR:$s, AEDR:$r),
                                               "ae_round24x2f48ssym\t$t, $s, $r", []> {
-    let isCodeGenOnly = 1;
+    let isAsmParserOnly = 1;
     bits<4> t;
     bits<4> s;
     bits<4> r;
     let DecoderNamespace = "XtensaHIFI3";
+  }
+
+  def AE_SA24_L_IP_REAL : XtensaInst24<(outs valign_op:$align_out, AR:$s_out),
+                                       (ins AEDR:$r, valign_op:$align_in, AR:$s),
+                                       "ae_sa24.l.ip\t$r, $align_in, $s", []> {
+    bits<4> r;
+    bits<4> s;
+    bits<2> align_in;
+
+    let Inst{23-20} = 2;
+    let Inst{19-16} = 6;
+    let Inst{15-12} = 8;
+    let Inst{11-8}  = r;
+    let Inst{7-6}   = 0;
+    let Inst{5}     = align_in{0};
+    let Inst{4}     = 0;
+    let Inst{3-0}   = s;
+
+    let Constraints = "$align_in = $align_out, $s = $s_out";
+    let DecoderNamespace = "XtensaHIFI3";
+    let Predicates = [HasHIFI3];
   }
 
   def AE_SA32X2_IP_REAL : XtensaInst24<(outs valign_op:$align_out, AR:$s_out),
@@ -3150,31 +3214,30 @@ let Predicates = [HasHIFI3] in {
     let Predicates = [HasHIFI3];
   }
 
-  def AE_LA16X4POS_PC_REAL : XtensaInst48<(outs), (ins AR:$s),
-                                          "ae_la16x4pos.pc\tu0, $s", []> {
-    let isCodeGenOnly = 1;
+  def AE_LA16X4POS_PC_REAL : XtensaInst48<(outs valign_op:$align), (ins AR:$s),
+                                          "ae_la16x4pos.pc\t$align, $s", []> {
+    let isAsmParserOnly = 1;
     bits<4> s;
+    bits<2> align;
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
 
-  def AE_LA32X2POS_PC_REAL : XtensaInst24<(outs), (ins AR:$s),
-                                          "ae_la32x2pos.pc\tu0, $s", []> {
+  def AE_LA32X2POS_PC_REAL : XtensaInst24<(outs valign_op:$align), (ins AR:$s),
+                                          "ae_la32x2pos.pc\t$align, $s", []> {
     bits<4> s;
+    bits<2> align;
 
     let Inst{23-16} = 0x77;
     let Inst{15-12} = 1;
     let Inst{11-8}  = s;
     let Inst{7-6}   = 3;
-    let Inst{5-4}   = 0;
+    let Inst{5-4}   = align;
     let Inst{3-0}   = 4;
 
     let DecoderNamespace = "XtensaHIFI3";
     let Predicates = [HasHIFI3];
   }
-
-  def : InstAlias<"ae_la32x2pos.pc A0, $s", (AE_LA32X2POS_PC_REAL AR:$s)>;
-  def : InstAlias<"ae_la16x4pos.pc A0, $s", (AE_LA16X4POS_PC_REAL AR:$s)>;
 }
 
 let Predicates = [HasHIFI5], DecoderNamespace = "XtensaHIFI5" in {
@@ -3332,3 +3395,7 @@ def : Pat<(int_xtensa_ae_mulafd32x16x2_fir_hl AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR
 def : Pat<(int_xtensa_ae_mulafd32x16x2_fir_lh AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c), (AE_MULAFD32X16X2_FIR_LH_REAL $q0, $q1, $d0, $d1, $c)>;
 def : Pat<(int_xtensa_ae_mulafd32x16x2_fir_ll AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c), (AE_MULAFD32X16X2_FIR_LL_REAL $q0, $q1, $d0, $d1, $c)>;
 def : Pat<(int_xtensa_ae_mul16x4 AEDR:$q0, AEDR:$q1, AEDR:$r, AEDR:$s), (AE_MUL16X4_REAL $q0, $q1, $r, $s)>;
+
+def : InstAlias<"ae_cvt32x2f16.32\t$t, $s", (AE_SEXT32X2D16_32 AEDR:$t, AEDR:$s)>;
+def : InstAlias<"ae_cvt32x2f16.10\t$t, $s", (AE_SEXT32X2D16_10 AEDR:$t, AEDR:$s)>;
+
