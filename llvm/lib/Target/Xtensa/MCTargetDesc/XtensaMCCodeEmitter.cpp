@@ -605,12 +605,94 @@ bool XtensaMCCodeEmitter::isStandaloneHiFiInstr(const MCInst &MI, StringRef Name
   return true;
 }
 
+// Auto-generated FLIX-bundle encoding table for bundle-only AE instructions,
+// produced from the ACE15 xtensa-modules.c (Tensilica libisa) and validated
+// byte-exact against GNU as. See MCTargetDesc/ace15_enc.inc.
+namespace {
+struct XtBundleOp {
+  uint8_t mcidx;    // MCInst operand index supplying this field's register
+  uint8_t isreg;    // 1 = register operand
+  uint8_t bits[16]; // output bit positions for value bits 0..nbits-1
+  uint8_t nbits;
+};
+struct XtBundleEnc {
+  const char *name; // LLVM instruction name (MCII.getName)
+  uint8_t len;      // bundle length in bytes
+  uint8_t tmpl[11]; // opcode + NOP-filled slots, operands zeroed
+  uint8_t nops;
+  XtBundleOp ops[8];
+};
+} // namespace
+
+// The table is generated from the target core's xtensa-modules.c. By default we
+// use the checked-in copy for the ACE15 core; a build that passes
+// -DXTENSA_MODULES_C=<core xtensa-modules.c> regenerates it and points
+// XTENSA_ENC_INC at the build-dir copy (see MCTargetDesc/gen/README.md).
+#ifndef XTENSA_ENC_INC
+#define XTENSA_ENC_INC "ace15_enc.inc"
+#endif
+#define XTENSA_BUNDLE_ENC(N, L, ...) {#N, (uint8_t)(L), __VA_ARGS__},
+static const XtBundleEnc XtBundleTable[] = {
+#include XTENSA_ENC_INC
+};
+#undef XTENSA_BUNDLE_ENC
+
 void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
                                             SmallVectorImpl<char> &CB,
                                             SmallVectorImpl<MCFixup> &Fixups,
                                             const MCSubtargetInfo &STI) const {
   unsigned Opcode = MI.getOpcode();
   StringRef Name = MCII.getName(Opcode);
+
+  // Table-driven encoding for bundle-only AE instructions. clang emits these
+  // lone (non-BUNDLE), classified as "standalone", but they have no valid
+  // standalone packet and must be emitted as a 6- or 11-byte FLIX bundle
+  // { op; NOP... }. The table is auto-generated from the ACE15 xtensa-modules.c
+  // (Tensilica libisa) and is byte-exact with GNU as. Copy the NOP-filled
+  // template, then OR each register operand's encoding into its bit positions.
+  if (Opcode != Xtensa::BUNDLE) {
+    for (const XtBundleEnc &E : XtBundleTable) {
+      if (Name != E.name)
+        continue;
+      // Only use the table if every mapped operand is in range and of the
+      // expected kind (register or immediate). A few instructions (e.g.
+      // AE_LA16X4POS_PC_REAL) are lowered with a different operand count than
+      // the .td asm form and have dedicated handlers below; fall through to
+      // those rather than mis-index here.
+      bool Usable = true;
+      for (unsigned O = 0; O < E.nops && Usable; ++O) {
+        const XtBundleOp &Op = E.ops[O];
+        if (Op.mcidx >= MI.getNumOperands()) {
+          Usable = false;
+          break;
+        }
+        const MCOperand &MO = MI.getOperand(Op.mcidx);
+        if (Op.isreg ? !MO.isReg() : !MO.isImm())
+          Usable = false;
+      }
+      if (!Usable)
+        break;
+      uint8_t Bytes[11];
+      memcpy(Bytes, E.tmpl, E.len);
+      for (unsigned O = 0; O < E.nops; ++O) {
+        const XtBundleOp &Op = E.ops[O];
+        const MCOperand &MO = MI.getOperand(Op.mcidx);
+        // All AE bundle immediate operands are identity-encoded (verified in
+        // the generator), so no operand transform is required here.
+        unsigned Val = Op.isreg
+                           ? Ctx.getRegisterInfo()->getEncodingValue(MO.getReg())
+                           : (unsigned)MO.getImm();
+        for (unsigned B = 0; B < Op.nbits; ++B)
+          if ((Val >> B) & 1) {
+            unsigned Bit = Op.bits[B];
+            Bytes[Bit >> 3] |= (uint8_t)(1u << (Bit & 7));
+          }
+      }
+      for (unsigned I = 0; I < E.len; ++I)
+        CB.push_back(char(Bytes[I]));
+      return;
+    }
+  }
 
   if (Opcode == Xtensa::AE_MOVVFCRFSR || Opcode == Xtensa::AE_MOVFCRFSRV) {
     uint8_t Data[11] = {0x1f, 0x15, 0x70, 0x06, 0x3d, 0xe3, 0x6d, 0xc4, 0xc7, 0x7f, 0x39};
@@ -1115,6 +1197,20 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
     CB.push_back(char(0x01));
     CB.push_back(char(0xe6));
     CB.push_back(char(0xfc));
+    return;
+  }
+
+  // ae_la32x2pos.pc — like AE_LA16X4POS_PC_REAL, codegen emits only the AR
+  // pointer register as operand 0 (the valign output is implicit), so the
+  // generic TableGen encoder mis-reads a non-existent second operand. Emit the
+  // 24-bit encoding by hand per XtensaHIFIInstrInfo.td:
+  //   Inst{23-16}=0x77 {15-12}=1 {11-8}=s {7-6}=3 {5-4}=align(0) {3-0}=4
+  if (Opcode == Xtensa::AE_LA32X2POS_PC_REAL) {
+    unsigned s = Ctx.getRegisterInfo()->getEncodingValue(MI.getOperand(0).getReg());
+    uint32_t Val = 0x7710C4u | (s << 8);
+    CB.push_back(char(Val & 0xff));
+    CB.push_back(char((Val >> 8) & 0xff));
+    CB.push_back(char((Val >> 16) & 0xff));
     return;
   }
 
