@@ -21,7 +21,6 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
-#include "llvm/MC/MCInstBuilder.h"
 
 #define GET_INSTRINFO_CTOR_DTOR
 #include "XtensaGenInstrInfo.inc"
@@ -86,21 +85,16 @@ void XtensaInstrInfo::adjustStackPtr(MCRegister SP, int64_t Amount,
   if (Amount == 0)
     return;
 
-  // We cannot use virtual registers after RA. We also cannot reliably scavenge
-  // a register here because there might be no free registers and no spill slot.
-  // Instead, we use A8 as a temporary. This is safe in emitPrologue/Epilogue.
-  // In ADJCALLSTACKDOWN/UP, clobbering A8 might be unsafe if it's live,
-  // but this is what the original code effectively did (it created a virtual
-  // register that mapped to A0, clobbering the return address!).
-  // Using A8 is safer than A0, but to be completely safe we would need to
-  // add a scratch register to the ADJCALLSTACK pseudoinstructions.
-  // For now, use A8 (and A9 for large amounts).
-  MCRegister Reg = Xtensa::A8;
+  MachineRegisterInfo &RegInfo = MBB.getParent()->getRegInfo();
+  const TargetRegisterClass *RC = &Xtensa::ARRegClass;
+
+  // create virtual reg to store immediate
+  MCRegister Reg = RegInfo.createVirtualRegister(RC);
 
   if (isInt<8>(Amount)) { // addi sp, sp, amount
     BuildMI(MBB, I, DL, get(Xtensa::ADDI), Reg).addReg(SP).addImm(Amount);
   } else { // Expand immediate that doesn't fit in 8-bit.
-    MCRegister Reg1 = Xtensa::A9;
+    MCRegister Reg1;
     loadImmediate(MBB, I, &Reg1, Amount);
     BuildMI(MBB, I, DL, get(Xtensa::ADD), Reg)
         .addReg(SP)
@@ -124,17 +118,11 @@ void XtensaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned Opcode;
 
   // The MOV instruction is not present in core ISA for AR registers,
-  // so use OR instruction (or MOV_N if Density is enabled).
+  // so use OR instruction.
   if (Xtensa::ARRegClass.contains(DestReg, SrcReg)) {
-    unsigned Opcode = STI.hasDensity() ? Xtensa::MOV_N : Xtensa::OR;
-    if (Opcode == Xtensa::MOV_N) {
-      BuildMI(MBB, MBBI, DL, get(Opcode), DestReg)
-          .addReg(SrcReg, getKillRegState(KillSrc));
-    } else {
-      BuildMI(MBB, MBBI, DL, get(Opcode), DestReg)
-          .addReg(SrcReg, getKillRegState(KillSrc))
-          .addReg(SrcReg, getKillRegState(KillSrc));
-    }
+    BuildMI(MBB, MBBI, DL, get(Xtensa::OR), DestReg)
+        .addReg(SrcReg, getKillRegState(KillSrc))
+        .addReg(SrcReg, getKillRegState(KillSrc));
     return;
   }
 
@@ -142,13 +130,6 @@ void XtensaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     BuildMI(MBB, MBBI, DL, get(Xtensa::AE_OR_HIFI3), DestReg)
         .addReg(SrcReg, getKillRegState(KillSrc))
         .addReg(SrcReg, getKillRegState(KillSrc));
-    return;
-  }
-
-  if (Xtensa::VALIGNRegClass.contains(DestReg, SrcReg)) {
-    // URAlign registers (u0-u3) cannot be physically copied in hardware.
-    // If the register allocator inserts a copy, it's typically an identity copy (u0->u0)
-    // or a PHI node resolution. Since we can't physically copy them, we emit nothing.
     return;
   }
 
@@ -220,10 +201,8 @@ void XtensaInstrInfo::loadImmediate(MachineBasicBlock &MBB,
   MachineRegisterInfo &RegInfo = MBB.getParent()->getRegInfo();
   const TargetRegisterClass *RC = &Xtensa::ARRegClass;
 
-  // create virtual reg to store immediate if not provided
-  if (*Reg == 0)
-    *Reg = RegInfo.createVirtualRegister(RC);
-    
+  // create virtual reg to store immediate
+  *Reg = RegInfo.createVirtualRegister(RC);
   if (Value >= -2048 && Value <= 2047) {
     BuildMI(MBB, MBBI, DL, get(Xtensa::MOVI), *Reg).addImm(Value);
   } else if (Value >= -32768 && Value <= 32767) {
@@ -258,56 +237,8 @@ unsigned XtensaInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   }
   case TargetOpcode::BUNDLE:
     return getInstBundleSize(MI);
-  default: {
-    StringRef Name = getName(MI.getOpcode());
-    if (Name.starts_with("AE_")) {
-      if (Name == "AE_LA128_PP_PSEUDO" || Name == "AE_SA128POS_FP_PSEUDO" ||
-          Name == "AE_LA32X2X2_IP_PSEUDO" || Name == "AE_LA32X2X2_IP_HIFI5" ||
-          Name == "AE_LA16X4X2_IP_PSEUDO" || Name == "AE_LA16X4X2_IP_HIFI5" ||
-          Name == "AE_SA32X2X2_IP_PSEUDO" || Name == "AE_SA32X2X2_IP_HIFI5" ||
-          Name == "AE_SA16X4X2_IP_PSEUDO" || Name == "AE_SA16X4X2_IP_HIFI5" ||
-          Name == "AE_MULF2P32X16X4RS_HIFI5" || Name == "AE_MULF2P32X16X4RS_PSEUDO" ||
-          Name == "AE_MULF2P32X4RS_HIFI5" || Name == "AE_MULF2P32X4RS_PSEUDO" ||
-          Name == "AE_MULF32X2R_HH_LL_HIFI5" || Name == "AE_MULF32X2R_HH_LL_PSEUDO" ||
-           Name == "AE_L32X2X2_XC_PSEUDO" || Name == "AE_L32X2X2_XC1_PSEUDO" ||
-           Name == "AE_S32X2X2_XC1_PSEUDO") {
-        return 16;
-      }
-      if (Name == "AE_SRAA16RS" || Name == "AE_SRAA32RS" || Name == "AE_SLAI16S" ||
-          Name == "AE_ROUND16X4F32SASYM" || Name == "AE_MULAFD32X16X2_FIR_HH" ||
-          Name == "AE_ROUND16X4F32SSYM" || Name == "AE_ROUND32X2F64SSYM_REAL" ||
-          Name == "AE_ROUND32X2F64SASYM_REAL" || Name == "AE_MULAFD32X16X2_FIR_HL_REAL" ||
-          Name == "AE_MULAFD32X16X2_FIR_LH_REAL" || Name == "AE_MULAFD32X16X2_FIR_LL_REAL" ||
-          Name == "AE_MUL16X4_REAL" || Name == "AE_MULAF16SS_11_REAL" ||
-          Name == "AE_MULAF16SS_22_REAL" || Name == "AE_MULAF16SS_33_REAL" ||
-          Name == "AE_MULF16SS_11_REAL" || Name == "AE_MULF16SS_22_REAL" ||
-          Name == "AE_MULF16SS_33_REAL" || Name == "AE_EQ16_REAL" ||
-          Name == "AE_LT16_REAL" || Name == "AE_LE16_REAL" || Name == "AE_LE32_REAL" ||
-          Name == "AE_ROUND24X2F48SSYM_REAL") {
-        return 11;
-      }
-      if (Name == "AE_MOVAD16_1" || Name == "AE_SA16X4_IC_REAL" ||
-          Name == "AE_SA24X2_IP_REAL" || Name == "AE_LA16X4POS_PC_REAL" ||
-          Name == "AE_SA32X2_IC_REAL" || Name == "AE_S16_0_X" ||
-          Name == "AE_S16_0_XC" || Name == "AE_S16_0_XC1") {
-        return 6;
-      }
-      if (Name == "AE_SA16X4_IP_REAL" || Name == "AE_SA32X2_IP_REAL" ||
-          Name == "AE_S16_0_XP" || Name == "AE_S32_L_XP" ||
-          Name == "AE_EQ32_REAL" || Name == "AE_LT32_REAL") {
-        return 3;
-      }
-      unsigned Size = MI.getDesc().getSize();
-      if (Size == 0)
-        return 8;
-      return Size;
-    }
-    unsigned Size = MI.getDesc().getSize();
-    if (Size == 0) {
-      return 4;
-    }
-    return Size;
-  }
+  default:
+    return MI.getDesc().getSize();
   }
 }
 
