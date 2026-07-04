@@ -45,7 +45,7 @@ for line in open(tsvpath):
 
 emitted=0; skipped=[]
 out=open(outpath,"w")
-out.write("// Auto-generated from ace15 xtensa-modules.c (libisa). Do not edit.\n")
+out.write("// Auto-generated from the target core's xtensa-modules.c (Tensilica libisa). Do not edit.\n")
 out.write("// XTENSA_BUNDLE_ENC(LLVMName, len, {template bytes}, nOperands, {ops...})\n")
 for name,(mnem,asmops,mcops) in sorted(defs.items()):
     if mnem not in xt: continue
