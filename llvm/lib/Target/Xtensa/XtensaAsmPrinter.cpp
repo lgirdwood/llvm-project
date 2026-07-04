@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "XtensaAsmPrinter.h"
+#include "MCTargetDesc/XtensaMCTargetDesc.h"
 #include "MCTargetDesc/XtensaInstPrinter.h"
 #include "MCTargetDesc/XtensaMCAsmInfo.h"
 #include "MCTargetDesc/XtensaTargetStreamer.h"
@@ -30,8 +31,14 @@
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/CodeGen/MachineInstrBundle.h"
+#include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
+
+namespace llvm {
+extern cl::opt<bool> TextSectionLiterals;
+}
+
 
 static Xtensa::Specifier
 getModifierSpecifier(XtensaCP::XtensaCPModifier Modifier) {
@@ -40,6 +47,8 @@ getModifierSpecifier(XtensaCP::XtensaCPModifier Modifier) {
     return Xtensa::S_None;
   case XtensaCP::TPOFF:
     return Xtensa::S_TPOFF;
+  case XtensaCP::PLT:
+    return Xtensa::S_PLT;
   }
   report_fatal_error("Invalid XtensaCPModifier!");
 }
@@ -61,6 +70,8 @@ getModifierSpecifier(XtensaCP::XtensaCPModifier Modifier) {
 // instructions; those would need new td entries.
 static unsigned getHIFIZeroPseudoExpansion(unsigned Opc) {
   switch (Opc) {
+  case Xtensa::AE_ZERO16_Pseudo_HIFI3:
+    return Xtensa::AE_SUB16_HIFI3;
   case Xtensa::AE_ZERO32_Pseudo_HIFI3:
     return Xtensa::AE_SUB32S_HIFI3;
   case Xtensa::AE_ZERO64_Pseudo_HIFI3:
@@ -72,44 +83,205 @@ static unsigned getHIFIZeroPseudoExpansion(unsigned Opc) {
   }
 }
 
+static unsigned getHIFIPseudoExpansion(unsigned Opc) {
+  switch (Opc) {
+  case Xtensa::AE_MOVDA32X2_PSEUDO: return Xtensa::AE_MOVDA32X2;
+
+
+
+
+
+  case Xtensa::AE_S64_I_PSEUDO: return Xtensa::AE_S64_I_REAL;
+
+  case Xtensa::AE_S16_0_X_PSEUDO: return Xtensa::AE_S16_0_X;
+  case Xtensa::AE_SA64POS_FP_PSEUDO: return Xtensa::AE_SA64POS_FP_REAL;
+  case Xtensa::AE_LA16X4POS_PC_PSEUDO: return Xtensa::AE_LA16X4POS_PC_REAL;
+  case Xtensa::AE_LA32X2POS_PC_PSEUDO: return Xtensa::AE_LA32X2POS_PC_REAL;
+
+  case Xtensa::AE_S32_L_X_PSEUDO: return Xtensa::AE_S32_L_X;
+
+  case Xtensa::AE_L16X4_X_PSEUDO: return Xtensa::AE_L16X4_X;
+  case Xtensa::AE_S32X2_X_PSEUDO: return Xtensa::AE_S32X2_X;
+  case Xtensa::AE_S32X2_XC_PSEUDO: return Xtensa::AE_S32X2_XC;
+  case Xtensa::AE_S32X2_XC1_PSEUDO: return Xtensa::AE_S32X2_XC1;
+  case Xtensa::AE_S32X2_I_PSEUDO: return Xtensa::AE_S32X2_I;
+  case Xtensa::AE_S32X2_IP_PSEUDO: return Xtensa::AE_S32X2_IP;
+  case Xtensa::AE_S32X2F24_I_PSEUDO: return Xtensa::AE_S32X2F24_I;
+  case Xtensa::AE_S32X2F24_IP_PSEUDO: return Xtensa::AE_S32X2F24_IP;
+
+
+
+
+  default: return 0;
+  }
+}
+
+static bool getURPseudoExpansion(unsigned Opc, unsigned &RealOpc, unsigned &RegVal) {
+  switch (Opc) {
+  case Xtensa::AE_CBEGIN0_Pseudo: RealOpc = Xtensa::RUR; RegVal = Xtensa::AE_CBEGIN0; return true;
+  case Xtensa::AE_CBEGIN1_Pseudo: RealOpc = Xtensa::RUR; RegVal = Xtensa::AE_CBEGIN1; return true;
+  case Xtensa::AE_CEND0_Pseudo:   RealOpc = Xtensa::RUR; RegVal = Xtensa::AE_CEND0;   return true;
+  case Xtensa::AE_CEND1_Pseudo:   RealOpc = Xtensa::RUR; RegVal = Xtensa::AE_CEND1;   return true;
+  case Xtensa::AE_SETCBEGIN0_Pseudo: RealOpc = Xtensa::WUR; RegVal = Xtensa::AE_CBEGIN0; return true;
+  case Xtensa::AE_SETCBEGIN1_Pseudo: RealOpc = Xtensa::WUR; RegVal = Xtensa::AE_CBEGIN1; return true;
+  case Xtensa::AE_SETCEND0_Pseudo:   RealOpc = Xtensa::WUR; RegVal = Xtensa::AE_CEND0;   return true;
+  case Xtensa::AE_SETCEND1_Pseudo:   RealOpc = Xtensa::WUR; RegVal = Xtensa::AE_CEND1;   return true;
+  default: return false;
+  }
+}
+
+static bool lowerXtensaHIFIPseudo(const MachineInstr *MI, MCInst &OutMI, XtensaAsmPrinter &AP, MCContext &OutContext) {
+  unsigned Opc = MI->getOpcode();
+
+  // 1. Zero pseudos
+  if (Opc == Xtensa::AE_ZERO16_Pseudo_HIFI3 || Opc == Xtensa::AE_ZERO24_Pseudo_HIFI3 ||
+      Opc == Xtensa::AE_ZERO32_Pseudo_HIFI3 || Opc == Xtensa::AE_ZERO64_Pseudo_HIFI3 ||
+      Opc == Xtensa::AE_ZEROP48_Pseudo_HIFI3 || Opc == Xtensa::AE_ZEROQ56_Pseudo_HIFI3) {
+    unsigned RealOpc = getHIFIZeroPseudoExpansion(Opc);
+    unsigned Dst = MI->getOperand(0).getReg();
+    OutMI = MCInstBuilder(RealOpc).addReg(Dst).addReg(Dst).addReg(Dst);
+    return true;
+  }
+
+  // 2. User register pseudos
+  unsigned RealOpc, RegVal;
+  if (getURPseudoExpansion(Opc, RealOpc, RegVal)) {
+    unsigned SrcDst = MI->getOperand(0).getReg();
+    if (RealOpc == Xtensa::WUR) {
+      OutMI = MCInstBuilder(RealOpc).addReg(RegVal).addReg(SrcDst);
+    } else {
+      OutMI = MCInstBuilder(RealOpc).addReg(SrcDst).addReg(RegVal);
+    }
+    return true;
+  }
+
+  // 3. ZALIGN pseudos
+  if (Opc == Xtensa::AE_ZALIGN64_PSEUDO_HIFI3 || Opc == Xtensa::AE_ZALIGN64_PSEUDO_HIFI4) {
+    OutMI = MCInstBuilder(Xtensa::AE_ZALIGN64).addReg(MI->getOperand(0).getReg());
+    return true;
+  }
+
+  // 4. Select pseudos (with immediate)
+  if (Opc == Xtensa::AE_SEL32_HH_Pseudo_HIFI3 || Opc == Xtensa::AE_SELP24_HH_Pseudo_HIFI3 ||
+      Opc == Xtensa::AE_SEL32_HL_Pseudo_HIFI3 ||
+      Opc == Xtensa::AE_SEL32_LH_Pseudo_HIFI3 || Opc == Xtensa::AE_SELP24_LH_Pseudo_HIFI3 ||
+      Opc == Xtensa::AE_SEL32_LL_Pseudo_HIFI3) {
+    AP.lowerToMCInst(MI, OutMI);
+    unsigned SelVal = 0;
+    if (Opc == Xtensa::AE_SEL32_HH_Pseudo_HIFI3 || Opc == Xtensa::AE_SELP24_HH_Pseudo_HIFI3)
+      SelVal = 3;
+    else if (Opc == Xtensa::AE_SEL32_HL_Pseudo_HIFI3)
+      SelVal = 2;
+    else if (Opc == Xtensa::AE_SEL32_LH_Pseudo_HIFI3 || Opc == Xtensa::AE_SELP24_LH_Pseudo_HIFI3)
+      SelVal = 1;
+    OutMI.setOpcode(Xtensa::AE_SEL16I);
+    OutMI.addOperand(MCOperand::createImm(SelVal));
+    return true;
+  }
+
+  // 4b. Custom Group 2 pseudos
+  if (Opc == Xtensa::AE_MOVAB2_PSEUDO) {
+    unsigned Dst = MI->getOperand(0).getReg();
+    OutMI = MCInstBuilder(Xtensa::AE_MOVAB2).addReg(Dst);
+    return true;
+  }
+  if (Opc == Xtensa::AE_MOVINT32_FROMINT16_PSEUDO) {
+    unsigned Dst = MI->getOperand(0).getReg();
+    unsigned Src = MI->getOperand(1).getReg();
+    OutMI = MCInstBuilder(Xtensa::OR).addReg(Dst).addReg(Src).addReg(Src);
+    return true;
+  }
+  if (Opc == Xtensa::AE_MOVINT32_FROMINT24X2_PSEUDO ||
+      Opc == Xtensa::AE_MOVINT32_FROMINT64_PSEUDO) {
+    unsigned Dst = MI->getOperand(0).getReg();
+    unsigned Src = MI->getOperand(1).getReg();
+    OutMI = MCInstBuilder(Xtensa::AE_MOVAD32_L).addReg(Dst).addReg(Src);
+    return true;
+  }
+
+  // 5. General 1-to-1 mapped pseudos
+  unsigned TargetOpc = getHIFIPseudoExpansion(Opc);
+  if (TargetOpc != 0) {
+    AP.lowerToMCInst(MI, OutMI);
+    OutMI.setOpcode(TargetOpc);
+    return true;
+  }
+
+  return false;
+}
+
 void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
   unsigned Opc = MI->getOpcode();
 
   switch (Opc) {
-  case TargetOpcode::BUNDLE: {
-    // Emit FLIX bundle using { op1; op2 } syntax for the external assembler
-    OutStreamer->emitRawText(" {");
-    const MachineBasicBlock *MBB = MI->getParent();
-    MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
-    for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
-      if (MII->isDebugInstr() || MII->isImplicitDef())
-        continue;
-      unsigned BundledOpc = MII->getOpcode();
-      if (unsigned RealOpc = getHIFIZeroPseudoExpansion(BundledOpc)) {
-        unsigned Dst = MII->getOperand(0).getReg();
-        EmitToStreamer(*OutStreamer, MCInstBuilder(RealOpc)
-                                         .addReg(Dst)
-                                         .addReg(Dst)
-                                         .addReg(Dst));
-        continue;
-      }
-      MCInst LoweredMI;
-      lowerToMCInst(&*MII, LoweredMI);
-      EmitToStreamer(*OutStreamer, LoweredMI);
-    }
-    OutStreamer->emitRawText(" }");
+  case Xtensa::AE_EQ16_Pseudo:
+  case Xtensa::AE_LT16_Pseudo:
+  case Xtensa::AE_LE16_Pseudo:
+  case Xtensa::AE_EQ32_Pseudo:
+  case Xtensa::AE_LT32_Pseudo:
+  case Xtensa::AE_LE32_Pseudo: {
+    unsigned RealOpc = 0;
+    if (Opc == Xtensa::AE_EQ16_Pseudo) RealOpc = Xtensa::AE_EQ16_REAL;
+    else if (Opc == Xtensa::AE_LT16_Pseudo) RealOpc = Xtensa::AE_LT16_REAL;
+    else if (Opc == Xtensa::AE_LE16_Pseudo) RealOpc = Xtensa::AE_LE16_REAL;
+    else if (Opc == Xtensa::AE_EQ32_Pseudo) RealOpc = Xtensa::AE_EQ32_REAL;
+    else if (Opc == Xtensa::AE_LT32_Pseudo) RealOpc = Xtensa::AE_LT32_REAL;
+    else if (Opc == Xtensa::AE_LE32_Pseudo) RealOpc = Xtensa::AE_LE32_REAL;
+
+    unsigned DstReg = MI->getOperand(0).getReg();
+    unsigned SrcRegS = MI->getOperand(1).getReg();
+    unsigned SrcRegT = MI->getOperand(2).getReg();
+
+    MCInst CompareInst;
+    CompareInst.setOpcode(RealOpc);
+    CompareInst.addOperand(MCOperand::createReg(Xtensa::B0));
+    CompareInst.addOperand(MCOperand::createReg(SrcRegS));
+    CompareInst.addOperand(MCOperand::createReg(SrcRegT));
+    EmitToStreamer(*OutStreamer, CompareInst);
+
+    MCInst RsrInst;
+    RsrInst.setOpcode(Xtensa::RSR);
+    RsrInst.addOperand(MCOperand::createReg(DstReg));
+    RsrInst.addOperand(MCOperand::createReg(Xtensa::BREG));
+    EmitToStreamer(*OutStreamer, RsrInst);
     return;
   }
-  case Xtensa::AE_ZERO32_Pseudo_HIFI3:
-  case Xtensa::AE_ZERO64_Pseudo_HIFI3:
-  case Xtensa::AE_ZEROP48_Pseudo_HIFI3:
-  case Xtensa::AE_ZEROQ56_Pseudo_HIFI3: {
-    unsigned RealOpc = getHIFIZeroPseudoExpansion(Opc);
-    unsigned Dst = MI->getOperand(0).getReg();
-    EmitToStreamer(*OutStreamer, MCInstBuilder(RealOpc)
-                                     .addReg(Dst)
-                                     .addReg(Dst)
-                                     .addReg(Dst));
+  case TargetOpcode::BUNDLE: {
+    if (OutStreamer->hasRawTextSupport()) {
+      // Emit FLIX bundle using { op1; op2 } syntax for the external assembler
+      OutStreamer->emitRawText(" {");
+      const MachineBasicBlock *MBB = MI->getParent();
+      MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
+      for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
+        if (MII->isDebugInstr() || MII->isImplicitDef())
+          continue;
+        MCInst LoweredMI;
+        if (lowerXtensaHIFIPseudo(&*MII, LoweredMI, *this, OutContext)) {
+          EmitToStreamer(*OutStreamer, LoweredMI);
+          continue;
+        }
+        lowerToMCInst(&*MII, LoweredMI);
+        EmitToStreamer(*OutStreamer, LoweredMI);
+      }
+      OutStreamer->emitRawText(" }");
+    } else {
+      MCInst BundleInst;
+      BundleInst.setOpcode(Xtensa::BUNDLE);
+      const MachineBasicBlock *MBB = MI->getParent();
+      MachineBasicBlock::const_instr_iterator MII = MI->getIterator();
+      for (++MII; MII != MBB->instr_end() && MII->isInsideBundle(); ++MII) {
+        if (MII->isDebugInstr() || MII->isImplicitDef())
+          continue;
+        MCInst *SubInst = OutContext.createMCInst();
+        if (lowerXtensaHIFIPseudo(&*MII, *SubInst, *this, OutContext)) {
+          // Lowered successfully
+        } else {
+          lowerToMCInst(&*MII, *SubInst);
+        }
+        BundleInst.addOperand(MCOperand::createInst(SubInst));
+      }
+      EmitToStreamer(*OutStreamer, BundleInst);
+    }
     return;
   }
   case Xtensa::BR_JT:
@@ -117,12 +289,16 @@ void XtensaAsmPrinter::emitInstruction(const MachineInstr *MI) {
         *OutStreamer,
         MCInstBuilder(Xtensa::JX).addReg(MI->getOperand(0).getReg()));
     return;
-  default:
-    MCInst LoweredMI;
-    lowerToMCInst(MI, LoweredMI);
+  }
+
+  MCInst LoweredMI;
+  if (lowerXtensaHIFIPseudo(MI, LoweredMI, *this, OutContext)) {
     EmitToStreamer(*OutStreamer, LoweredMI);
     return;
   }
+
+  lowerToMCInst(MI, LoweredMI);
+  EmitToStreamer(*OutStreamer, LoweredMI);
 }
 
 void XtensaAsmPrinter::emitMachineConstantPoolValue(
@@ -170,7 +346,7 @@ void XtensaAsmPrinter::emitMachineConstantPoolValue(
   }
 
   const MCExpr *Expr = MCSymbolRefExpr::create(MCSym, Spec, OutContext);
-  TS->emitLiteral(LblSym, Expr, false);
+  TS->emitLiteral(LblSym, Expr, true);
 }
 
 void XtensaAsmPrinter::emitMachineConstantPoolEntry(
@@ -195,11 +371,14 @@ void XtensaAsmPrinter::emitMachineConstantPoolEntry(
       Value = MCConstantExpr::create(CI->getValue().getSExtValue(), OutContext);
     } else if (isa<PointerType>(Ty)) {
       Value = lowerConstant(C);
-    } else {
-      llvm_unreachable("unexpected constant pool entry type");
     }
 
-    TS->emitLiteral(LblSym, Value, false);
+    if (Value) {
+      TS->emitLiteral(LblSym, Value, true);
+    } else {
+      OutStreamer->emitLabel(LblSym);
+      emitGlobalConstant(getDataLayout(), C);
+    }
   }
 }
 
@@ -215,10 +394,11 @@ void XtensaAsmPrinter::emitConstantPool() {
     return;
 
   OutStreamer->pushSection();
+  MCSection *CS = getObjFileLowering().SectionForGlobal(&F, TM);
+  OutStreamer->switchSection(CS);
 
   auto *TS =
       static_cast<XtensaTargetStreamer *>(OutStreamer->getTargetStreamer());
-  MCSection *CS = getObjFileLowering().SectionForGlobal(&F, TM);
   TS->startLiteralSection(CS);
 
   // The ELF streamer's startLiteralSection() only registers an aligned
@@ -239,6 +419,9 @@ void XtensaAsmPrinter::emitConstantPool() {
   for (const MachineConstantPoolEntry &CPE : CP) {
     emitMachineConstantPoolEntry(CPE, CPIdx++);
   }
+
+  if (TextSectionLiterals)
+    TS->emitLiteralPosition();
 
   OutStreamer->popSection();
 }
@@ -387,6 +570,15 @@ void XtensaAsmPrinter::lowerToMCInst(const MachineInstr *MI,
 
     if (MCOp.isValid())
       OutMI.addOperand(MCOp);
+  }
+}
+
+void XtensaAsmPrinter::EmitToStreamer(MCStreamer &S, const MCInst &Inst) {
+  MCInst CInst;
+  if (Xtensa::compress(CInst, Inst, *STI)) {
+    AsmPrinter::EmitToStreamer(S, CInst);
+  } else {
+    AsmPrinter::EmitToStreamer(S, Inst);
   }
 }
 
