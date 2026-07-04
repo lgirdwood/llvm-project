@@ -465,7 +465,6 @@ class FLIX_MAC_Inst<bits<8> byte0, bits<8> byte2, dag outs, dag ins, string asms
   def AE_MULAFD32X16X2_FIR_HH : XtensaInst64<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
                                              "ae_mulafd32x16x2.fir.hh\t$q0, $q1, $d0, $d1, $c", []> {
     let Constraints = "$q0 = $t1, $q1 = $t2";
-    let isCodeGenOnly = 1;
     bits<4> t1;
     bits<4> t2;
     bits<4> q0;
@@ -1648,7 +1647,6 @@ let Predicates = [HasHIFI3] in {
                                          "ae_mulaaaafq32x16\t$t, $s, $v, $r",
                                          [(set AEDR:$t, (int_xtensa_ae_mulaaaafq32x16 AEDR:$acc, AEDR:$s, AEDR:$v, AEDR:$r))]> {
       let Constraints = "$acc = $t";
-      let isCodeGenOnly = 1;
       bits<4> t;
       bits<4> s;
       bits<4> v;
@@ -2756,7 +2754,6 @@ let Predicates = [HasHIFI3] in {
   def AE_MULAFD32X16X2_FIR_HL_REAL : XtensaInst64<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
                                              "ae_mulafd32x16x2.fir.hl\t$q0, $q1, $d0, $d1, $c", []> {
     let Constraints = "$q0 = $t1, $q1 = $t2";
-    let isCodeGenOnly = 1;
     bits<4> t1;
     bits<4> t2;
     bits<4> q0;
@@ -2772,13 +2769,12 @@ let Predicates = [HasHIFI3] in {
     let Inst{19-16} = d0;
     let Inst{23-20} = d1;
     let Inst{27-24} = c;
-    let Inst{63-28} = 0x123456789;
+    let Inst{63-28} = 0x12345678A;
   }
 
   def AE_MULAFD32X16X2_FIR_LH_REAL : XtensaInst64<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
                                              "ae_mulafd32x16x2.fir.lh\t$q0, $q1, $d0, $d1, $c", []> {
     let Constraints = "$q0 = $t1, $q1 = $t2";
-    let isCodeGenOnly = 1;
     bits<4> t1;
     bits<4> t2;
     bits<4> q0;
@@ -2794,13 +2790,12 @@ let Predicates = [HasHIFI3] in {
     let Inst{19-16} = d0;
     let Inst{23-20} = d1;
     let Inst{27-24} = c;
-    let Inst{63-28} = 0x123456789;
+    let Inst{63-28} = 0x12345678B;
   }
 
   def AE_MULAFD32X16X2_FIR_LL_REAL : XtensaInst64<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$d0, AEDR:$d1, AEDR:$c),
                                              "ae_mulafd32x16x2.fir.ll\t$q0, $q1, $d0, $d1, $c", []> {
     let Constraints = "$q0 = $t1, $q1 = $t2";
-    let isCodeGenOnly = 1;
     bits<4> t1;
     bits<4> t2;
     bits<4> q0;
@@ -2816,7 +2811,7 @@ let Predicates = [HasHIFI3] in {
     let Inst{19-16} = d0;
     let Inst{23-20} = d1;
     let Inst{27-24} = c;
-    let Inst{63-28} = 0x123456789;
+    let Inst{63-28} = 0x12345678C;
   }
 
   def AE_MUL16X4_REAL : XtensaInst64<(outs AEDR:$t1, AEDR:$t2), (ins AEDR:$q0, AEDR:$q1, AEDR:$r, AEDR:$s),
