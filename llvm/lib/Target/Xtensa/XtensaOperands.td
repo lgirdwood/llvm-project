@@ -84,9 +84,9 @@ def uimm4 : Immediate<i32, [{ return Imm >= 0 && Imm <= 15; }], "Uimm4_AsmOperan
   let DecoderMethod = "decodeUimm4Operand";
 }
 
-// uimm4_x8 predicate - Immediate in the range [0,120] mapped as 4 bits
+// uimm4_x8 predicate - Immediate in the range [-64,120] mapped as 4 bits
 def Uimm4_x8_AsmOperand : ImmAsmOperand<"Uimm4_x8">;
-def uimm4_x8 : Immediate<i32, [{ return Imm >= 0 && Imm <= 120 && (Imm % 8 == 0); }], "Uimm4_x8_AsmOperand"> {
+def uimm4_x8 : Immediate<i32, [{ return Imm >= -64 && Imm <= 120 && (Imm % 8 == 0); }], "Uimm4_x8_AsmOperand"> {
   let EncoderMethod = "getUimm4_x8OpValue";
   let DecoderMethod = "decodeUimm4_x8Operand";
 }

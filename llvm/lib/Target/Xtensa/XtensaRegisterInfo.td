@@ -12,8 +12,11 @@
 // Class definitions.
 //===----------------------------------------------------------------------===//
 
-class XtensaReg<string n> : Register<n> {
+def aed_alt : RegAltNameIndex;
+
+class XtensaReg<string n, list<string> alt = []> : Register<n> {
   let Namespace = "Xtensa";
+  let AltNames = alt;
 }
 
 class XtensaRegWithSubRegs<string n, list<Register> subregs>
@@ -340,26 +343,27 @@ def UR :  RegisterClass<"Xtensa", [i32], 32, (add
 //===----------------------------------------------------------------------===//
 
 // Xtensa Floating-Point regs
-class FPReg<bits<4> num, string n> : XtensaReg<n> {
+class FPReg<bits<4> num, string n, list<string> alt = []> : XtensaReg<n, alt> {
   let HWEncoding{3-0} = num;
+  let RegAltNameIndices = [aed_alt];
 }
 
-def F0 : FPReg<0, "f0">, DwarfRegNum<[19]>;
-def F1 : FPReg<1, "f1">, DwarfRegNum<[20]>;
-def F2 : FPReg<2, "f2">, DwarfRegNum<[21]>;
-def F3 : FPReg<3, "f3">, DwarfRegNum<[22]>;
-def F4 : FPReg<4, "f4">, DwarfRegNum<[23]>;
-def F5 : FPReg<5, "f5">, DwarfRegNum<[24]>;
-def F6 : FPReg<6, "f6">, DwarfRegNum<[25]>;
-def F7 : FPReg<7, "f7">, DwarfRegNum<[26]>;
-def F8 : FPReg<8, "f8">, DwarfRegNum<[27]>;
-def F9 : FPReg<9, "f9">, DwarfRegNum<[28]>;
-def F10 : FPReg<10, "f10">, DwarfRegNum<[29]>;
-def F11 : FPReg<11, "f11">, DwarfRegNum<[30]>;
-def F12 : FPReg<12, "f12">, DwarfRegNum<[31]>;
-def F13 : FPReg<13, "f13">, DwarfRegNum<[32]>;
-def F14 : FPReg<14, "f14">, DwarfRegNum<[33]>;
-def F15 : FPReg<15, "f15">, DwarfRegNum<[34]>;
+def F0 : FPReg<0, "f0", ["aed0"]>, DwarfRegNum<[19]>;
+def F1 : FPReg<1, "f1", ["aed1"]>, DwarfRegNum<[20]>;
+def F2 : FPReg<2, "f2", ["aed2"]>, DwarfRegNum<[21]>;
+def F3 : FPReg<3, "f3", ["aed3"]>, DwarfRegNum<[22]>;
+def F4 : FPReg<4, "f4", ["aed4"]>, DwarfRegNum<[23]>;
+def F5 : FPReg<5, "f5", ["aed5"]>, DwarfRegNum<[24]>;
+def F6 : FPReg<6, "f6", ["aed6"]>, DwarfRegNum<[25]>;
+def F7 : FPReg<7, "f7", ["aed7"]>, DwarfRegNum<[26]>;
+def F8 : FPReg<8, "f8", ["aed8"]>, DwarfRegNum<[27]>;
+def F9 : FPReg<9, "f9", ["aed9"]>, DwarfRegNum<[28]>;
+def F10 : FPReg<10, "f10", ["aed10"]>, DwarfRegNum<[29]>;
+def F11 : FPReg<11, "f11", ["aed11"]>, DwarfRegNum<[30]>;
+def F12 : FPReg<12, "f12", ["aed12"]>, DwarfRegNum<[31]>;
+def F13 : FPReg<13, "f13", ["aed13"]>, DwarfRegNum<[32]>;
+def F14 : FPReg<14, "f14", ["aed14"]>, DwarfRegNum<[33]>;
+def F15 : FPReg<15, "f15", ["aed15"]>, DwarfRegNum<[34]>;
 
 // Floating-Point register class with allocation order
 def FPR : RegisterClass<"Xtensa", [f32], 32, (add

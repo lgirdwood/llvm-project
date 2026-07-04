@@ -111,7 +111,7 @@ def : Proc<"intel_ace15_mtpm", [FeatureDensity, FeatureWindowed, FeatureBoolean,
                                 FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                 FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                 FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
-                                FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
+                                FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4, FeatureSingleFloat]>;
 
 // intel_ace30_adsp - ACE 3.0 Audio DSP (HiFi4)
 def : Proc<"intel_ace30_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
