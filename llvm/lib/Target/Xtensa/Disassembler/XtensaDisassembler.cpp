@@ -23,6 +23,9 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/MC/MCInstrInfo.h"
+#include <memory>
+#include <set>
 
 using namespace llvm;
 using namespace llvm::MCD;
@@ -35,23 +38,42 @@ namespace {
 
 class XtensaDisassembler : public MCDisassembler {
   bool IsLittleEndian;
+  std::unique_ptr<const MCInstrInfo> MCII;
+  mutable std::set<uint64_t> LiteralAddresses;
+  mutable std::set<uint64_t> ScannedSections;
 
 public:
-  XtensaDisassembler(const MCSubtargetInfo &STI, MCContext &Ctx, bool isLE)
-      : MCDisassembler(STI, Ctx), IsLittleEndian(isLE) {}
+  XtensaDisassembler(const MCSubtargetInfo &STI, MCContext &Ctx, bool isLE,
+                     std::unique_ptr<const MCInstrInfo> MCII)
+      : MCDisassembler(STI, Ctx), IsLittleEndian(isLE), MCII(std::move(MCII)) {}
 
   bool hasDensity() const { return STI.hasFeature(Xtensa::FeatureDensity); }
+  bool hasHIFI3() const { return STI.hasFeature(Xtensa::FeatureHIFI3); }
+  bool hasHIFI4() const { return STI.hasFeature(Xtensa::FeatureHIFI4); }
+  bool hasHIFI5() const { return STI.hasFeature(Xtensa::FeatureHIFI5); }
+  bool hasFLIX() const { return STI.hasFeature(Xtensa::FeatureFLIX); }
+
+  bool isVLIWOnlyInstruction(unsigned Opcode) const {
+    if (!MCII) return false;
+    unsigned Size = MCII->get(Opcode).getSize();
+    if (Size > 3)
+      return true;
+    return false;
+  }
 
   DecodeStatus getInstruction(MCInst &Instr, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const override;
+
+  bool decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Address) const;
 };
 } // end anonymous namespace
 
 static MCDisassembler *createXtensaDisassembler(const Target &T,
                                                 const MCSubtargetInfo &STI,
                                                 MCContext &Ctx) {
-  return new XtensaDisassembler(STI, Ctx, true);
+  std::unique_ptr<const MCInstrInfo> MCII(T.createMCInstrInfo());
+  return new XtensaDisassembler(STI, Ctx, true, std::move(MCII));
 }
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaDisassembler() {
@@ -170,10 +192,11 @@ const DecodeRegister SRDecoderTable[] = {
     {Xtensa::SCOMPARE1, 12},   {Xtensa::ACCLO, 16},
     {Xtensa::ACCHI, 17},       {Xtensa::M0, 32},
     {Xtensa::M1, 33},          {Xtensa::M2, 34},
-    {Xtensa::M3, 35},          {Xtensa::WINDOWBASE, 72},
-    {Xtensa::WINDOWSTART, 73}, {Xtensa::IBREAKENABLE, 96},
-    {Xtensa::MEMCTL, 97},      {Xtensa::ATOMCTL, 99},
-    {Xtensa::DDR, 104},        {Xtensa::IBREAKA0, 128},
+    {Xtensa::M3, 35},          {Xtensa::PREFCTL, 40},
+    {Xtensa::WINDOWBASE, 72},  {Xtensa::WINDOWSTART, 73},
+    {Xtensa::IBREAKENABLE, 96}, {Xtensa::MEMCTL, 97},
+    {Xtensa::ATOMCTL, 99},     {Xtensa::DDR, 104},
+    {Xtensa::MESAVE, 108},     {Xtensa::IBREAKA0, 128},
     {Xtensa::IBREAKA1, 129},   {Xtensa::DBREAKA0, 144},
     {Xtensa::DBREAKA1, 145},   {Xtensa::DBREAKC0, 160},
     {Xtensa::DBREAKC1, 161},   {Xtensa::CONFIGID0, 176},
@@ -245,7 +268,7 @@ static DecodeStatus DecodeBRRegisterClass(MCInst &Inst, uint64_t RegNo,
 }
 
 static const MCPhysReg VALIGNDecoderTable[] = {
-    Xtensa::U0, Xtensa::U1, Xtensa::U2, Xtensa::U3};
+    Xtensa::A0, Xtensa::SP, Xtensa::A2, Xtensa::A3};
 
 static DecodeStatus DecodeVALIGNRegisterClass(MCInst &Inst, uint64_t RegNo,
                                            uint64_t Address,
@@ -253,6 +276,26 @@ static DecodeStatus DecodeVALIGNRegisterClass(MCInst &Inst, uint64_t RegNo,
   if (RegNo >= 4)
     return MCDisassembler::Fail;
   Inst.addOperand(MCOperand::createReg(VALIGNDecoderTable[RegNo]));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeURAlignRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                               uint64_t Address,
+                                               const void *Decoder) {
+  if (RegNo >= 4)
+    return MCDisassembler::Fail;
+  Inst.addOperand(MCOperand::createReg(VALIGNDecoderTable[RegNo]));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus DecodeBR_AEPRegisterClass(MCInst &Inst, uint64_t RegNo,
+                                              uint64_t Address,
+                                              const void *Decoder) {
+  if (RegNo > 3)
+    return MCDisassembler::Fail;
+
+  MCPhysReg Reg = Xtensa::B0 + RegNo;
+  Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }
 
@@ -356,9 +399,39 @@ static DecodeStatus decodeUimm4_x8Operand(MCInst &Inst, uint64_t Imm,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus decodeUimm4_x16Operand(MCInst &Inst, uint64_t Imm,
+                                           int64_t Address, const void *Decoder) {
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm * 16));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeUimm8_x4Operand(MCInst &Inst, uint64_t Imm,
+                                          int64_t Address, const void *Decoder) {
+  assert(isUInt<8>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm * 4));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeUimm8Operand(MCInst &Inst, uint64_t Imm,
+                                       int64_t Address, const void *Decoder) {
+  assert(isUInt<8>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm));
+  return MCDisassembler::Success;
+}
+
+
+
 static DecodeStatus decodeUimm5Operand(MCInst &Inst, uint64_t Imm,
                                        int64_t Address, const void *Decoder) {
   assert(isUInt<5>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(Imm));
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus decodeUimm2Operand(MCInst &Inst, uint64_t Imm,
+                                       int64_t Address, const void *Decoder) {
+  assert(isUInt<2>(Imm) && "Invalid immediate");
   Inst.addOperand(MCOperand::createImm(Imm));
   return MCDisassembler::Success;
 }
@@ -482,6 +555,14 @@ static DecodeStatus decodeImm8n_7_x4Operand(MCInst &Inst, uint64_t Imm,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus decodeImm8n_7_x8Operand(MCInst &Inst, uint64_t Imm,
+                                          int64_t Address, const void *Decoder) {
+  int64_t SignedImm = SignExtend64<4>(Imm);
+  assert(isUInt<4>(Imm) && "Invalid immediate");
+  Inst.addOperand(MCOperand::createImm(SignedImm * 8));
+  return MCDisassembler::Success;
+}
+
 static DecodeStatus decodeMem8Operand(MCInst &Inst, uint64_t Imm,
                                       int64_t Address, const void *Decoder) {
   assert(isUInt<12>(Imm) && "Invalid immediate");
@@ -553,14 +634,742 @@ static DecodeStatus readInstruction24(ArrayRef<uint8_t> Bytes, uint64_t Address,
   return MCDisassembler::Success;
 }
 
+static DecodeStatus readInstruction48(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                      uint64_t &Size, uint64_t &Insn,
+                                      bool IsLittleEndian) {
+  if (Bytes.size() < 6) {
+    Size = 0;
+    return MCDisassembler::Fail;
+  }
+  if (!IsLittleEndian) {
+    report_fatal_error("Big-endian mode currently is not supported!");
+  } else {
+    Insn = 0;
+    for (unsigned i = 0; i < 6; ++i) {
+      Insn |= (uint64_t(Bytes[i]) << (i * 8));
+    }
+  }
+  return MCDisassembler::Success;
+}
+
+static DecodeStatus readInstruction64(ArrayRef<uint8_t> Bytes, uint64_t Address,
+                                      uint64_t &Size, uint64_t &Insn,
+                                      bool IsLittleEndian) {
+  if (Bytes.size() < 8) {
+    Size = 0;
+    return MCDisassembler::Fail;
+  }
+  if (!IsLittleEndian) {
+    report_fatal_error("Big-endian mode currently is not supported!");
+  } else {
+    Insn = 0;
+    for (unsigned i = 0; i < 8; ++i) {
+      Insn |= (uint64_t(Bytes[i]) << (i * 8));
+    }
+  }
+  return MCDisassembler::Success;
+}
+
 #include "XtensaGenDisassemblerTables.inc"
+
+static bool isLiteralAddress(uint64_t Addr, const std::set<uint64_t>& CandidateLiterals) {
+  auto it = CandidateLiterals.upper_bound(Addr);
+  if (it != CandidateLiterals.begin()) {
+    --it;
+    if (Addr < *it + 4)
+      return true;
+  }
+  return false;
+}
 
 DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                                                 ArrayRef<uint8_t> Bytes,
                                                 uint64_t Address,
                                                 raw_ostream &CS) const {
+  static thread_local bool IsScanning = false;
+  static thread_local std::vector<std::pair<uint64_t, uint64_t>> ScannedRanges;
+  bool AlreadyScanned = false;
+  for (const auto &Range : ScannedRanges) {
+    if (Address >= Range.first && Address < Range.second) {
+      AlreadyScanned = true;
+      break;
+    }
+  }
+
+  if (Address >= 0x1000 && !IsScanning && !AlreadyScanned) {
+    IsScanning = true;
+    ScannedRanges.push_back({Address, Address + Bytes.size()});
+
+    uint64_t ScanOffset = 0;
+    std::set<uint64_t> CandidateLiterals;
+    std::map<uint64_t, std::vector<uint64_t>> LiteralToPCs;
+    // Pass 1: Scan for Candidate Literals sequentially (valid boundaries only)
+    while (ScanOffset < Bytes.size()) {
+      MCInst TmpMI;
+      uint64_t TmpSize = 0;
+      uint64_t CurrAddr = Address + ScanOffset;
+      DecodeStatus Status = getInstruction(TmpMI, TmpSize, Bytes.slice(ScanOffset), CurrAddr, nulls());
+      if (Status != MCDisassembler::Fail && TmpSize > 0) {
+        if (TmpMI.getOpcode() == Xtensa::L32R) {
+          if (TmpMI.getNumOperands() > 1 && TmpMI.getOperand(1).isImm()) {
+            int64_t TargetVal = TmpMI.getOperand(1).getImm();
+            TargetVal &= ~0x3;
+            uint64_t PC = CurrAddr;
+            uint64_t TargetAddr = ((PC + 3) & ~3) + TargetVal;
+            uint64_t Diff = (PC > TargetAddr) ? (PC - TargetAddr) : (TargetAddr - PC);
+            if (Diff <= 0x40000 && (TargetAddr % 4 == 0)) {
+              CandidateLiterals.insert(TargetAddr);
+              LiteralToPCs[TargetAddr].push_back(PC);
+            }
+          }
+        } else if (TmpMI.getOpcode() == Xtensa::BUNDLE) {
+          for (unsigned i = 0; i < TmpMI.getNumOperands(); ++i) {
+            const MCOperand &Op = TmpMI.getOperand(i);
+            if (Op.isInst()) {
+              const MCInst &SubMI = *Op.getInst();
+              if (SubMI.getOpcode() == Xtensa::L32R) {
+                if (SubMI.getNumOperands() > 1 && SubMI.getOperand(1).isImm()) {
+                  int64_t TargetVal = SubMI.getOperand(1).getImm();
+                  TargetVal &= ~0x3;
+                  uint64_t PC = CurrAddr;
+                  uint64_t TargetAddr = ((PC + 3) & ~3) + TargetVal;
+                  uint64_t Diff = (PC > TargetAddr) ? (PC - TargetAddr) : (TargetAddr - PC);
+                  if (Diff <= 0x40000 && (TargetAddr % 4 == 0)) {
+                    CandidateLiterals.insert(TargetAddr);
+                    LiteralToPCs[TargetAddr].push_back(PC);
+                  }
+                }
+              }
+            }
+          }
+        }
+        ScanOffset += TmpSize;
+      } else {
+        ScanOffset += 1;
+      }
+    }
+
+    // Pass 2: Scan for valid Code Addresses, avoiding Candidate Literals
+    ScanOffset = 0;
+    std::set<uint64_t> CodeAddresses;
+    std::vector<uint64_t> EntryAddresses;
+    while (ScanOffset < Bytes.size()) {
+      uint64_t CurrAddr = Address + ScanOffset;
+      if (isLiteralAddress(CurrAddr, CandidateLiterals)) {
+        ScanOffset += 1;
+        continue;
+      }
+      MCInst TmpMI;
+      uint64_t TmpSize = 0;
+      DecodeStatus Status = getInstruction(TmpMI, TmpSize, Bytes.slice(ScanOffset), CurrAddr, nulls());
+      if (Status == MCDisassembler::Fail || TmpSize == 0) {
+        ScanOffset += 1;
+        continue;
+      }
+      CodeAddresses.insert(CurrAddr);
+      if (TmpMI.getOpcode() == Xtensa::ENTRY) {
+        EntryAddresses.push_back(CurrAddr);
+      }
+      ScanOffset += TmpSize;
+    }
+
+    std::vector<std::pair<uint64_t, uint64_t>> FuncRanges;
+    for (size_t i = 0; i < EntryAddresses.size(); ++i) {
+      uint64_t Start = EntryAddresses[i];
+      uint64_t NextEntry = (i + 1 < EntryAddresses.size()) ? EntryAddresses[i + 1] : ~0ULL;
+      uint64_t End = Start;
+      auto it = CodeAddresses.lower_bound(NextEntry);
+      if (it != CodeAddresses.begin()) {
+        --it;
+        if (*it >= Start) {
+          End = *it + 4;
+        }
+      }
+      FuncRanges.push_back({Start, End});
+    }
+
+    for (uint64_t LitAddr : CandidateLiterals) {
+      // 1. Verify that this candidate literal does not overlap with any decoded instructions
+      bool OverlapsCode = false;
+      for (unsigned i = 0; i < 4; ++i) {
+        if (CodeAddresses.count(LitAddr + i)) {
+          OverlapsCode = true;
+          break;
+        }
+      }
+      if (OverlapsCode)
+        continue;
+
+      // 2. Verify that if this candidate literal is inside a function, it is referenced
+      // by at least one valid L32R instruction inside the same function.
+      bool InsideFunc = false;
+      uint64_t FStart = 0, FEnd = 0;
+      for (const auto &Range : FuncRanges) {
+        if (LitAddr >= Range.first && LitAddr < Range.second) {
+          InsideFunc = true;
+          FStart = Range.first;
+          FEnd = Range.second;
+          break;
+        }
+      }
+
+      bool HasValidReference = false;
+      if (InsideFunc) {
+        for (uint64_t PC : LiteralToPCs[LitAddr]) {
+          if (PC >= FStart && PC < FEnd && CodeAddresses.count(PC)) {
+            HasValidReference = true;
+            break;
+          }
+        }
+      } else {
+        HasValidReference = true;
+      }
+
+      if (HasValidReference) {
+        for (unsigned i = 0; i < 4; ++i) {
+          LiteralAddresses.insert(LitAddr + i);
+        }
+      }
+    }
+    IsScanning = false;
+  }
+
+  if (Address >= 0x1000 && !IsScanning && LiteralAddresses.count(Address)) {
+    Size = std::min<uint64_t>(4, Bytes.size());
+    return MCDisassembler::Fail;
+  }
+
+  Size = 0;
   uint64_t Insn;
   DecodeStatus Result;
+
+  // Manual disassembly of 128-bit instructions (AE_MOVDRZBVC, AE_MOVZBVCDR)
+  if (hasHIFI5() && Bytes.size() >= 16) {
+    if (Bytes[0] == 0x4f && Bytes[1] == 0x61 && Bytes[2] == 0x08 && Bytes[3] == 0xbb &&
+        Bytes[4] == 0x53 && (Bytes[5] & 0x03) == 0x01 && Bytes[5] <= 0x3d &&
+        (Bytes[6] == 0x0e || Bytes[6] == 0x1e) && Bytes[7] == 0x60 && Bytes[8] == 0x09 &&
+        Bytes[9] == 0x99 && Bytes[10] == 0x00 && Bytes[11] == 0x5e && Bytes[12] == 0x80 &&
+        Bytes[13] == 0xa4 && Bytes[14] == 0x01 && Bytes[15] == 0x00) {
+      unsigned Opcode = (Bytes[6] == 0x0e) ? Xtensa::AE_MOVDRZBVC : Xtensa::AE_MOVZBVCDR;
+      unsigned RegVal = (Bytes[5] - 1) >> 2;
+      MI.setOpcode(Opcode);
+      unsigned Reg = Xtensa::AED0 + RegVal;
+      MI.addOperand(MCOperand::createReg(Reg));
+      Size = 16;
+      return MCDisassembler::Success;
+    }
+  }
+
+  // Manual disassembly of custom 11-byte VLIW pseudo-instructions
+  if (hasFLIX() && Bytes.size() >= 11) {
+    uint8_t BE_Bytes[11];
+    for (int i = 0; i < 11; ++i)
+      BE_Bytes[i] = Bytes[10 - i];
+
+    uint32_t BE_insn0 = BE_Bytes[0] | (BE_Bytes[1] << 8) | (BE_Bytes[2] << 16) | (BE_Bytes[3] << 24);
+    uint32_t BE_insn1 = BE_Bytes[4] | (BE_Bytes[5] << 8) | (BE_Bytes[6] << 16) | (BE_Bytes[7] << 24);
+    uint32_t BE_insn2 = BE_Bytes[8] | (BE_Bytes[9] << 8) | (BE_Bytes[10] << 16);
+
+    // 1. AE_MULAFD32X16X2_FIR_HH, HL, LH, LL
+    if ((BE_insn0 == 0x0d2c0700 || BE_insn0 == 0x0d2c0f00 || BE_insn0 == 0x0d2c1700 || BE_insn0 == 0x0d2c1f00) &&
+        BE_insn2 == 0x0f3570) {
+      if (BE_insn0 == 0x0d2c0700) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_HH);
+      else if (BE_insn0 == 0x0d2c0f00) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_HL_REAL);
+      else if (BE_insn0 == 0x0d2c1700) MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_LH_REAL);
+      else MI.setOpcode(Xtensa::AE_MULAFD32X16X2_FIR_LL_REAL);
+
+      unsigned q0 = (BE_insn1 >> 28) & 0xf;
+      unsigned q1 = (BE_insn1 >> 16) & 0xf;
+      unsigned c  = (BE_insn1 >> 2) & 0xf;
+      unsigned d1 = (BE_insn1 >> 9) & 0xf;
+      unsigned d0 = (BE_insn1 & 1) | (((BE_insn1 >> 8) & 1) << 1) | (((BE_insn1 >> 14) & 1) << 2) | (((BE_insn1 >> 13) & 1) << 3);
+
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q0])); // t1
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q1])); // t2
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q0])); // q0
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q1])); // q1
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d0])); // d0
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d1])); // d1
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[c]));  // c
+      Size = 11;
+      return MCDisassembler::Success;
+    }
+
+    // 2. AE_ROUND16X4F32SSYM
+    if (BE_Bytes[0] == 0x1f && BE_Bytes[1] == 0x15 && BE_Bytes[2] == 0x70 &&
+        BE_Bytes[8] == 0xc7 && BE_Bytes[9] == 0x77 && BE_Bytes[10] == 0xcb && (BE_Bytes[7] & 0xfc) == 0xc4) {
+      MI.setOpcode(Xtensa::AE_ROUND16X4F32SSYM);
+      unsigned t = (BE_insn1 >> 16) & 0xf;
+      unsigned s = (BE_insn1 >> 2) & 0xf;
+      unsigned r_bit0 = (BE_insn1 >> 6) & 1;
+      unsigned r_bit1 = (BE_insn1 >> 7) & 1;
+      unsigned r_bit2 = BE_Bytes[7] & 1;
+      unsigned r_bit3 = (BE_Bytes[7] >> 1) & 1;
+      unsigned r = r_bit0 | (r_bit1 << 1) | (r_bit2 << 2) | (r_bit3 << 3);
+
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      Size = 11;
+      return MCDisassembler::Success;
+    }
+
+    // 3. AE_ROUND16X4F32SASYM
+    if (BE_Bytes[0] == 0x1f && BE_Bytes[1] == 0x15 && BE_Bytes[2] == 0x70 &&
+        BE_Bytes[8] == 0xc7 && BE_Bytes[9] == 0x77 && (BE_Bytes[10] & 0xfe) == 0xc8 &&
+        (BE_Bytes[7] & 0xfe) == 0xdc) {
+      MI.setOpcode(Xtensa::AE_ROUND16X4F32SASYM);
+      unsigned t = (BE_insn1 >> 16) & 0xf;
+      unsigned s = (BE_insn1 >> 2) & 0xf;
+      unsigned r_bit0 = BE_Bytes[7] & 1;
+      unsigned r_bit1 = (BE_insn1 >> 7) & 1;
+      unsigned r_bit2 = (BE_insn1 >> 5) & 1;
+      unsigned r_bit3 = (BE_insn1 >> 6) & 1;
+      unsigned r = r_bit0 | (r_bit1 << 1) | (r_bit2 << 2) | (r_bit3 << 3);
+
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      Size = 11;
+      return MCDisassembler::Success;
+    }
+
+    // 4. AE_ROUND32X2F64SSYM_REAL
+    if (BE_Bytes[0] == 0xcd && BE_Bytes[1] == 0x77 && BE_Bytes[2] == 0xc7 && BE_Bytes[3] == 0xd4 &&
+        BE_Bytes[8] == 0x70 && BE_Bytes[9] == 0x15 && BE_Bytes[10] == 0x1f) {
+      MI.setOpcode(Xtensa::AE_ROUND32X2F64SSYM_REAL);
+      unsigned t = (BE_insn1 >> 16) & 0xf;
+      unsigned s = (BE_insn1 >> 6) & 0xf;
+      unsigned r = (BE_insn1 >> 2) & 0xf;
+
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      Size = 11;
+      return MCDisassembler::Success;
+    }
+
+    // 5. AE_ROUND32X2F64SASYM_REAL & AE_ROUND24X2F48SSYM_REAL
+    if (BE_Bytes[0] == 0x39 && BE_Bytes[1] == 0x77 && BE_Bytes[2] == 0xc6 && BE_Bytes[3] == 0xc4 &&
+        BE_Bytes[8] == 0x70 && BE_Bytes[9] == 0x00 && BE_Bytes[10] == 0x1f) {
+      unsigned sub = (BE_insn1 >> 8) & 0xff;
+      if (sub == 0x02) MI.setOpcode(Xtensa::AE_ROUND32X2F64SASYM_REAL);
+      else MI.setOpcode(Xtensa::AE_ROUND24X2F48SSYM_REAL);
+
+      unsigned t = (BE_insn2 >> 12) & 0xf;
+      unsigned s = (BE_insn1 >> 20) & 0xf;
+      unsigned r = BE_Bytes[8] & 0xf;
+
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      Size = 11;
+      return MCDisassembler::Success;
+    }
+  }
+
+  if (hasFLIX() && Bytes.size() >= 6) {
+    // AE_SA16X4_IC_REAL
+    if (Bytes[0] == 0x7e && Bytes[2] == 0x06 && Bytes[3] == 0x81 && Bytes[4] == 0xe5 && Bytes[5] == 0xfc) {
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      MI.setOpcode(Xtensa::AE_SA16X4_IC_REAL);
+      MI.addOperand(MCOperand::createReg(Xtensa::A0));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(Xtensa::A0));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    // AE_SA32X2_IC_REAL
+    if (Bytes[0] == 0x5e && Bytes[2] == 0x06 && Bytes[3] == 0x11 && Bytes[4] == 0xe5 && Bytes[5] == 0xfc) {
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      MI.setOpcode(Xtensa::AE_SA32X2_IC_REAL);
+      MI.addOperand(MCOperand::createReg(Xtensa::A0));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(Xtensa::A0));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    // AE_SA24X2_IP_REAL
+    if (Bytes[0] == 0x6e && Bytes[2] == 0x06 && Bytes[3] == 0xb1 && Bytes[4] == 0xe5 && Bytes[5] == 0xfc) {
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      MI.setOpcode(Xtensa::AE_SA24X2_IP_REAL);
+      MI.addOperand(MCOperand::createReg(Xtensa::A0));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(Xtensa::A0));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    // AE_LA16X4POS_PC_REAL
+    if (Bytes[0] == 0xfc && Bytes[1] == 0xe6 && Bytes[2] == 0x01 && Bytes[3] == 0x06 && (Bytes[4] & 0xf0) == 0x30 && Bytes[5] == 0x2e) {
+      unsigned s = Bytes[4] & 0xf;
+      MI.setOpcode(Xtensa::AE_LA16X4POS_PC_REAL);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    // AE_S16_0_X
+    if (Bytes[0] == 0xfc && Bytes[1] == 0xe0 && Bytes[2] == 0x21 && Bytes[3] == 0x06 && (Bytes[5] & 0xf) == 0x0e) {
+      unsigned r = Bytes[4] >> 4;
+      unsigned s = Bytes[4] & 0xf;
+      unsigned t = Bytes[5] >> 4;
+      MI.setOpcode(Xtensa::AE_S16_0_X);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    // AE_S16_0_XC
+    if (Bytes[0] == 0xfc && Bytes[1] == 0xe0 && Bytes[2] == 0x31 && Bytes[3] == 0x06 && (Bytes[5] & 0xf) == 0x0e) {
+      unsigned r = Bytes[4] >> 4;
+      unsigned s = Bytes[4] & 0xf;
+      unsigned t = Bytes[5] >> 4;
+      MI.setOpcode(Xtensa::AE_S16_0_XC);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    // AE_S16_0_XC1
+    if (Bytes[0] == 0x7c && Bytes[1] == 0xa0 && Bytes[2] == 0xe0 && Bytes[3] == 0x00 && (Bytes[5] & 0xf) == 0x0e) {
+      unsigned r = Bytes[4] >> 4;
+      unsigned s = Bytes[4] & 0xf;
+      unsigned t = Bytes[5] >> 4;
+      MI.setOpcode(Xtensa::AE_S16_0_XC1);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+  }
+
+  if (hasFLIX() && Bytes.size() >= 3) {
+    // AE_S32_L_X
+    if (Bytes[0] == 0xe2 && (Bytes[2] & 0xf) == 0x04) {
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      unsigned t = Bytes[2] >> 4;
+      MI.setOpcode(Xtensa::AE_S32_L_X);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[r]));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+    // AE_L32_X
+    if (Bytes[0] == 0xbf && (Bytes[2] & 0xf) == 0x04) {
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      unsigned t = Bytes[2] >> 4;
+      MI.setOpcode(Xtensa::AE_L32_X);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+    // AE_SA16X4_IP_REAL
+    if ((Bytes[0] & 0xcf) == 0x84 && Bytes[2] == 0x0c) {
+      unsigned align_in = (Bytes[0] >> 4) & 0x3;
+      unsigned r = Bytes[1] & 0xf;
+      unsigned s = Bytes[1] >> 4;
+      MI.setOpcode(Xtensa::AE_SA16X4_IP_REAL);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+    // AE_SA32X2_IP_REAL
+    if ((Bytes[0] & 0xcf) == 0xc4 && Bytes[2] == 0x0c) {
+      unsigned align_in = (Bytes[0] >> 4) & 0x3;
+      unsigned r = Bytes[1] & 0xf;
+      unsigned s = Bytes[1] >> 4;
+      MI.setOpcode(Xtensa::AE_SA32X2_IP_REAL);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+    // AE_LA24X2_IP_REAL
+    if ((Bytes[0] & 0xcf) == 0x0d && Bytes[2] == 0x44) {
+      unsigned align_in = (Bytes[0] >> 4) & 0x3;
+      unsigned r = Bytes[1] & 0xf;
+      unsigned s = Bytes[1] >> 4;
+      MI.setOpcode(Xtensa::AE_LA24X2_IP_REAL);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+    // AE_LA24_IP_REAL
+    if ((Bytes[0] & 0xd0) == 0x10 && (Bytes[1] & 0x0f) == 0x03 && Bytes[2] == 0x26) {
+      unsigned s = Bytes[0] & 0xf;
+      unsigned align_in = (Bytes[0] >> 5) & 0x1;
+      unsigned r = Bytes[1] >> 4;
+      MI.setOpcode(Xtensa::AE_LA24_IP_REAL);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[align_in]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+  }
+
+  if (hasFLIX() && Bytes.size() >= 6 && (Bytes[0] & 0x0f) == 0x0e && Bytes[2] == 0x00 && Bytes[5] == 0x7c) {
+    if (Bytes[3] == 0x60 && Bytes[4] == 0x9f) { // AE_L32X2_XC1
+      unsigned t = Bytes[0] >> 4;
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      MI.setOpcode(Xtensa::AE_L32X2_XC1);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    if (Bytes[3] == 0xb0 && Bytes[4] == 0xa2) { // AE_S32_L_XC1
+      unsigned t = Bytes[0] >> 4;
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      MI.setOpcode(Xtensa::AE_S32_L_XC1);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+    if (Bytes[3] == 0x70 && Bytes[4] == 0xa2) { // AE_S32X2_XC1
+      unsigned t = Bytes[0] >> 4;
+      unsigned r = Bytes[1] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      MI.setOpcode(Xtensa::AE_S32X2_XC1);
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+      Size = 6;
+      return MCDisassembler::Success;
+    }
+  }
+
+  // VLIW / FLIX bundle decoding
+  if (hasFLIX() && Bytes.size() >= 6 && (Bytes[0] & 0x0f) == 0x0e) {
+    // 48-bit (6-byte) bundle: Format 0, 1, or 2
+    uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
+    uint32_t insn1 = Bytes[4] | (Bytes[5] << 8);
+    unsigned fmt_bits = Bytes[5] & 0xc0;
+
+    if (fmt_bits == 0xc0) {
+      // Format 0: 2 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xf) |
+                      (((insn0 >> 4) & 0xf) << 4) |
+                      (((insn0 >> 12) & 0xf) << 8) |
+                      (((insn0 >> 28) & 0xf) << 12) |
+                      ((insn1 & 0x3f) << 16);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xf) |
+                      (((insn0 >> 24) & 0xf) << 4) |
+                      (((insn0 >> 20) & 0xf) << 8) |
+                      (((insn1 >> 6) & 0xff) << 12);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) && decodeSlotVal(*SubMI1, val1, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        Size = 6;
+        return MCDisassembler::Success;
+      }
+    } else if (fmt_bits == 0x80) {
+      // Format 1: 2 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xf) |
+                      (((insn0 >> 4) & 0xf) << 4) |
+                      (((insn0 >> 12) & 0xf) << 8) |
+                      (((insn0 >> 28) & 0xf) << 12) |
+                      ((insn1 & 0xfff) << 16);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xf) |
+                      (((insn0 >> 24) & 0xf) << 4) |
+                      (((insn0 >> 20) & 0xf) << 8) |
+                      (((insn1 >> 12) & 0x3) << 12);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) && decodeSlotVal(*SubMI1, val1, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        Size = 6;
+        return MCDisassembler::Success;
+      }
+    } else if (fmt_bits == 0x00) {
+      // Format 2: 3 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xf) |
+                      (((insn0 >> 4) & 0xf) << 4) |
+                      (((insn0 >> 12) & 0xf) << 8) |
+                      (((insn0 >> 28) & 0xf) << 12) |
+                      ((insn1 & 0x3f) << 16);
+
+      uint32_t val1 = (insn1 >> 6) & 0x1;
+
+      uint32_t val2 = ((insn0 >> 16) & 0xfff) |
+                      (((insn1 >> 7) & 0xff) << 12);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      MCInst *SubMI2 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) &&
+          decodeSlotVal(*SubMI1, val1, Address) &&
+          decodeSlotVal(*SubMI2, val2, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        MI.addOperand(MCOperand::createInst(SubMI2));
+        Size = 6;
+        return MCDisassembler::Success;
+      }
+    }
+  }
+
+  if (hasFLIX() && Bytes.size() >= 11 && (Bytes[0] & 0x0f) == 0x0f) {
+    // 88-bit (11-byte) bundle: Format 3 (0x1F) or Format 4 (0x0F)
+    uint32_t insn0 = Bytes[0] | (Bytes[1] << 8) | (Bytes[2] << 16) | (Bytes[3] << 24);
+    uint32_t insn1 = Bytes[4] | (Bytes[5] << 8) | (Bytes[6] << 16) | (Bytes[7] << 24);
+    uint32_t insn2 = Bytes[8] | (Bytes[9] << 8) | (Bytes[10] << 16);
+
+    if (Bytes[0] == 0x1f) {
+      // Format 3: 4 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xff) |
+                      (((insn1 >> 6) & 0xf) << 8) |
+                      (((insn1 >> 4) & 0x1) << 12) |
+                      (((insn0 >> 5) & 0x7) << 13) |
+                      (((insn1 >> 29) & 0x7) << 16) |
+                      ((insn2 & 0x3) << 19);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xfff) |
+                      (((insn2 >> 2) & 0xff) << 12);
+
+      uint32_t val2 = ((insn0 >> 28) & 0xf) |
+                      (((insn1 >> 5) & 0x1) << 4) |
+                      (((insn1 >> 10) & 0x7) << 5) |
+                      (((insn1 >> 14) & 0xf) << 8) |
+                      (((insn1 >> 13) & 0x1) << 12) |
+                      (((insn1 >> 26) & 0x1) << 13) |
+                      (((insn2 >> 10) & 0x7f) << 14);
+
+      uint32_t val3 = (insn1 & 0xf) |
+                      (((insn1 >> 22) & 0xf) << 4) |
+                      (((insn1 >> 18) & 0xf) << 8) |
+                      (((insn1 >> 27) & 0x3) << 12) |
+                      (((insn2 >> 17) & 0x7f) << 14);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      MCInst *SubMI2 = getContext().createMCInst();
+      MCInst *SubMI3 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) &&
+          decodeSlotVal(*SubMI1, val1, Address) &&
+          decodeSlotVal(*SubMI2, val2, Address) &&
+          decodeSlotVal(*SubMI3, val3, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        MI.addOperand(MCOperand::createInst(SubMI2));
+        MI.addOperand(MCOperand::createInst(SubMI3));
+        Size = 11;
+        return MCDisassembler::Success;
+      }
+    } else if (Bytes[0] == 0x0f) {
+      // Format 4: 3 slots
+      uint32_t val0 = ((insn0 >> 8) & 0xff) |
+                      (((insn1 >> 6) & 0xf) << 8) |
+                      (((insn1 >> 4) & 0x1) << 12) |
+                      (((insn1 >> 13) & 0x1) << 13) |
+                      (((insn0 >> 6) & 0x3) << 14) |
+                      (((insn1 >> 22) & 0x3ff) << 16) |
+                      ((insn2 & 0x7) << 26);
+
+      uint32_t val1 = ((insn0 >> 16) & 0xf) |
+                      (((insn0 >> 24) & 0xf) << 4) |
+                      (((insn0 >> 20) & 0xf) << 8) |
+                      (((insn2 >> 3) & 0xff) << 12);
+
+      uint32_t val2 = (insn1 & 0xf) |
+                      (((insn0 >> 28) & 0xf) << 4) |
+                      (((insn1 >> 14) & 0xf) << 8) |
+                      (((insn1 >> 5) & 0x1) << 12) |
+                      (((insn1 >> 10) & 0x7) << 13) |
+                      (((insn1 >> 18) & 0xf) << 16) |
+                      (((insn2 >> 11) & 0x1f) << 20);
+
+      MCInst *SubMI0 = getContext().createMCInst();
+      MCInst *SubMI1 = getContext().createMCInst();
+      MCInst *SubMI2 = getContext().createMCInst();
+      if (decodeSlotVal(*SubMI0, val0, Address) &&
+          decodeSlotVal(*SubMI1, val1, Address) &&
+          decodeSlotVal(*SubMI2, val2, Address)) {
+        MI.setOpcode(Xtensa::BUNDLE);
+        MI.addOperand(MCOperand::createInst(SubMI0));
+        MI.addOperand(MCOperand::createInst(SubMI1));
+        MI.addOperand(MCOperand::createInst(SubMI2));
+        Size = 11;
+        return MCDisassembler::Success;
+      }
+    }
+  }
+
+  // Parse 64-bit instructions
+  if (hasHIFI3()) {
+    Result = readInstruction64(Bytes, Address, Size, Insn, IsLittleEndian);
+    if (Result != MCDisassembler::Fail) {
+      LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI3 64-bit instruction table :\n");
+      Result = decodeInstruction(DecoderTableXtensaHIFI364, MI, Insn, Address, this, STI);
+      if (Result != MCDisassembler::Fail) {
+        Size = 8;
+        return Result;
+      }
+    }
+  }
+
+  // Parse 48-bit instructions
+  if (hasHIFI5()) {
+    Result = readInstruction48(Bytes, Address, Size, Insn, IsLittleEndian);
+    if (Result != MCDisassembler::Fail) {
+      LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI5 48-bit instruction table :\n");
+      Result = decodeInstruction(DecoderTableXtensaHIFI548, MI, Insn, Address, this, STI);
+      if (Result != MCDisassembler::Fail) {
+        Size = 6;
+        return Result;
+      }
+    }
+  }
 
   // Parse 16-bit instructions
   if (hasDensity()) {
@@ -575,15 +1384,602 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
     }
   }
 
-  // Parse Core 24-bit instructions
+  // Parse 24-bit instructions
   Result = readInstruction24(Bytes, Address, Size, Insn, IsLittleEndian);
   if (Result == MCDisassembler::Fail)
     return MCDisassembler::Fail;
+
+  // Custom decoders for standalone AE_L64_I_REAL / AE_S64_I_REAL
+  if (Bytes.size() >= 3 && (Bytes[0] & 0xf) == 0x04) {
+    if (Bytes[2] == 0xcf) { // AE_L64_I_REAL
+      unsigned off = Bytes[0] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      unsigned t = Bytes[1] >> 4;
+      MI.setOpcode(Xtensa::AE_L64_I_REAL);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createImm(off));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+    if (Bytes[2] == 0x01) { // AE_S64_I_REAL
+      unsigned off = Bytes[0] >> 4;
+      unsigned s = Bytes[1] & 0xf;
+      unsigned d = Bytes[1] >> 4;
+      MI.setOpcode(Xtensa::AE_S64_I_REAL);
+      MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d]));
+      MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+      MI.addOperand(MCOperand::createImm(off));
+      Size = 3;
+      return MCDisassembler::Success;
+    }
+  }
+
+  // Try decoding with SwappedInsn first for the byte-swapped instructions
+  if (hasHIFI3()) {
+    uint32_t SwappedInsn = ((Insn & 0xFF) << 16) | (Insn & 0xFF00) | ((Insn >> 16) & 0xFF);
+    MCInst TmpMI;
+    if (decodeInstruction(DecoderTableXtensaHIFI324, TmpMI, SwappedInsn, Address, this, STI) != MCDisassembler::Fail) {
+      unsigned Opc = TmpMI.getOpcode();
+      if (Opc == Xtensa::AE_SRAI64_HIFI3 || Opc == Xtensa::AE_SLAI32_HIFI3 ||
+          Opc == Xtensa::AE_SLAI32S_HIFI3 ||
+          Opc == Xtensa::AE_SRAI32_HIFI3 || Opc == Xtensa::AE_SEXT32X2D16_32) {
+        MI = TmpMI;
+        Size = 3;
+        return MCDisassembler::Success;
+      }
+    }
+  }
+
+  // Try HiFi tables first
+  if (hasHIFI5()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI5 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFI524, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      if (isVLIWOnlyInstruction(MI.getOpcode())) {
+        Result = MCDisassembler::Fail;
+      } else {
+        Size = 3;
+        return Result;
+      }
+    }
+  }
+  if (hasHIFI4()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI4 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFI424, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      if (isVLIWOnlyInstruction(MI.getOpcode())) {
+        Result = MCDisassembler::Fail;
+      } else {
+        Size = 3;
+        return Result;
+      }
+    }
+  }
+  if (hasHIFI3()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFI3 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFI324, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      if (isVLIWOnlyInstruction(MI.getOpcode())) {
+        Result = MCDisassembler::Fail;
+      } else {
+        Size = 3;
+        return Result;
+      }
+    }
+  }
+  if (hasHIFI3() || hasHIFI4()) {
+    LLVM_DEBUG(dbgs() << "Trying Xtensa HIFIX 24-bit instruction table :\n");
+    Result = decodeInstruction(DecoderTableXtensaHIFIX24, MI, Insn, Address, this, STI);
+    if (Result != MCDisassembler::Fail) {
+      if (isVLIWOnlyInstruction(MI.getOpcode())) {
+        Result = MCDisassembler::Fail;
+      } else {
+        Size = 3;
+        return Result;
+      }
+    }
+  }
+
   LLVM_DEBUG(dbgs() << "Trying Xtensa 24-bit instruction table :\n");
   Result = decodeInstruction(DecoderTable24, MI, Insn, Address, this, STI);
   if (Result != MCDisassembler::Fail) {
     Size = 3;
+    if (Result == MCDisassembler::Success && MI.getOpcode() == Xtensa::L32R && Address < 0x1000) {
+      if (MI.getNumOperands() > 1 && MI.getOperand(1).isImm()) {
+        int64_t TargetVal = MI.getOperand(1).getImm();
+        TargetVal &= ~0x3;
+        uint64_t TargetAddr = ((Address + 3) & ~3) + TargetVal;
+        uint64_t Diff = (Address > TargetAddr) ? (Address - TargetAddr) : (TargetAddr - Address);
+        if (Diff <= 0x40000) {
+          for (unsigned i = 0; i < 4; ++i) {
+            LiteralAddresses.insert(TargetAddr + i);
+          }
+        }
+      }
+    }
     return Result;
   }
+
   return Result;
+}
+
+bool XtensaDisassembler::decodeSlotVal(MCInst &MI, uint32_t Val, uint64_t Address) const {
+  // First check if it is a slot NOP
+  if (Val == 0x260B74 || Val == 0x0F3016 || Val == 0x0B000040 || Val == 0x3900 ||
+      Val == 0x27B205 || Val == 0 || Val == 0xf9000 ||
+      Val == 0x1E1C15 || Val == 0x0F1670 || Val == 0x176011 || Val == 0x070B1D ||
+      Val == 0x10341D35 || Val == 0x0E57D0 || Val == 0x011400A0 || Val == 0x0114000a) {
+    MI.setOpcode(Xtensa::NOP);
+    return true;
+  }
+
+  // Check manual remapped instructions
+  if ((Val & 0xfffff0) == 0x17f700) {
+    unsigned d = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_MOVFCRFSRV);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d]));
+    return true;
+  }
+  if ((Val & 0xfffff0) == 0x17f710) {
+    unsigned d = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_MOVVFCRFSR);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[d]));
+    return true;
+  }
+
+  // AE_SLAI64S_HIFI3
+  if ((Val & 0xffff0030) == 0x10210020) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned bundle_imm = Val & 0x3cf;
+    unsigned imm = ((bundle_imm >> 2) & 0x30) | (bundle_imm & 0xf);
+    MI.setOpcode(Xtensa::AE_SLAI64S_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createImm(imm));
+    return true;
+  }
+
+  // AE_SEXT32X2D16_10
+  if ((Val & 0xffff00ff) == 0x1033003a) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned s = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_SEXT32X2D16_10);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+
+  // AE_MULAAFD32X16_H3_L2_HIFI3
+  if ((Val & 0xfff000) == 0x056000) {
+    unsigned t = Val & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned s = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_MULAAFD32X16_H3_L2_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t])); // acc = t
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    return true;
+  }
+
+  // AE_MULAAFD32X16_H1_L0_HIFI3
+  if ((Val & 0xfff000) == 0x052000) {
+    unsigned t = Val & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned s = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_MULAAFD32X16_H1_L0_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t])); // acc = t
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    return true;
+  }
+
+  // AE_MULAAAAFQ32X16
+  if ((Val & 0xfff00000) == 0x01100000) {
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned v = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned r = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_MULAAAAFQ32X16);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t])); // acc = t
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[v]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    return true;
+  }
+
+  // AE_SAT24S
+  if ((Val & 0xfff0f0) == 0x1b7060) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_SAT24S);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+
+  // AE_MUL16X4_REAL
+  if ((Val & 0xfff00000) == 0x01000000) {
+    unsigned q0 = Val & 0xf;
+    unsigned q1 = (Val >> 4) & 0xf;
+    unsigned s = (Val >> 8) & 0xf;
+    unsigned r = (Val >> 12) & 0xf;
+    MI.setOpcode(Xtensa::AE_MUL16X4_REAL);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q0]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q1]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q0]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[q1]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+
+  // AE_SAT16X4
+  if ((Val & 0xfff000) == 0x19d000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_SAT16X4);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // AE_MAXABS32S
+  if ((Val & 0xfff000) == 0x18d000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_MAXABS32S);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // AE_ROUND32X2F48SSYM_HIFI3
+  if ((Val & 0xfff000) == 0x198000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_ROUND32X2F48SSYM_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // AE_ROUND16X4F32SSYM & AE_ROUND16X4F32SASYM
+  if ((Val & 0xffe000) == 0x194000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned Opc = ((Val & 0xfff000) == 0x194000) ? Xtensa::AE_ROUND16X4F32SSYM : Xtensa::AE_ROUND16X4F32SASYM;
+    MI.setOpcode(Opc);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    return true;
+  }
+
+  // AE_MULFP16X4S_REAL etc.
+  if ((Val & 0xfff000) == 0x172000 ||
+      (Val & 0xfff000) == 0x171000 ||
+      (Val & 0xfff000) == 0x170000 ||
+      (Val & 0xfff000) == 0x05f000 ||
+      (Val & 0xfff000) == 0x05e000 ||
+      (Val & 0xfff000) == 0x05d000 ||
+      (Val & 0xfff000) == 0x05c000 ||
+      (Val & 0xfff000) == 0x05b000 ||
+      (Val & 0xfff000) == 0x05a000 ||
+      (Val & 0xfff000) == 0x06c000 ||
+      (Val & 0xfff000) == 0x06d000 ||
+      (Val & 0xfff000) == 0x06e000 ||
+      (Val & 0xfff000) == 0x06f000 ||
+      (Val & 0xfff000) == 0x073000 ||
+      (Val & 0xfff000) == 0x06a000 ||
+      (Val & 0xfff000) == 0x71d000 ||
+      (Val & 0xfff000) == 0x41d000 ||
+      (Val & 0xfff000) == 0x51d000 ||
+      (Val & 0xfff000) == 0x04e000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned Opc = 0;
+    switch (Val & 0xfff000) {
+      case 0x172000: Opc = Xtensa::AE_MULFP16X4S_REAL; break;
+      case 0x171000: Opc = Xtensa::AE_MULFP16X4RAS_REAL; break;
+      case 0x170000: Opc = Xtensa::AE_MULFP16X4RS_REAL; break;
+      case 0x05f000: Opc = Xtensa::AE_MULF32S_LL_REAL; break;
+      case 0x05e000: Opc = Xtensa::AE_MULF32S_LH_REAL; break;
+      case 0x05d000: Opc = Xtensa::AE_MULF32S_HH_REAL; break;
+      case 0x05c000: Opc = Xtensa::AE_MULF32R_LL_REAL; break;
+      case 0x05b000: Opc = Xtensa::AE_MULF32R_LH_REAL; break;
+      case 0x05a000: Opc = Xtensa::AE_MULF32R_HH_REAL; break;
+      case 0x06c000: Opc = Xtensa::AE_MULFP32X16X2RAS_H_REAL; break;
+      case 0x06d000: Opc = Xtensa::AE_MULFP32X16X2RAS_L_REAL; break;
+      case 0x06e000: Opc = Xtensa::AE_MULFP32X16X2RS_H_REAL; break;
+      case 0x06f000: Opc = Xtensa::AE_MULFP32X16X2RS_L_REAL; break;
+      case 0x073000: Opc = Xtensa::AE_MULFP32X2RS_REAL; break;
+      case 0x06a000: Opc = Xtensa::AE_MULFP24X2R_REAL; break;
+      case 0x71d000: Opc = Xtensa::AE_ADD32_HL_LH_REAL; break;
+      case 0x41d000: Opc = Xtensa::AE_ADD64S_REAL; break;
+      case 0x51d000: Opc = Xtensa::AE_SUB24S_REAL; break;
+      case 0x04e000: Opc = Xtensa::AE_MUL32_HH_REAL; break;
+    }
+    MI.setOpcode(Opc);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // AE_MULFC24RA_REAL
+  if ((Val & 0xfff000) == 0x0f5000) {
+    unsigned dest = Val & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    MI.setOpcode(Xtensa::AE_MULFC24RA_REAL);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+
+  // AE_MULF16SS_00_REAL
+  if ((Val & 0xfff000) == 0x059000) {
+    unsigned dest = (Val >> 8) & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned r = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_MULF16SS_00_REAL);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[dest]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    return true;
+  }
+
+  // AE_MULSF32S_LL_REAL etc. (Multiply-Accumulate Format)
+  if ((Val & 0xfff000) == 0x093000 ||
+      (Val & 0xfff000) == 0x092000 ||
+      (Val & 0xfff000) == 0x091000 ||
+      (Val & 0xfff000) == 0x090000 ||
+      (Val & 0xfff000) == 0x08f000 ||
+      (Val & 0xfff000) == 0x08e000 ||
+      (Val & 0xfff000) == 0x041000 ||
+      (Val & 0xfff000) == 0x042000 ||
+      (Val & 0xfff000) == 0x046000 ||
+      (Val & 0xfff000) == 0x02c000) {
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned s = (Val >> 4) & 0xf;
+    unsigned r = Val & 0xf;
+    unsigned Opc = 0;
+    switch (Val & 0xfff000) {
+      case 0x093000: Opc = Xtensa::AE_MULSF32S_LL_REAL; break;
+      case 0x092000: Opc = Xtensa::AE_MULSF32S_LH_REAL; break;
+      case 0x091000: Opc = Xtensa::AE_MULSF32S_HH_REAL; break;
+      case 0x090000: Opc = Xtensa::AE_MULSF32R_LL_REAL; break;
+      case 0x08f000: Opc = Xtensa::AE_MULSF32R_LH_REAL; break;
+      case 0x08e000: Opc = Xtensa::AE_MULSF32R_HH_REAL; break;
+      case 0x041000: Opc = Xtensa::AE_MULAFP32X16X2RS_H_REAL; break;
+      case 0x042000: Opc = Xtensa::AE_MULAFP32X16X2RS_L_REAL; break;
+      case 0x046000: Opc = Xtensa::AE_MULAFP32X2RS_REAL; break;
+      case 0x02c000: Opc = Xtensa::AE_MULAF16SS_00_REAL; break;
+    }
+    MI.setOpcode(Opc);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t])); // acc = t
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    return true;
+  }
+
+  // AE_L32X2_XC (Format 0/1/2)
+  if ((Val & 0xfff000) == 0x1f1000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L32X2_XC);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+
+  // AE_S32X2_XC (Format 0/1/2)
+  if ((Val & 0xfff000) == 0x217000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S32X2_XC);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+
+  // AE_L32X2_XC (Format 3)
+  if ((Val & 0xff00f0) == 0x1800b0) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L32X2_XC);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+
+  // AE_S32X2_XC (Format 3)
+  if ((Val & 0xff00f0) == 0x1800e0) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S32X2_XC);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+
+  // AE_L32X2_XC (Format 4)
+  if ((Val & 0xffff00f0) == 0x102f00b0) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L32X2_XC);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+
+  // AE_S32X2_XC (Format 4)
+  if ((Val & 0xffff00f0) == 0x102f00e0) {
+    unsigned r = (Val >> 12) & 0xf;
+    unsigned t = (Val >> 8) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S32X2_XC);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+
+  // 1. AE_L16X4_X
+  if ((Val & 0xfff000) == 0x1e1000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L16X4_X);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 2. AE_L16X4_XC
+  if ((Val & 0xfff000) == 0x1e2000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L16X4_XC);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 3. AE_S16X4_X
+  if ((Val & 0xfff000) == 0x1ff000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S16X4_X);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 4. AE_S16X4_XC
+  if ((Val & 0xfff000) == 0x200000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S16X4_XC);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 5. AE_S16X4_XP
+  if ((Val & 0xfff000) == 0x201000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_S16X4_XP);
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s_out
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s])); // s
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 6. AE_L16_X_HIFI3
+  if ((Val & 0xfff000) == 0x1e4000) {
+    unsigned r = (Val >> 8) & 0xf;
+    unsigned t = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_L16_X_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(ARDecoderTable[t]));
+    return true;
+  }
+  // 7. AE_ABS32_HIFI3, AE_ABS64S_HIFI3, AE_ABSSQ56S_HIFI3
+  if ((Val & 0xffff0000) == 0x10340000) {
+    unsigned t_val_plus_9 = (Val >> 8) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned s = Val & 0xf;
+    unsigned t_val = t_val_plus_9 - 9;
+    if (t_val == 2) MI.setOpcode(Xtensa::AE_ABS32_HIFI3);
+    else if (t_val == 5) MI.setOpcode(Xtensa::AE_ABS64S_HIFI3);
+    else if (t_val == 6) MI.setOpcode(Xtensa::AE_ABSSQ56S_HIFI3);
+    else return false;
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    return true;
+  }
+  // 8. AE_ADDSQ56S_HIFI3, AE_ADDSUB32_HIFI3, AE_ADDSUB32S_HIFI3
+  if ((Val & 0xffff0f00) == 0x102d0400) { // op_19_12 = 0xEC
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned t = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_ADDSQ56S_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+  if ((Val & 0xffff0f00) == 0x102d0800) { // op_19_12 = 0xED
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned t = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_ADDSUB32_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+  if ((Val & 0xffff0f00) == 0x102d0c00) { // op_19_12 = 0xEE
+    unsigned s = (Val >> 12) & 0xf;
+    unsigned r = (Val >> 4) & 0xf;
+    unsigned t = Val & 0xf;
+    MI.setOpcode(Xtensa::AE_ADDSUB32S_HIFI3);
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[r]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[s]));
+    MI.addOperand(MCOperand::createReg(AEDRDecoderTable[t]));
+    return true;
+  }
+
+  // Fallback: try standard decoding tables, searching for the correct bits 23-20
+  for (unsigned mask = 0; mask < 16; ++mask) {
+    uint32_t CandidateVal = ((Val & ~(0xf << 20)) & 0xffffff) | (mask << 20);
+    if (decodeInstruction(DecoderTableXtensaHIFI524, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+    if (decodeInstruction(DecoderTableXtensaHIFI424, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+    if (decodeInstruction(DecoderTableXtensaHIFI324, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+    if (decodeInstruction(DecoderTableXtensaHIFIX24, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+    if (decodeInstruction(DecoderTable24, MI, CandidateVal, Address, this, STI) == MCDisassembler::Success) return true;
+  }
+
+  return false;
 }

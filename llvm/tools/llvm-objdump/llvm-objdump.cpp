@@ -1112,6 +1112,8 @@ public:
   }
 };
 RISCVPrettyPrinter RISCVPrettyPrinterInst;
+class XtensaPrettyPrinter : public PrettyPrinter {};
+XtensaPrettyPrinter XtensaPrettyPrinterInst;
 
 PrettyPrinter &selectPrettyPrinter(Triple const &Triple) {
   switch (Triple.getArch()) {
@@ -1136,6 +1138,8 @@ PrettyPrinter &selectPrettyPrinter(Triple const &Triple) {
   case Triple::riscv32:
   case Triple::riscv64:
     return RISCVPrettyPrinterInst;
+  case Triple::xtensa:
+    return XtensaPrettyPrinterInst;
   }
 }
 
@@ -2066,7 +2070,7 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
     std::vector<RelocationRef>::const_iterator RelEnd = Rels.end();
     std::string CurrentRISCVVendorSymbol;
     uint64_t CurrentRISCVVendorOffset = 0;
-
+    StringRef LastPrintedLiteralSymbol;
     // Loop over each chunk of code between two points where at least
     // one symbol is defined.
     for (size_t SI = 0, SE = Symbols.size(); SI != SE;) {
@@ -2309,11 +2313,37 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
                                   SectionAddr, Index, End, AllLabels);
         collectBBAddrMapLabels(FullAddrMap, SectionAddr, Index, End,
                                BBAddrMapLabels);
+      } else if (Obj.getArch() == Triple::xtensa) {
+        collectLocalBranchTargets(Bytes, DT->InstrAnalysis.get(),
+                                  DT->DisAsm.get(), DT->InstPrinter.get(),
+                                  PrimaryTarget.SubtargetInfo.get(),
+                                  SectionAddr, Index, End, AllLabels);
       }
 
       if (DT->InstrAnalysis)
         DT->InstrAnalysis->resetState();
 
+      bool IsLiteralSymbol = false;
+      if (Obj.getArch() == Triple::xtensa) {
+        for (const StringRef &Name : SymNamesHere) {
+          if (Name.contains(".literals") || Name.contains(".literal") || Name.starts_with(".literal")) {
+            IsLiteralSymbol = true;
+            break;
+          }
+        }
+      }
+
+      uint64_t MaxBranchTarget = Start;
+      if (Obj.getArch() == Triple::xtensa) {
+        for (const auto &Label : AllLabels) {
+          if (Label.first > MaxBranchTarget && Label.first < End) {
+            MaxBranchTarget = Label.first;
+          }
+        }
+      }
+
+      bool AfterFinalReturn = false;
+      bool InXtensaLiteralPool = false;
       while (Index < End) {
         uint64_t RelOffset;
 
@@ -2421,12 +2451,54 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
           MCInst Inst;
           ArrayRef<uint8_t> ThisBytes = Bytes.slice(Index);
           uint64_t ThisAddr = SectionAddr + Index + VMAAdjustment;
-          bool Disassembled = DT->DisAsm->getInstruction(
-              Inst, Size, ThisBytes, ThisAddr, CommentStream);
-          if (Size == 0)
-            Size = std::min<uint64_t>(
-                ThisBytes.size(),
-                DT->DisAsm->suggestBytesToSkip(ThisBytes, ThisAddr));
+          bool Disassembled = false;
+          if (IsLiteralSymbol || (Obj.getArch() == Triple::xtensa && AfterFinalReturn)) {
+            Disassembled = false;
+            Size = std::min<uint64_t>(4, End - Index);
+          } else {
+            Disassembled = DT->DisAsm->getInstruction(
+                Inst, Size, ThisBytes, ThisAddr, CommentStream);
+            if (Size == 0) {
+              Size = std::min<uint64_t>(
+                  ThisBytes.size(),
+                  DT->DisAsm->suggestBytesToSkip(ThisBytes, ThisAddr));
+            } else if (Size > 0 && Index + Size > End) {
+              Disassembled = false;
+              Size = End - Index;
+            } else if (Size > 0 && Disassembled && Obj.getArch() == Triple::xtensa &&
+                       DT->InstrAnalysis && DT->InstrAnalysis->isReturn(Inst) &&
+                       ThisAddr >= MaxBranchTarget) {
+              AfterFinalReturn = true;
+            }
+          }
+
+          bool IsXtensaLiteral = (Obj.getArch() == Triple::xtensa && !Disassembled && Size == 4);
+          if (IsLiteralSymbol)
+            IsXtensaLiteral = true;
+
+           if (IsXtensaLiteral && !InXtensaLiteralPool) {
+            InXtensaLiteralPool = true;
+            const SymbolInfoTy *NextSym = nullptr;
+            for (const SymbolInfoTy &Sym : Symbols) {
+              if (Sym.Addr > ThisAddr) {
+                if (!NextSym || Sym.Addr < NextSym->Addr) {
+                  NextSym = &Sym;
+                }
+              }
+            }
+            StringRef NextSymName = NextSym ? NextSym->Name : StringRef();
+            if (NextSymName != LastPrintedLiteralSymbol) {
+              LastPrintedLiteralSymbol = NextSymName;
+              FOS << "\n";
+              if (NextSym) {
+                FOS << "<" << NextSym->Name << ".literals>:\n";
+              } else {
+                FOS << "<.literals>:\n";
+              }
+            }
+          } else if (!IsXtensaLiteral) {
+            InXtensaLiteralPool = false;
+          }
 
           LEP.update({ThisAddr, Section.getIndex()},
                      {ThisAddr + Size, Section.getIndex()},
@@ -2618,6 +2690,62 @@ disassembleObject(ObjectFile &Obj, const ObjectFile &DbgObj,
                                            SectionAddr + Index);
           } else if (!Disassembled && DT->InstrAnalysis) {
             DT->InstrAnalysis->resetState();
+          }
+
+          if (IsXtensaLiteral) {
+            uint32_t Target = Bytes[Index] | (Bytes[Index+1] << 8) | (Bytes[Index+2] << 16) | (Bytes[Index+3] << 24);
+            FOS << " 0x" << format_hex_no_prefix(Target, 8);
+            if (Target >= 0x10000) {
+              std::vector<const SectionSymbolsTy *> TargetSectionSymbols;
+              if (!Obj.isRelocatableObject()) {
+                auto It = llvm::partition_point(
+                    SectionAddresses,
+                    [=](const std::pair<uint64_t, SectionRef> &O) {
+                      return O.first <= Target;
+                    });
+                uint64_t TargetSecAddr = 0;
+                while (It != SectionAddresses.begin()) {
+                  --It;
+                  if (TargetSecAddr == 0)
+                    TargetSecAddr = It->first;
+                  if (It->first != TargetSecAddr)
+                    break;
+                  TargetSectionSymbols.push_back(&AllSymbols[It->second]);
+                }
+              } else {
+                TargetSectionSymbols.push_back(&Symbols);
+              }
+              TargetSectionSymbols.push_back(&AbsoluteSymbols);
+
+              const SymbolInfoTy *TargetSym = nullptr;
+              for (const SectionSymbolsTy *TargetSymbols : TargetSectionSymbols) {
+                auto It = llvm::partition_point(
+                    *TargetSymbols,
+                    [=](const SymbolInfoTy &O) { return O.Addr <= Target; });
+                while (It != TargetSymbols->begin()) {
+                  --It;
+                  if (!It->IsMappingSymbol) {
+                    TargetSym = &*It;
+                    break;
+                  }
+                }
+                if (TargetSym)
+                  break;
+              }
+              if (TargetSym != nullptr) {
+                uint64_t TargetAddress = TargetSym->Addr;
+                uint64_t Disp = Target - TargetAddress;
+                if (Disp < 0x100000) {
+                  std::string TargetName = Demangle ? demangle(TargetSym->Name)
+                                                    : TargetSym->Name.str();
+                  FOS << " <" << TargetName;
+                  if (Disp) {
+                    FOS << "+0x" << Twine::utohexstr(Disp);
+                  }
+                  FOS << ">";
+                }
+              }
+            }
           }
         }
 
