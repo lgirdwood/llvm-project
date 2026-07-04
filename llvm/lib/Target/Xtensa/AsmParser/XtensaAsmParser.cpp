@@ -13,6 +13,7 @@
 #include "MCTargetDesc/XtensaTargetStreamer.h"
 #include "TargetInfo/XtensaTargetInfo.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -28,7 +29,57 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Casting.h"
 
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Alignment.h"
+#include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCSectionELF.h"
+
 using namespace llvm;
+
+namespace llvm {
+extern cl::opt<bool> AbsoluteLiterals;
+
+cl::opt<bool> Longcalls(
+    "longcalls",
+    cl::desc("Enable longcall relaxation"),
+    cl::init(true));
+
+cl::opt<bool> TargetAlign(
+    "target-align",
+    cl::desc("Align branch targets"),
+    cl::init(true));
+
+cl::opt<bool> NoTargetAlign(
+    "no-target-align",
+    cl::desc("Do not align branch targets"),
+    cl::init(false));
+
+cl::opt<bool> Transform(
+    "transform",
+    cl::desc("Enable transform mode"),
+    cl::init(true));
+
+cl::opt<bool> NoTransform(
+    "no-transform",
+    cl::desc("Disable transform mode"),
+    cl::init(false));
+
+extern cl::opt<bool> Trampolines;
+
+cl::opt<bool> NoTrampolines(
+    "no-trampolines",
+    cl::desc("Disable trampolines relaxation"),
+    cl::init(false));
+
+extern cl::opt<bool> AutoLitpools;
+
+cl::opt<bool> NoAutoLitpools(
+    "no-auto-litpools",
+    cl::desc("Disable automatic literal pools"),
+    cl::init(false));
+
+extern cl::opt<int> AutoLitpoolLimit;
+}
 
 #define DEBUG_TYPE "xtensa-asm-parser"
 
@@ -36,6 +87,18 @@ struct XtensaOperand;
 
 class XtensaAsmParser : public MCTargetAsmParser {
   const MCRegisterInfo &MRI;
+  bool LongcallsEnabled;
+  bool TargetAlignEnabled;
+  unsigned StructUniqueID;
+  bool InBrackets;
+  MCInst CurrentBundle;
+  bool TransformEnabled;
+  std::vector<bool> AbsoluteLiteralsStack;
+  std::vector<bool> TransformStack;
+  bool TrampolinesEnabled;
+  std::vector<bool> TrampolinesStack;
+  bool AutoLitpoolsEnabled;
+  std::vector<bool> AutoLitpoolsStack;
 
   enum XtensaRegisterType { Xtensa_Generic, Xtensa_SR, Xtensa_UR };
   SMLoc getLoc() const { return getParser().getTok().getLoc(); }
@@ -57,9 +120,15 @@ class XtensaAsmParser : public MCTargetAsmParser {
                                bool MatchingInlineAsm) override;
   unsigned validateTargetOperandClass(MCParsedAsmOperand &Op,
                                       unsigned Kind) override;
+  void onLabelParsed(MCSymbol *Symbol) override;
+  uint64_t getSectionCurrentOffset(const MCSection *Sec);
 
   bool processInstruction(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
                           const MCSubtargetInfo *STI);
+
+  bool tokenIsStartOfStatement(AsmToken::TokenKind Token) override {
+    return Token == AsmToken::LCurly || Token == AsmToken::RCurly;
+  }
 
 // Auto-generated instruction matching functions
 #define GET_ASSEMBLER_HEADER
@@ -96,8 +165,22 @@ public:
   XtensaAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
                   const MCInstrInfo &MII)
       : MCTargetAsmParser(STI, MII),
-        MRI(*Parser.getContext().getRegisterInfo()) {
+        MRI(*Parser.getContext().getRegisterInfo()),
+        LongcallsEnabled(Longcalls),
+        TargetAlignEnabled(TargetAlign && !NoTargetAlign),
+        StructUniqueID(0),
+        InBrackets(false),
+        TransformEnabled(Transform && !NoTransform),
+        TrampolinesEnabled(Trampolines && !NoTrampolines),
+        AutoLitpoolsEnabled(AutoLitpools && !NoAutoLitpools) {
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
+    if (auto *TS = Parser.getStreamer().getTargetStreamer()) {
+      static_cast<XtensaTargetStreamer *>(TS)->setAbsoluteLiterals(AbsoluteLiterals);
+    }
+    Parser.addAliasForDirective(".word", ".4byte");
+    Parser.addAliasForDirective(".short", ".2byte");
+    Parser.addAliasForDirective(".hword", ".2byte");
+    Parser.addAliasForDirective(".half", ".2byte");
   }
 
   bool hasWindowed() const {
@@ -200,14 +283,28 @@ public:
            ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
   }
 
+  bool isUimm2() const { return isImm(0, 3); }
   bool isUimm4() const { return isImm(0, 15); }
   bool isUimm4_x8() const {
     return isImm(0, 120) &&
            ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
   }
 
+  bool isUimm4_x16() const {
+    return isImm(0, 240) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 16) == 0);
+  }
+
+  bool isUimm8_x4() const {
+    return isImm(0, 1020) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 4) == 0);
+  }
+
+
+
   bool isUimm5() const { return isImm(0, 31); }
   bool isUimm6() const { return isImm(0, 63); }
+  bool isUimm8() const { return isImm(0, 255); }
 
   bool isImm8n_7() const { return isImm(-8, 7); }
 
@@ -226,6 +323,11 @@ public:
   bool isImm8n_7_x4() const {
     return isImm(-32, 28) &&
            ((cast<MCConstantExpr>(getImm())->getValue() % 4) == 0);
+  }
+
+  bool isImm8n_7_x8() const {
+    return isImm(-64, 56) &&
+           ((cast<MCConstantExpr>(getImm())->getValue() % 8) == 0);
   }
 
   bool isImm16_31() const { return isImm(16, 31); }
@@ -421,7 +523,20 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   Inst.setLoc(IDLoc);
   const unsigned Opcode = Inst.getOpcode();
   switch (Opcode) {
+  case Xtensa::J: {
+    if (TrampolinesEnabled) {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaJJumpTrampolinesEnabled);
+    } else {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaJJumpTrampolinesDisabled);
+    }
+    break;
+  }
   case Xtensa::L32R: {
+    if (AutoLitpoolsEnabled) {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+    } else {
+      Inst.setFlags(Inst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+    }
     const MCSymbolRefExpr *OpExpr =
         static_cast<const MCSymbolRefExpr *>(Inst.getOperand(1).getExpr());
     Inst.getOperand(1).setExpr(OpExpr);
@@ -431,43 +546,375 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
     XtensaTargetStreamer &TS = this->getTargetStreamer();
 
     // Expand MOVI operand
-    if (!Inst.getOperand(1).isExpr()) {
-      uint64_t ImmOp64 = Inst.getOperand(1).getImm();
-      int32_t Imm = ImmOp64;
-      if (!isInt<12>(Imm)) {
-        XtensaTargetStreamer &TS = this->getTargetStreamer();
+    if (TransformEnabled) {
+      if (!Inst.getOperand(1).isExpr()) {
+        uint64_t ImmOp64 = Inst.getOperand(1).getImm();
+        int32_t Imm = ImmOp64;
+        if (!isInt<12>(Imm)) {
+          XtensaTargetStreamer &TS = this->getTargetStreamer();
+          MCInst TmpInst;
+          TmpInst.setLoc(IDLoc);
+          TmpInst.setOpcode(Xtensa::L32R);
+          if (AutoLitpoolsEnabled) {
+            TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+          } else {
+            TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+          }
+          const MCExpr *Value = MCConstantExpr::create(ImmOp64, getContext());
+          MCSymbol *Sym = getContext().createTempSymbol();
+          const MCExpr *Expr = MCSymbolRefExpr::create(Sym, getContext());
+          TmpInst.addOperand(Inst.getOperand(0));
+          MCOperand Op1 = MCOperand::createExpr(Expr);
+          TmpInst.addOperand(Op1);
+          TS.emitLiteral(Sym, Value, true, IDLoc);
+          Inst = TmpInst;
+        }
+      } else {
         MCInst TmpInst;
         TmpInst.setLoc(IDLoc);
         TmpInst.setOpcode(Xtensa::L32R);
-        const MCExpr *Value = MCConstantExpr::create(ImmOp64, getContext());
+        if (AutoLitpoolsEnabled) {
+          TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+        } else {
+          TmpInst.setFlags(TmpInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+        }
+        const MCExpr *Value = Inst.getOperand(1).getExpr();
         MCSymbol *Sym = getContext().createTempSymbol();
         const MCExpr *Expr = MCSymbolRefExpr::create(Sym, getContext());
         TmpInst.addOperand(Inst.getOperand(0));
         MCOperand Op1 = MCOperand::createExpr(Expr);
         TmpInst.addOperand(Op1);
-        TS.emitLiteral(Sym, Value, true, IDLoc);
         Inst = TmpInst;
+        TS.emitLiteral(Sym, Value, true, IDLoc);
       }
     } else {
-      MCInst TmpInst;
-      TmpInst.setLoc(IDLoc);
-      TmpInst.setOpcode(Xtensa::L32R);
-      const MCExpr *Value = Inst.getOperand(1).getExpr();
+      if (!Inst.getOperand(1).isExpr()) {
+        uint64_t ImmOp64 = Inst.getOperand(1).getImm();
+        int32_t Imm = ImmOp64;
+        if (!isInt<12>(Imm)) {
+          return Error(IDLoc, "operand out of range");
+        }
+      } else {
+        return Error(IDLoc, "operand must be immediate when transform is disabled");
+      }
+    }
+    break;
+  }
+  case Xtensa::CALL0:
+  case Xtensa::CALL4:
+  case Xtensa::CALL8:
+  case Xtensa::CALL12: {
+    if (LongcallsEnabled) {
+      unsigned Reg;
+      unsigned CallXOpcode;
+      if (Opcode == Xtensa::CALL0) {
+        Reg = Xtensa::A0;
+        CallXOpcode = Xtensa::CALLX0;
+      } else if (Opcode == Xtensa::CALL4) {
+        Reg = Xtensa::A4;
+        CallXOpcode = Xtensa::CALLX4;
+      } else if (Opcode == Xtensa::CALL8) {
+        Reg = Xtensa::A8;
+        CallXOpcode = Xtensa::CALLX8;
+      } else {
+        Reg = Xtensa::A12;
+        CallXOpcode = Xtensa::CALLX12;
+      }
+
+      XtensaTargetStreamer &TS = this->getTargetStreamer();
+      const MCExpr *Value = Inst.getOperand(0).getExpr();
       MCSymbol *Sym = getContext().createTempSymbol();
       const MCExpr *Expr = MCSymbolRefExpr::create(Sym, getContext());
-      TmpInst.addOperand(Inst.getOperand(0));
-      MCOperand Op1 = MCOperand::createExpr(Expr);
-      TmpInst.addOperand(Op1);
-      Inst = TmpInst;
+
+      MCInst L32RInst;
+      L32RInst.setLoc(IDLoc);
+      L32RInst.setOpcode(Xtensa::L32R);
+      if (AutoLitpoolsEnabled) {
+        L32RInst.setFlags(L32RInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsEnabled);
+      } else {
+        L32RInst.setFlags(L32RInst.getFlags() | Xtensa::XtensaL32RAutoLitpoolsDisabled);
+      }
+      L32RInst.addOperand(MCOperand::createReg(Reg));
+      L32RInst.addOperand(MCOperand::createExpr(Expr));
+      Out.emitInstruction(L32RInst, *STI);
+
       TS.emitLiteral(Sym, Value, true, IDLoc);
+
+      MCInst CallXInst;
+      CallXInst.setLoc(IDLoc);
+      CallXInst.setOpcode(CallXOpcode);
+      CallXInst.addOperand(MCOperand::createReg(Reg));
+      Inst = CallXInst;
     }
+    break;
+  }
+  case Xtensa::LOOP: {
+    // Align the loop so it is fetched correctly. Use code alignment so any
+    // padding is emitted as NOPs (nop.n / nop) instead of zero bytes, which
+    // would decode as an illegal instruction if executed. A residual 1-byte
+    // gap (not fillable with a NOP) is absorbed by the instruction-widening
+    // pass in XtensaAsmBackend::finishLayout().
+    Out.emitCodeAlignment(Align(4), STI);
     break;
   }
   default:
     break;
   }
 
+  MCInst CInst;
+  if (Xtensa::compress(CInst, Inst, *STI)) {
+    Inst = CInst;
+  }
+
   return true;
+}
+
+static bool isStandaloneHiFiInstr(StringRef Name) {
+  return StringSwitch<bool>(Name)
+      .StartsWith("AE_L32_I_HIFI4", true)
+      .StartsWith("AE_L16_I_HIFI4", true)
+      .StartsWith("AE_L32_X_HIFI4", true)
+      .StartsWith("AE_L32_I_HIFI3", true)
+      .StartsWith("AE_L16_I_HIFI3", true)
+      .StartsWith("AE_L32_I_HIFI5", true)
+      .StartsWith("AE_L16_I_HIFI5", true)
+      .StartsWith("AE_L32_X_HIFI5", true)
+      .StartsWith("AE_S32_L_I_HIFI4", true)
+      .StartsWith("AE_S16_I_HIFI4", true)
+      .StartsWith("AE_S32_X_HIFI4", true)
+      .StartsWith("AE_S32_L_I_HIFI3", true)
+      .StartsWith("AE_S32_L_X_HIFI4", true)
+      .StartsWith("AE_L32_IP_HIFI4", true)
+      .StartsWith("AE_L32_IP_HIFI3", true)
+      .StartsWith("AE_S32_L_I_HIFI5", true)
+      .StartsWith("AE_S16_I_HIFI5", true)
+      .StartsWith("AE_S32_X_HIFI5", true)
+      .StartsWith("AE_LA64_PP_HIFI4", true)
+      .StartsWith("AE_LA64_PP_HIFI3", true)
+      .StartsWith("AE_LA32X2_IP_HIFI4", true)
+      .StartsWith("AE_LA32X2_IP_HIFI3", true)
+      .StartsWith("AE_LA16X4_IP_HIFI4", true)
+      .StartsWith("AE_LA16X4_IP_HIFI3", true)
+      .StartsWith("AE_L16X4_IP_HIFI4", true)
+      .StartsWith("AE_L16X4_IP_HIFI3", true)
+      .StartsWith("AE_L16X4_XP_HIFI4", true)
+      .StartsWith("AE_L16X4_XP_HIFI3", true)
+      .StartsWith("AE_L32_XC_HIFI4", true)
+      .StartsWith("AE_L32_XC_HIFI3", true)
+      .StartsWith("AE_S16X4_IP_HIFI4", true)
+      .StartsWith("AE_S16X4_IP_HIFI3", true)
+      .StartsWith("AE_S16_0_IP_HIFI4", true)
+      .StartsWith("AE_S16_0_IP_HIFI3", true)
+      .StartsWith("AE_S32_L_IP_HIFI4", true)
+      .StartsWith("AE_S32_L_IP_HIFI3", true)
+      .StartsWith("AE_L16_IP_HIFI4", true)
+      .StartsWith("AE_L16_IP_HIFI3", true)
+      .StartsWith("AE_L16X4_I", true)
+      .StartsWith("AE_L16X4_X", true)
+      .StartsWith("AE_L16X4_XC", true)
+      .StartsWith("AE_S16X4_I", true)
+      .StartsWith("AE_S16X4_X", true)
+      .StartsWith("AE_S16X4_XC", true)
+      .StartsWith("AE_S16X4_XP", true)
+      .StartsWith("AE_MUL32_LL_HIFI3", true)
+      .StartsWith("AE_MULAFD32X16X2_FIR_HH", true)
+      .StartsWith("AE_S32X2X2_XC1_HIFI5", true)
+      .StartsWith("AE_ABS24S_HIFI3", true)
+      .StartsWith("AE_ABS32_HIFI3", true)
+      .StartsWith("AE_ABS64_HIFI3", true)
+      .StartsWith("AE_ABS64S_HIFI3", true)
+      .StartsWith("AE_ABSSQ56S_HIFI3", true)
+      .StartsWith("AE_L16_X_HIFI3", true)
+      .StartsWith("AE_L16M_I_HIFI3", true)
+      .StartsWith("AE_MAX32_HIFI3", true)
+      .StartsWith("AE_MIN32_HIFI3", true)
+      .StartsWith("AE_ABS16S_HIFI3", true)
+      .StartsWith("AE_ABS32S_HIFI3", true)
+      .StartsWith("AE_NEG16S_HIFI3", true)
+      .StartsWith("AE_NEG32S_HIFI3", true)
+      .StartsWith("AE_SRAI32_HIFI3", true)
+      .StartsWith("AE_SLAI32_HIFI3", true)
+      .StartsWith("AE_SLAI32S_HIFI3", true)
+      .StartsWith("AE_SRAI64_HIFI3", true)
+      .StartsWith("AE_SLAI64S_HIFI3", true)
+      .StartsWith("AE_SLAA64S_HIFI3", true)
+      .StartsWith("AE_SRAI32R_HIFI3", true)
+      .StartsWith("AE_ADD16_HIFI3", true)
+      .StartsWith("AE_ADD32_HIFI3", true)
+      .StartsWith("AE_ADD32S_HIFI3", true)
+      .StartsWith("AE_ADD64_HIFI3", true)
+      .StartsWith("AE_SUB16_HIFI3", true)
+      .StartsWith("AE_SUB32_HIFI3", true)
+      .StartsWith("AE_SUB32S_HIFI3", true)
+      .StartsWith("AE_SUB64_HIFI3", true)
+      .StartsWith("AE_ROUND32X2F48SASYM_HIFI3", true)
+      .StartsWith("AE_ROUND32X2F48SSYM_HIFI3", true)
+      .StartsWith("AE_NSAZ32_L", true)
+      .StartsWith("AE_SEL16I", true)
+      .StartsWith("AE_L64_I_HIFI3", true)
+      .StartsWith("AE_L16M_X", true)
+      .StartsWith("AE_L16M_XU", true)
+      .StartsWith("AE_L32F24_XC", true)
+      .StartsWith("AE_L32M_X", true)
+      .StartsWith("AE_L32X2F24_IP", true)
+      .StartsWith("AE_L32X2F24_XC", true)
+      .StartsWith("AE_L32X2_I", true)
+      .StartsWith("AE_L32X2_IP", true)
+      .StartsWith("AE_L32X2_XC", true)
+      .StartsWith("AE_L32X2_XC1", true)
+      .StartsWith("AE_S64_I_HIFI3", true)
+      .StartsWith("AE_S16_0_X", true)
+      .StartsWith("AE_S16_0_XC", true)
+      .StartsWith("AE_S16_0_XC1", true)
+      .StartsWith("AE_S16_0_XP", true)
+      .StartsWith("AE_L16_XP", true)
+      .StartsWith("AE_L32_XP", true)
+      .StartsWith("AE_S32_L_XP", true)
+      .StartsWith("AE_S32_L_X", true)
+      .StartsWith("AE_L32_X", true)
+      .StartsWith("AE_L32_XC1", true)
+      .StartsWith("AE_S32_L_XC1", true)
+      .StartsWith("AE_L16_XC", true)
+      .StartsWith("AE_S32_L_XC", true)
+      .StartsWith("AE_S32X2_I", true)
+      .StartsWith("AE_S16X2M_I", true)
+      .StartsWith("AE_S32X2_IP", true)
+      .StartsWith("AE_S32X2_X", true)
+      .StartsWith("AE_S32X2_XC", true)
+      .StartsWith("AE_S32X2_XC1", true)
+      .StartsWith("AE_LA128_PP_HIFI5", true)
+      .StartsWith("AE_SA128POS_FP_HIFI5", true)
+      .StartsWith("AE_CVT48A32", true)
+      .StartsWith("AE_MOVAD32_L", true)
+      .StartsWith("AE_MOVAD32_H", true)
+      .StartsWith("AE_MOVDA32", true)
+      .StartsWith("AE_MOVAD16_0", true)
+      .StartsWith("AE_MOVAD16_2", true)
+      .StartsWith("AE_MOVAD16_3", true)
+      .StartsWith("AE_MOVDA32X2", true)
+      .StartsWith("AE_SEXT32X2D16_10", true)
+      .StartsWith("AE_SEXT32X2D16_32", true)
+      .StartsWith("AE_ROUND16X4F32SSYM", true)
+      .StartsWith("AE_SRAA32", true)
+      .StartsWith("AE_AND_HIFI3", true)
+      .StartsWith("AE_OR_HIFI3", true)
+      .StartsWith("AE_XOR_HIFI3", true)
+      .StartsWith("AE_ADD16S", true)
+      .StartsWith("AE_MULAAAAFQ32X16_HIFI5", true)
+      .StartsWith("AE_MULAAF2D32RA_HH_LL_HIFI5", true)
+      .StartsWith("AE_MULAAFP24S_HH_LL_HIFI3", true)
+      .StartsWith("AE_MULF32RA_LL_REAL", true)
+      .StartsWith("AE_MULF32RA_LH_REAL", true)
+      .StartsWith("AE_MULF32RA_HH_REAL", true)
+      .StartsWith("AE_MULSF32RA_LL_REAL", true)
+      .StartsWith("AE_MULSF32RA_LH_REAL", true)
+      .StartsWith("AE_MULSF32RA_HH_REAL", true)
+      .StartsWith("AE_L64_I_REAL", true)
+      .StartsWith("AE_S64_I_REAL", true)
+      .StartsWith("AE_S32X2F24_I", true)
+      .StartsWith("AE_S32X2F24_IP", true)
+      .StartsWith("AE_LA32X2X2_IP_HIFI5", true)
+      .StartsWith("AE_LA16X4X2_IP_HIFI5", true)
+      .StartsWith("AE_L32X2X2_XC_HIFI5", true)
+      .StartsWith("AE_SA32X2X2_IP_HIFI5", true)
+      .StartsWith("AE_SA16X4X2_IP_HIFI5", true)
+      .StartsWith("AE_MULA2Q32X16_FIR_H5_HIFI5", true)
+      .StartsWith("AE_MOVAE", true)
+      .StartsWith("AE_MOVEA", true)
+      .StartsWith("AE_MOVFCRFSRV", true)
+      .StartsWith("AE_MOVVFCRFSR", true)
+      .StartsWith("AE_ZALIGN64", true)
+      .StartsWith("AE_LALIGN64_I", true)
+      .StartsWith("AE_SALIGN64_I", true)
+      .StartsWith("AE_SB", true)
+      .StartsWith("AE_SBI", true)
+      .StartsWith("AE_SEXT16", true)
+      .StartsWith("AE_ZEXT16", true)
+      .StartsWith("AE_MOVDA16", true)
+      .StartsWith("AE_MOVAD16_1", true)
+      .StartsWith("AE_MOVAB2", true)
+      .StartsWith("AE_CVTP24A16X2_LL", true)
+      .StartsWith("AE_ROUND16X4F32SASYM", true)
+      .StartsWith("AE_MOV", true)
+      .StartsWith("AE_SLAA16S", true)
+      .StartsWith("AE_SLAA32", true)
+      .StartsWith("AE_SLAA32S", true)
+      .StartsWith("AE_SLAA64", true)
+      .StartsWith("AE_SRAA32S", true)
+      .StartsWith("AE_SRAA64", true)
+      .StartsWith("AE_SRAAQ56", true)
+      .StartsWith("AE_SLAI24S", true)
+      .StartsWith("AE_SLAI64", true)
+      .StartsWith("AE_SRAA16RS", true)
+      .StartsWith("AE_SRAA32RS", true)
+      .StartsWith("AE_SLAI16S", true)
+      .StartsWith("AE_ADD24S", true)
+      .StartsWith("AE_SUB16S", true)
+      .StartsWith("AE_PKSR32_REAL", true)
+      .StartsWith("AE_MULAFD32X16X2_FIR_HL_REAL", true)
+      .StartsWith("AE_MULAFD32X16X2_FIR_LH_REAL", true)
+      .StartsWith("AE_MULAFD32X16X2_FIR_LL_REAL", true)
+      .StartsWith("AE_MUL16X4_REAL", true)
+      .StartsWith("AE_EQ16_REAL", true)
+      .StartsWith("AE_LT16_REAL", true)
+      .StartsWith("AE_LE16_REAL", true)
+      .StartsWith("AE_EQ32_REAL", true)
+      .StartsWith("AE_LT32_REAL", true)
+      .StartsWith("AE_LE32_REAL", true)
+      .StartsWith("AE_ROUND32X2F64SSYM_REAL", true)
+      .StartsWith("AE_ROUND32X2F64SASYM_REAL", true)
+      .StartsWith("AE_MULAF16SS_11_REAL", true)
+      .StartsWith("AE_MULAF16SS_22_REAL", true)
+      .StartsWith("AE_MULAF16SS_33_REAL", true)
+      .StartsWith("AE_MULF16SS_11_REAL", true)
+      .StartsWith("AE_MULF16SS_22_REAL", true)
+      .StartsWith("AE_MULF16SS_33_REAL", true)
+      .StartsWith("AE_LA24_IP_REAL", true)
+      .StartsWith("AE_LA24X2_IP_REAL", true)
+      .StartsWith("AE_SA16X4_IP_REAL", true)
+      .StartsWith("AE_SA16X4_IC_REAL", true)
+      .StartsWith("AE_ROUND24X2F48SSYM_REAL", true)
+      .StartsWith("AE_SA32X2_IP_REAL", true)
+      .StartsWith("AE_SA32X2_IC_REAL", true)
+      .StartsWith("AE_SA24X2_IP_REAL", true)
+      .StartsWith("AE_SA64POS_FP_REAL", true)
+      .StartsWith("AE_LA16X4POS_PC_REAL", true)
+      .StartsWith("AE_LA32X2POS_PC_REAL", true)
+      .StartsWith("AE_LALIGN128_I", true)
+      .StartsWith("AE_SALIGN128_I", true)
+      .StartsWith("AE_MOVDRZBVC", true)
+      .StartsWith("AE_MOVZBVCDR", true)
+      .StartsWith("AE_S32_H_I", true)
+      .StartsWith("AE_MULF2P32X16X4RS", true)
+      .StartsWith("AE_MULF2P32X4RS", true)
+      .StartsWith("AE_MULF32X2R_HH_LL", true)
+      .StartsWith("AE_MOVAD16_1", true)
+      .StartsWith("AE_ROUND16X4F32SASYM", true)
+      .StartsWith("AE_MULAFD32X16X2_FIR", true)
+      .StartsWith("AE_ROUND16X4F32SSYM", true)
+      .StartsWith("AE_ROUND32X2F64SSYM", true)
+      .StartsWith("AE_ROUND32X2F64SASYM", true)
+      .StartsWith("AE_MUL16X4", true)
+      .StartsWith("AE_MULAF16SS", true)
+      .StartsWith("AE_MULF16SS", true)
+      .StartsWith("AE_EQ16", true)
+      .StartsWith("AE_LT16", true)
+      .StartsWith("AE_LE16", true)
+      .StartsWith("AE_LE32", true)
+      .StartsWith("AE_SA16X4_IC", true)
+      .StartsWith("AE_SA24X2_IP", true)
+      .StartsWith("AE_LA16X4POS_PC", true)
+      .StartsWith("AE_ROUND24X2F48SSYM", true)
+      .StartsWith("AE_SA32X2_IC", true)
+      .StartsWith("AE_S16_0_X", true)
+      .StartsWith("AE_S32_L_X", true)
+      .StartsWith("AE_L32_X", true)
+      .StartsWith("AE_L32X2_XC1", true)
+      .StartsWith("AE_MOVVFCRFSR", true)
+      .StartsWith("AE_MOVFCRFSRV", true)
+      .StartsWith("AE_MOVDRZBVC", true)
+      .StartsWith("AE_MOVZBVCDR", true)
+      .Default(false);
 }
 
 bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
@@ -475,6 +922,75 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                               MCStreamer &Out,
                                               uint64_t &ErrorInfo,
                                               bool MatchingInlineAsm) {
+  XtensaOperand &FirstOperand = static_cast<XtensaOperand &>(*Operands[0]);
+  if (FirstOperand.isToken() && FirstOperand.getToken() == "{") {
+    if (InBrackets) {
+      return Error(IDLoc, "Already in a bundle");
+    }
+    InBrackets = true;
+    CurrentBundle.clear();
+    CurrentBundle.setOpcode(Xtensa::BUNDLE);
+    return false;
+  }
+  if (FirstOperand.isToken() && FirstOperand.getToken() == "}") {
+    if (!InBrackets) {
+      return Error(IDLoc, "Not in a bundle");
+    }
+    InBrackets = false;
+    CurrentBundle.setLoc(IDLoc);
+    Out.emitInstruction(CurrentBundle, getSTI());
+    CurrentBundle.clear();
+    return false;
+  }
+
+  if (FirstOperand.isToken() && FirstOperand.getToken() == "addi" && Operands.size() == 4) {
+    XtensaOperand &Op1 = static_cast<XtensaOperand &>(*Operands[1]);
+    XtensaOperand &Op2 = static_cast<XtensaOperand &>(*Operands[2]);
+    XtensaOperand &Op3 = static_cast<XtensaOperand &>(*Operands[3]);
+    if (Op1.isReg() && Op2.isReg() && Op3.isImm()) {
+      const MCExpr *Expr = Op3.getImm();
+      int64_t Value;
+      if (Expr->evaluateAsAbsolute(Value)) {
+        if (Value < -128 || Value > 127) {
+          int64_t ValSh8 = ((Value + 128) >> 8) << 8;
+          int64_t ValRem = Value - ValSh8;
+          if (ValSh8 >= -32768 && ValSh8 <= 32512 && ValRem >= -128 && ValRem <= 127) {
+            MCInst Inst1;
+            Inst1.setOpcode(Xtensa::ADDMI);
+            Inst1.addOperand(MCOperand::createReg(Op1.getReg()));
+            Inst1.addOperand(MCOperand::createReg(Op2.getReg()));
+            Inst1.addOperand(MCOperand::createImm(ValSh8));
+            Inst1.setLoc(IDLoc);
+            if (InBrackets) {
+              MCInst *SubInst = getParser().getContext().createMCInst();
+              *SubInst = Inst1;
+              CurrentBundle.addOperand(MCOperand::createInst(SubInst));
+            } else {
+              Out.emitInstruction(Inst1, getSTI());
+            }
+
+            if (ValRem != 0) {
+              MCInst Inst2;
+              Inst2.setOpcode(Xtensa::ADDI);
+              Inst2.addOperand(MCOperand::createReg(Op1.getReg()));
+              Inst2.addOperand(MCOperand::createReg(Op1.getReg()));
+              Inst2.addOperand(MCOperand::createImm(ValRem));
+              Inst2.setLoc(IDLoc);
+              if (InBrackets) {
+                MCInst *SubInst = getParser().getContext().createMCInst();
+                *SubInst = Inst2;
+                CurrentBundle.addOperand(MCOperand::createInst(SubInst));
+              } else {
+                Out.emitInstruction(Inst2, getSTI());
+              }
+            }
+            return false;
+          }
+        }
+      }
+    }
+  }
+
   MCInst Inst;
   auto Result =
       MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
@@ -482,11 +998,29 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   switch (Result) {
   default:
     break;
-  case Match_Success:
+  case Match_Success: {
     processInstruction(Inst, IDLoc, Out, STI);
     Inst.setLoc(IDLoc);
-    Out.emitInstruction(Inst, getSTI());
+    if (InBrackets) {
+      MCInst *SubInst = getParser().getContext().createMCInst();
+      *SubInst = Inst;
+      CurrentBundle.addOperand(MCOperand::createInst(SubInst));
+    } else {
+      if (MII.getName(Inst.getOpcode()).starts_with("AE_") &&
+          !isStandaloneHiFiInstr(MII.getName(Inst.getOpcode()))) {
+        MCInst StandaloneBundle;
+        StandaloneBundle.setOpcode(Xtensa::BUNDLE);
+        StandaloneBundle.setLoc(IDLoc);
+        MCInst *SubInst = getParser().getContext().createMCInst();
+        *SubInst = Inst;
+        StandaloneBundle.addOperand(MCOperand::createInst(SubInst));
+        Out.emitInstruction(StandaloneBundle, getSTI());
+      } else {
+        Out.emitInstruction(Inst, getSTI());
+      }
+    }
     return false;
+  }
   case Match_MissingFeature:
     return Error(IDLoc, "instruction use requires an option to be enabled");
   case Match_MnemonicFail:
@@ -543,12 +1077,21 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
   case Match_InvalidUimm4:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 15]");
+  case Match_InvalidUimm4_x16:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 240] and multiple of 16");
+  case Match_InvalidUimm8_x4:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 1020] and multiple of 4");
   case Match_InvalidUimm5:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 31]");
   case Match_InvalidUimm6:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 63]");
+  case Match_InvalidUimm8:
+    return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
+                 "expected immediate in range [0, 255]");
   case Match_InvalidOffset8m8:
     return Error(RefineErrorLoc(IDLoc, Operands, ErrorInfo),
                  "expected immediate in range [0, 255]");
@@ -702,14 +1245,11 @@ ParseStatus XtensaAsmParser::parseImmediate(OperandVector &Operands) {
   case AsmToken::Tilde:
   case AsmToken::Integer:
   case AsmToken::String:
+  case AsmToken::Identifier:
     if (getParser().parseExpression(Res))
       return ParseStatus::Failure;
     break;
-  case AsmToken::Identifier: {
-    if (getParser().parseExpression(Res))
-      return ParseStatus::Failure;
-    break;
-  }
+
   case AsmToken::Percent:
     return parseOperandWithModifier(Operands);
   }
@@ -817,6 +1357,16 @@ bool XtensaAsmParser::ParseInstructionWithSR(ParseInstructionInfo &Info,
 bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
                                        StringRef Name, SMLoc NameLoc,
                                        OperandVector &Operands) {
+  if (Name.starts_with("_"))
+    Name = Name.drop_front(1);
+  if ((Name.ends_with(".l") || Name.ends_with(".w")) && !Name.starts_with("ae_"))
+    Name = Name.drop_back(2);
+
+  if (Name == "{" || Name == "}") {
+    Operands.push_back(XtensaOperand::createToken(Name, NameLoc));
+    return false;
+  }
+
   if (Name.starts_with("wsr") || Name.starts_with("rsr") ||
       Name.starts_with("xsr") || Name.starts_with("rur") ||
       Name.starts_with("wur")) {
@@ -838,6 +1388,10 @@ bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
   while (parseOptionalToken(AsmToken::Comma))
     if (parseOperand(Operands, Name))
       return true;
+
+  if (getLexer().is(AsmToken::RCurly)) {
+    return false;
+  }
 
   if (getLexer().isNot(AsmToken::EndOfStatement)) {
     SMLoc Loc = getLexer().getLoc();
@@ -887,6 +1441,37 @@ ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
   StringRef IDVal = DirectiveID.getString();
   SMLoc Loc = getLexer().getLoc();
 
+  if (IDVal == ".no") {
+    if (getLexer().getTok().is(AsmToken::Minus) &&
+        getLexer().peekTok().is(AsmToken::Identifier) &&
+        getLexer().peekTok().getString() == "density") {
+      MCAsmParser &Parser = getParser();
+      Parser.Lex(); // Consume '-'
+      Parser.Lex(); // Consume 'density'
+      if (getSTI().hasFeature(Xtensa::FeatureDensity)) {
+        MCSubtargetInfo &STI = copySTI();
+        setAvailableFeatures(ComputeAvailableFeatures(STI.ToggleFeature("density")));
+      }
+      return parseEOL();
+    }
+  }
+
+  if (IDVal == ".no-density") {
+    if (getSTI().hasFeature(Xtensa::FeatureDensity)) {
+      MCSubtargetInfo &STI = copySTI();
+      setAvailableFeatures(ComputeAvailableFeatures(STI.ToggleFeature("density")));
+    }
+    return parseEOL();
+  }
+
+  if (IDVal == ".density") {
+    if (!getSTI().hasFeature(Xtensa::FeatureDensity)) {
+      MCSubtargetInfo &STI = copySTI();
+      setAvailableFeatures(ComputeAvailableFeatures(STI.ToggleFeature("density")));
+    }
+    return parseEOL();
+  }
+
   if (IDVal == ".literal_position") {
     XtensaTargetStreamer &TS = this->getTargetStreamer();
     TS.emitLiteralPosition();
@@ -897,7 +1482,213 @@ ParseStatus XtensaAsmParser::parseDirective(AsmToken DirectiveID) {
     return parseLiteralDirective(Loc);
   }
 
+  if (IDVal == ".struct") {
+    MCAsmParser &Parser = getParser();
+    const MCExpr *ExprVal;
+    if (Parser.parseExpression(ExprVal))
+      return ParseStatus::Failure;
+    if (parseEOL())
+      return ParseStatus::Failure;
+
+    int64_t OffsetVal = 0;
+    if (!ExprVal->evaluateAsAbsolute(OffsetVal))
+      return Error(Loc, "expected absolute expression");
+
+    MCContext &Ctx = getContext();
+    unsigned StructID = ++StructUniqueID;
+    MCSectionELF *StructSec = Ctx.getELFSection(".struct", ELF::SHT_NOBITS, 0, 0, "", false, StructID, nullptr);
+    getParser().getStreamer().switchSection(StructSec);
+
+    if (OffsetVal > 0) {
+      getParser().getStreamer().emitZeros(OffsetVal);
+    }
+    return false;
+  }
+
+  if (IDVal == ".begin") {
+    AsmToken ArgTok = getLexer().getTok();
+    if (ArgTok.is(AsmToken::Identifier)) {
+      StringRef FirstArg = ArgTok.getString();
+      if (FirstArg == "longcalls") {
+        LongcallsEnabled = true;
+        getParser().Lex(); // consume 'longcalls' token
+        return parseEOL();
+      }
+      if (FirstArg == "literal_prefix") {
+        getParser().Lex(); // consume 'literal_prefix' token
+        StringRef Prefix = "";
+        if (getLexer().isNot(AsmToken::EndOfStatement)) {
+          if (getParser().parseIdentifier(Prefix)) {
+            return Error(getLexer().getLoc(), "expected literal prefix name");
+          }
+        }
+        XtensaTargetStreamer &TS = this->getTargetStreamer();
+        TS.emitLiteralPrefix(Prefix);
+        return parseEOL();
+      }
+      std::string FullArg = "";
+      SMLoc StartLoc = getLexer().getLoc();
+      while (getLexer().isNot(AsmToken::EndOfStatement) &&
+             getLexer().isNot(AsmToken::Eof)) {
+        FullArg += getLexer().getTok().getString().str();
+        getParser().Lex();
+      }
+      if (FullArg == "absolute-literals") {
+        AbsoluteLiteralsStack.push_back(getTargetStreamer().isAbsoluteLiteralsEnabled());
+        getTargetStreamer().setAbsoluteLiterals(true);
+        return parseEOL();
+      }
+      if (FullArg == "no-absolute-literals") {
+        AbsoluteLiteralsStack.push_back(getTargetStreamer().isAbsoluteLiteralsEnabled());
+        getTargetStreamer().setAbsoluteLiterals(false);
+        return parseEOL();
+      }
+      if (FullArg == "transform") {
+        TransformStack.push_back(TransformEnabled);
+        TransformEnabled = true;
+        return parseEOL();
+      }
+      if (FullArg == "no-transform") {
+        TransformStack.push_back(TransformEnabled);
+        TransformEnabled = false;
+        return parseEOL();
+      }
+      if (FullArg == "trampolines") {
+        TrampolinesStack.push_back(TrampolinesEnabled);
+        TrampolinesEnabled = true;
+        return parseEOL();
+      }
+      if (FullArg == "no-trampolines") {
+        TrampolinesStack.push_back(TrampolinesEnabled);
+        TrampolinesEnabled = false;
+        return parseEOL();
+      }
+      if (FullArg == "auto-litpools") {
+        AutoLitpoolsStack.push_back(AutoLitpoolsEnabled);
+        AutoLitpoolsEnabled = true;
+        getTargetStreamer().setAutoLitpools(true);
+        return parseEOL();
+      }
+      if (FullArg == "no-auto-litpools") {
+        AutoLitpoolsStack.push_back(AutoLitpoolsEnabled);
+        AutoLitpoolsEnabled = false;
+        getTargetStreamer().setAutoLitpools(false);
+        return parseEOL();
+      }
+      if (FullArg == "schedule") {
+        return parseEOL();
+      }
+      return Error(StartLoc, "unrecognized argument to .begin directive");
+    }
+    return ParseStatus::NoMatch;
+  }
+
+  if (IDVal == ".end") {
+    AsmToken ArgTok = getLexer().getTok();
+    if (ArgTok.is(AsmToken::Identifier)) {
+      StringRef FirstArg = ArgTok.getString();
+      if (FirstArg == "longcalls") {
+        LongcallsEnabled = false;
+        getParser().Lex(); // consume 'longcalls' token
+        return parseEOL();
+      }
+      if (FirstArg == "literal_prefix") {
+        getParser().Lex(); // consume 'literal_prefix' token
+        XtensaTargetStreamer &TS = this->getTargetStreamer();
+        TS.emitLiteralPrefixEnd();
+        return parseEOL();
+      }
+      std::string FullArg = "";
+      SMLoc StartLoc = getLexer().getLoc();
+      while (getLexer().isNot(AsmToken::EndOfStatement) &&
+             getLexer().isNot(AsmToken::Eof)) {
+        FullArg += getLexer().getTok().getString().str();
+        getParser().Lex();
+      }
+      if (FullArg == "absolute-literals" || FullArg == "no-absolute-literals") {
+        if (!AbsoluteLiteralsStack.empty()) {
+          bool Prev = AbsoluteLiteralsStack.back();
+          AbsoluteLiteralsStack.pop_back();
+          getTargetStreamer().setAbsoluteLiterals(Prev);
+        }
+        return parseEOL();
+      }
+      if (FullArg == "transform" || FullArg == "no-transform") {
+        if (!TransformStack.empty()) {
+          bool Prev = TransformStack.back();
+          TransformStack.pop_back();
+          TransformEnabled = Prev;
+        }
+        return parseEOL();
+      }
+      if (FullArg == "trampolines" || FullArg == "no-trampolines") {
+        if (!TrampolinesStack.empty()) {
+          bool Prev = TrampolinesStack.back();
+          TrampolinesStack.pop_back();
+          TrampolinesEnabled = Prev;
+        }
+        return parseEOL();
+      }
+      if (FullArg == "auto-litpools" || FullArg == "no-auto-litpools") {
+        if (!AutoLitpoolsStack.empty()) {
+          bool Prev = AutoLitpoolsStack.back();
+          AutoLitpoolsStack.pop_back();
+          AutoLitpoolsEnabled = Prev;
+          getTargetStreamer().setAutoLitpools(Prev);
+        }
+        return parseEOL();
+      }
+      if (FullArg == "schedule") {
+        return parseEOL();
+      }
+      return Error(StartLoc, "unrecognized argument to .end directive");
+    }
+    return ParseStatus::NoMatch;
+  }
+
   return ParseStatus::NoMatch;
+}
+void XtensaAsmParser::onLabelParsed(MCSymbol *Symbol) {
+  MCSection *CurSec = getParser().getStreamer().getCurrentSectionOnly();
+  if (CurSec && CurSec->getName() == ".struct") {
+    uint64_t Offset = getSectionCurrentOffset(CurSec);
+    Symbol->setVariableValue(MCConstantExpr::create(Offset, getContext()));
+  }
+}
+
+uint64_t XtensaAsmParser::getSectionCurrentOffset(const MCSection *Sec) {
+  uint64_t Offset = 0;
+  for (const MCFragment &F : *Sec) {
+    switch (F.getKind()) {
+    case MCFragment::FT_Data:
+    case MCFragment::FT_Relaxable:
+    case MCFragment::FT_LEB:
+    case MCFragment::FT_Dwarf:
+    case MCFragment::FT_DwarfFrame:
+    case MCFragment::FT_SFrame:
+      Offset += F.getContents().size() + F.getVarContents().size();
+      break;
+    case MCFragment::FT_Align: {
+      Align Alignment = F.getAlignment();
+      uint64_t Padding = offsetToAlignment(Offset, Alignment);
+      if (Padding > F.getAlignMaxBytesToEmit())
+        Padding = 0;
+      Offset += Padding;
+      break;
+    }
+    case MCFragment::FT_Fill: {
+      const MCFillFragment &FF = cast<MCFillFragment>(F);
+      int64_t NumValues = 0;
+      if (FF.getNumValues().evaluateAsAbsolute(NumValues)) {
+        Offset += NumValues * FF.getValueSize();
+      }
+      break;
+    }
+    default:
+      break;
+    }
+  }
+  return Offset;
 }
 
 // Force static initialization.
