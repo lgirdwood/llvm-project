@@ -161,6 +161,10 @@ private:
 
   SDValue LowerShiftRightParts(SDValue Op, SelectionDAG &DAG, bool IsSRA) const;
 
+  SDValue LowerFDIV_S(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerFSQRT_S(SDValue Op, SelectionDAG &DAG) const;
+
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
   bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
@@ -174,6 +178,7 @@ private:
 
   MachineBasicBlock *emitSelectCC(MachineInstr &MI,
                                   MachineBasicBlock *BB) const;
+
 };
 
 } // end namespace llvm
