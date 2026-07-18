@@ -179,6 +179,8 @@ private:
   MachineBasicBlock *emitSelectCC(MachineInstr &MI,
                                   MachineBasicBlock *BB) const;
 
+  // FP constant materialisation using const.s (0.0f, 1.0f, 2.0f).
+  SDValue LowerConstantFP(SDValue Op, SelectionDAG &DAG) const;
 };
 
 } // end namespace llvm

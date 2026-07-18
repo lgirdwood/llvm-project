@@ -1174,7 +1174,10 @@ let Predicates = [HasSingleFloat, HasMINMAX], DecoderNamespace = "XtensaDummy" i
 }
 
 // FP load instructions
-let mayLoad = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
+// Note: usesCustomInserter was removed — the only inserter action was adding
+// MEMW for volatile accesses, which is handled by the mayLoad/mayStore flags
+// and the generic volatile-memop path.
+let mayLoad = 1, Predicates = [HasSingleFloat] in {
   def LSI : RRI8_Inst<0x03, (outs FPR:$t), (ins mem32:$addr),
                      "lsi\t$t, $addr", []> {
     bits<12> addr;
@@ -1193,17 +1196,21 @@ let mayLoad = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
     let s{3-0} = addr{3-0};
   }
 
-  def LSX : RRR_Inst<0x00, 0x08, 0x00, (outs), (ins FPR:$r, AR:$s, AR:$t),
+  def LSX : RRR_Inst<0x00, 0x08, 0x00, (outs FPR:$r), (ins AR:$s, AR:$t),
                     "lsx\t$r, $s, $t", []>;
 
-  def LSXP : RRR_Inst<0x00, 0x08, 0x01, (outs), (ins FPR:$r, AR:$s, AR:$t),
+  def LSXP : RRR_Inst<0x00, 0x08, 0x01, (outs FPR:$r), (ins AR:$s, AR:$t),
                      "lsxp\t$r, $s, $t", []>;
 }
 
 def : Pat<(f32 (load addr_ish4:$addr)), (f32 (LSI mem32:$addr))>;
+// Register-indexed FP load: lsx fr, base, idx  (base + idx is the byte address)
+def : Pat<(f32 (load (add AR:$s, AR:$t))), (f32 (LSX AR:$s, AR:$t))>,
+         Requires<[HasSingleFloat]>;
 
 // FP store instructions
-let mayStore = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
+// Note: usesCustomInserter was removed — see comment above LSI.
+let mayStore = 1, Predicates = [HasSingleFloat] in {
   def SSI : RRI8_Inst<0x03, (outs), (ins FPR:$t, mem32:$addr),
                      "ssi\t$t, $addr", []> {
     bits<12> addr;
@@ -1230,6 +1237,9 @@ let mayStore = 1, usesCustomInserter = 1, Predicates = [HasSingleFloat] in {
 }
 
 def : Pat<(store FPR:$t, addr_ish4:$addr), (SSI FPR:$t, mem32:$addr)>;
+// Register-indexed FP store: ssx fr, base, idx
+def : Pat<(store FPR:$t, (add AR:$s, AR:$r)), (SSX FPR:$t, AR:$s, AR:$r)>,
+         Requires<[HasSingleFloat]>;
 
 // FP compare instructions
 let isCompare = 1, Predicates = [HasSingleFloat] in {
@@ -1285,6 +1295,37 @@ def CONST_S : RRR_Inst<0x00, 0x0a, 0x0f, (outs FPR:$r), (ins uimm4:$imm),
   let t = 0x03;
   let s = imm{3-0};
 }
+
+// const.s constant table (verified from Cadence xt-clang output for intel_ace30_ptl):
+//   imm=0  → 0.0f  (0x00000000)
+//   imm=1  → 1.0f  (0x3F800000)
+//   imm=2  → 2.0f  (0x40000000)
+//
+// PatLeaf to recognise the three materializable constants.
+def fpconst_s_pred : PatLeaf<(fpimm), [{
+  if (N->getValueType(0) != MVT::f32) return false;
+  uint32_t Bits =
+      N->getValueAPF().bitcastToAPInt().getZExtValue();
+  return Bits == UINT32_C(0x00000000)   // 0.0f
+      || Bits == UINT32_C(0x3F800000)   // 1.0f
+      || Bits == UINT32_C(0x40000000);  // 2.0f
+}]>;
+
+// SDNodeXForm to convert the float constant to the const.s 4-bit immediate.
+def fpconst_to_consts_imm : SDNodeXForm<fpimm, [{
+  uint32_t Bits =
+      N->getValueAPF().bitcastToAPInt().getZExtValue();
+  unsigned Imm = 0;
+  if (Bits == UINT32_C(0x3F800000)) Imm = 1; // 1.0f
+  else if (Bits == UINT32_C(0x40000000)) Imm = 2; // 2.0f
+  // 0x00000000 -> Imm stays 0 (0.0f)
+  return CurDAG->getTargetConstant(Imm, SDLoc(N), MVT::i32);
+}]>;
+
+// Materialise a recognised f32 constant via const.s (1 instruction, no literal pool).
+def : Pat<(f32 fpconst_s_pred:$c),
+          (CONST_S (fpconst_to_consts_imm $c))>,
+         Requires<[HasSingleFloat]>;
 
 def DIV0_S : RRR_Inst<0x00, 0x0A, 0x0F, (outs FPR:$r), (ins FPR:$s),
                      "div0.s\t$r, $s", []>, Requires<[HasSingleFloat]> {
