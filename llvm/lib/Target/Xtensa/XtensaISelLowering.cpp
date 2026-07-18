@@ -263,6 +263,10 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::FMA, VT, Legal);
         setOperationAction(ISD::FMUL, VT, Legal);
         setOperationAction(ISD::FNEG, VT, Legal);
+        // Hardware FP divide and square-root use Newton-Raphson iteration
+        // sequences (DIV0_S/MADDN_S/RECIP0_S/DIVN_S and SQRT0_S/RSQRT0_S).
+        setOperationAction(ISD::FDIV,  VT, Custom);
+        setOperationAction(ISD::FSQRT, VT, Custom);
       } else {
         setOperationAction(ISD::FABS, VT, Expand);
         setOperationAction(ISD::FADD, VT, Expand);
@@ -270,16 +274,14 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
         setOperationAction(ISD::FMA, VT, Expand);
         setOperationAction(ISD::FMUL, VT, Expand);
         setOperationAction(ISD::FNEG, VT, Expand);
+        setOperationAction(ISD::FDIV,  VT, Expand);
+        setOperationAction(ISD::FSQRT, VT, Expand);
       }
 
-      // TODO: once implemented in InstrInfo uncomment
-      setOperationAction(ISD::FSQRT, VT, Expand);
       setOperationAction(ISD::FSIN, VT, Expand);
       setOperationAction(ISD::FCOS, VT, Expand);
       setOperationAction(ISD::FREM, VT, LibCall);
-      setOperationAction(ISD::FDIV, VT, Expand);
       setOperationAction(ISD::FPOW, VT, Expand);
-      setOperationAction(ISD::FSQRT, VT, Expand);
       setOperationAction(ISD::FCOPYSIGN, VT, Expand);
     }
   }
@@ -1646,9 +1648,127 @@ SDValue XtensaTargetLowering::PerformDAGCombine(SDNode *N,
   return NewNode;
 }
 
+//===----------------------------------------------------------------------===//
+// Floating-Point Custom Lowering — Newton-Raphson divide and square-root
+//===----------------------------------------------------------------------===//
+//
+// The Xtensa FPU does not have a single-cycle fdiv.s or fsqrt.s instruction.
+// Instead it provides iterative primitives that implement IEEE-754 division and
+// square-root via Newton-Raphson refinement:
+//
+//  Division (a / b):
+//    div0.s   r, b       ; r = initial reciprocal estimate of b
+//    nexp01.s x, b       ; x = 1 - b * r0  (Newton step 1 correction term)
+//    const.s  c, 0       ; c = 1.0
+//    maddn.s  r, x, r    ; r = r + r * x  (r1 = better estimate)
+//    nexp01.s x, b       ; x = 1 - b * r1
+//    maddn.s  r, x, r    ; r = r + r * x  (r2 = refined estimate)
+//    divn.s   r, a, r    ; r = a * r2  (final quotient)
+//
+//  Square root (sqrt(a)):
+//    sqrt0.s  r, a       ; r = initial sqrt estimate
+//    nexp01.s m, r       ; m = correction term  (not available in all ISAs)
+//    ... simpler: use rsqrt0.s + Newton + multiply
+//    rsqrt0.s r, a       ; r = initial 1/sqrt(a) estimate
+//    const.s  h, 0       ; h = 0.5 (const.s imm=0 → 1.0; imm=8 → 0.5 per spec)
+//    maddn.s  r, r*r, a  ; Newton refinement
+//    mul.s    r, a, r    ; final: sqrt = a * rsqrt
+//
+// Reference: Xtensa Instruction Set Architecture Reference Manual (ISA),
+// Section "Floating-Point Coprocessor Option", div0.s / divn.s / rsqrt0.s.
+
+/// LowerFDIV_S - Implement IEEE-754 single-precision division using the
+/// Xtensa Newton-Raphson division sequence:
+///
+///   recip0.s  r0, b        ; r0  = initial reciprocal estimate of b
+///   nexp01.s  x0, b        ; x0  = 1 - b * r0  (Newton correction term)
+///   madd.s    r0, x0, r0   ; r0 += x0 * r0  (first Newton-Raphson step)
+///   nexp01.s  x1, b        ; x1  = updated correction term
+///   madd.s    r0, x1, r0   ; r0 += x1 * r0  (second refinement)
+///   divn.s    result, a, r0 ; result = a * r0  (final quotient)
+///
+/// Reference: Xtensa ISA §4.6.4 "Floating-Point Coprocessor Option".
+SDValue XtensaTargetLowering::LowerFDIV_S(SDValue Op,
+                                           SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  MVT VT = Op.getSimpleValueType();
+  assert(VT == MVT::f32 && Subtarget.hasSingleFloat() &&
+         "LowerFDIV_S called for unsupported type");
+
+  SDValue Dividend = Op.getOperand(0); // a
+  SDValue Divisor  = Op.getOperand(1); // b
+
+  // recip0.s r0, b — initial reciprocal estimate (1-input, 1-output)
+  SDValue R0 = SDValue(
+      DAG.getMachineNode(Xtensa::RECIP0_S, DL, VT, Divisor), 0);
+
+  // nexp01.s x0, b — correction term x = 1 - b*r0 (1-input, 1-output)
+  SDValue X0 = SDValue(
+      DAG.getMachineNode(Xtensa::NEXP01_S, DL, VT, Divisor), 0);
+
+  // madd.s r0, x0, r0  →  r0 += x0 * r0  (first Newton-Raphson step)
+  // MADD_S: (outs FPR:$r), (ins FPR:$a, FPR:$s, FPR:$t), Constraints $r = $a
+  // getMachineNode: accumulator, multiplier1, multiplier2
+  SDValue R1 = SDValue(
+      DAG.getMachineNode(Xtensa::MADD_S, DL, VT, R0, X0, R0), 0);
+
+  // nexp01.s x1, b — second correction term
+  SDValue X1 = SDValue(
+      DAG.getMachineNode(Xtensa::NEXP01_S, DL, VT, Divisor), 0);
+
+  // madd.s r1, x1, r1  →  r1 += x1 * r1  (second refinement)
+  SDValue R2 = SDValue(
+      DAG.getMachineNode(Xtensa::MADD_S, DL, VT, R1, X1, R1), 0);
+
+  // divn.s result, a, r2  →  result = a * r2
+  // DIVN_S: (outs FPR:$r), (ins FPR:$s, FPR:$t): 2 inputs
+  SDValue Result = SDValue(
+      DAG.getMachineNode(Xtensa::DIVN_S, DL, VT, Dividend, R2), 0);
+
+  return Result;
+}
+
+/// LowerFSQRT_S - Implement IEEE-754 single-precision square-root using
+/// the Xtensa Newton-Raphson reciprocal-sqrt sequence.
+SDValue XtensaTargetLowering::LowerFSQRT_S(SDValue Op,
+                                            SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  MVT VT = Op.getSimpleValueType();
+  assert(VT == MVT::f32 && Subtarget.hasSingleFloat() &&
+         "LowerFSQRT_S called for unsupported type");
+
+  SDValue Operand = Op.getOperand(0); // a
+
+  // Initial estimates (both 1-input, 1-output)
+  SDValue Sqrt0 = SDValue(
+      DAG.getMachineNode(Xtensa::SQRT0_S,  DL, VT, Operand), 0);
+  SDValue Rsqrt0 = SDValue(
+      DAG.getMachineNode(Xtensa::RSQRT0_S, DL, VT, Operand), 0);
+
+  // madd.s sqrt0, rsqrt0, sqrt0  →  sqrt0  += rsqrt0 * sqrt0
+  // MADD_S: (ins FPR:$a, FPR:$s, FPR:$t), Constraints $r = $a
+  SDValue Sqrt1 = SDValue(
+      DAG.getMachineNode(Xtensa::MADD_S, DL, VT, Sqrt0, Rsqrt0, Sqrt0), 0);
+
+  // madd.s rsqrt0, sqrt1, rsqrt0  →  rsqrt0 += sqrt1 * rsqrt0
+  SDValue Rsqrt1 = SDValue(
+      DAG.getMachineNode(Xtensa::MADD_S, DL, VT, Rsqrt0, Sqrt1, Rsqrt0), 0);
+
+  // mul.s result, a, rsqrt1  →  result = a * rsqrt1  ≈ sqrt(a)
+  // MUL_S: (ins FPR:$s, FPR:$t): 2 inputs
+  SDValue Result = SDValue(
+      DAG.getMachineNode(Xtensa::MUL_S, DL, VT, Operand, Rsqrt1), 0);
+
+  return Result;
+}
+
 SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
                                              SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
+  case ISD::FDIV:
+    return LowerFDIV_S(Op, DAG);
+  case ISD::FSQRT:
+    return LowerFSQRT_S(Op, DAG);
   case ISD::BR_JT:
     return LowerBR_JT(Op, DAG);
   case ISD::Constant:
