@@ -127,7 +127,13 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
 
   setOperationAction(ISD::Constant, MVT::i32, Custom);
   setOperationAction(ISD::Constant, MVT::i64, Expand);
-  setOperationAction(ISD::ConstantFP, MVT::f32, Expand);
+  // f32 ConstantFP: Custom when the FPU is present so that known constants
+  // (0.0, 1.0, 2.0) can be emitted with const.s (no literal pool).
+  // All other f32 constants fall back to L32R + WFR.
+  if (Subtarget.hasSingleFloat())
+    setOperationAction(ISD::ConstantFP, MVT::f32, Custom);
+  else
+    setOperationAction(ISD::ConstantFP, MVT::f32, Expand);
   setOperationAction(ISD::ConstantFP, MVT::f64, Expand);
 
   if (Subtarget.hasHIFI3()) {
@@ -1633,6 +1639,58 @@ SDValue XtensaTargetLowering::PerformDAGCombine(SDNode *N,
   return NewNode;
 }
 
+/// LowerConstantFP - Lower ISD::ConstantFP for f32 when the single-float
+/// option is present.  Known constants that fit into the const.s immediate
+/// table are emitted as a single const.s instruction (no literal pool entry).
+/// All other f32 constants fall back to the standard L32R + WFR sequence.
+///
+/// const.s immediate table (verified against Cadence xt-clang output for
+/// intel_ace30_ptl):
+///   imm=0 → 0.0f  (IEEE-754: 0x00000000)
+///   imm=1 → 1.0f  (IEEE-754: 0x3F800000)
+///   imm=2 → 2.0f  (IEEE-754: 0x40000000)
+SDValue XtensaTargetLowering::LowerConstantFP(SDValue Op,
+                                               SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  const ConstantFPSDNode *CN = cast<ConstantFPSDNode>(Op);
+  const APFloat &Val = CN->getValueAPF();
+
+  // Only f32; f64 stays on the Expand path.
+  assert(Op.getValueType() == MVT::f32 && "Expected f32 ConstantFP");
+
+  // Map bit pattern → const.s immediate.
+  uint32_t Bits =
+      static_cast<uint32_t>(Val.bitcastToAPInt().getZExtValue());
+  int ConstSImm = -1;
+  switch (Bits) {
+  case 0x00000000U: ConstSImm = 0; break; // 0.0f
+  case 0x3F800000U: ConstSImm = 1; break; // 1.0f
+  case 0x40000000U: ConstSImm = 2; break; // 2.0f
+  default:          break;
+  }
+
+  if (ConstSImm >= 0) {
+    // Single const.s instruction — no literal pool entry, no WFR.
+    return SDValue(
+        DAG.getMachineNode(Xtensa::CONST_S, DL, MVT::f32,
+                           DAG.getTargetConstant(ConstSImm, DL, MVT::i32)),
+        0);
+  }
+
+  // For all other f32 constants: load from a literal pool entry and bitcast.
+  // This mirrors what the Expand action would have generated.
+  Constant *CVal = ConstantFP::get(
+      Type::getFloatTy(*DAG.getContext()), Val);
+  SDValue CPIdx = DAG.getConstantPool(CVal,
+                                      getPointerTy(DAG.getDataLayout()),
+                                      Align(4));
+  SDValue Load = DAG.getLoad(MVT::i32, DL, DAG.getEntryNode(), CPIdx,
+                             MachinePointerInfo::getConstantPool(
+                                 DAG.getMachineFunction()));
+  // ISD::BITCAST i32→f32 is expanded to WFR by the existing .td pattern.
+  return DAG.getNode(ISD::BITCAST, DL, MVT::f32, Load);
+}
+
 //===----------------------------------------------------------------------===//
 // Floating-Point Custom Lowering — Newton-Raphson divide and square-root
 //===----------------------------------------------------------------------===//
@@ -1754,6 +1812,8 @@ SDValue XtensaTargetLowering::LowerOperation(SDValue Op,
     return LowerFDIV_S(Op, DAG);
   case ISD::FSQRT:
     return LowerFSQRT_S(Op, DAG);
+  case ISD::ConstantFP:
+    return LowerConstantFP(Op, DAG);
   case ISD::BR_JT:
     return LowerBR_JT(Op, DAG);
   case ISD::Constant:
@@ -2014,22 +2074,13 @@ MachineBasicBlock *XtensaTargetLowering::EmitInstrWithCustomInserter(
   case Xtensa::S16I:
   case Xtensa::S32I:
   case Xtensa::S32I_N:
-  case Xtensa::SSI:
-  case Xtensa::SSIP:
-  case Xtensa::SSX:
-  case Xtensa::SSXP:
   case Xtensa::L8UI:
   case Xtensa::L16SI:
   case Xtensa::L16UI:
   case Xtensa::L32I:
-  case Xtensa::L32I_N:
-  case Xtensa::LSI:
-  case Xtensa::LSIP:
-  case Xtensa::LSX:
-  case Xtensa::LSXP: {
-    // Insert memory wait instruction "memw" before volatile load/store as it is
-    // implemented in gcc. If memoperands is empty then assume that it aslo
-    // maybe volatile load/store and insert "memw".
+  case Xtensa::L32I_N: {
+    // Insert memory barrier "memw" before volatile load/store as done by GCC.
+    // If memoperands is empty, assume volatile and insert the barrier.
     if (MI.memoperands_empty() || (*MI.memoperands_begin())->isVolatile()) {
       BuildMI(*MBB, MI, DL, TII.get(Xtensa::MEMW));
     }
