@@ -47,38 +47,110 @@ existing table.  An empty diff means you can share.
 
 ## Step 2 — obtain the required source files
 
-You need two parts of the Tensilica libisa, both usually found in a Zephyr SDK
-overlay or a Tensilica SDK:
+You need two parts of the Tensilica libisa: a generic algorithm half (three
+files, same for every core) and a per-core data module (one file).
 
-### Generic half (three files, core-agnostic MIT-licensed source)
+### Generic half (three files, core-agnostic)
 
-| File | Typical location in Zephyr SDK |
-|------|-------------------------------|
-| `xtensa-isa.c` | `overlays/<core>/binutils/bfd/` or QEMU `target/xtensa/` |
-| `xtensa-isa.h` | same directory, or QEMU `include/hw/xtensa/` |
-| `xtensa-isa-internal.h` | same directory as `xtensa-isa.c` |
+| File | What it contains |
+|------|-----------------|
+| `xtensa-isa.c` | libisa algorithm implementation |
+| `xtensa-isa.h` | public libisa API header |
+| `xtensa-isa-internal.h` | internal structs used by `xtensa-isa.c` |
 
-These three files are the same across all cores.  If you already have them for
-another core, reuse them — just point `XTENSA_LIBISA_DIR` at the directory
-where all three reside together.
+These three files are **identical across all Xtensa cores**.  Obtain them
+from any of the following sources (pick whichever you already have):
 
-> **Tip**: in a QEMU source tree `xtensa-isa.h` lives under
-> `include/hw/xtensa/` while the other two are in `target/xtensa/`.  Copy all
-> three into one directory before pointing `XTENSA_LIBISA_DIR` at it.
+**Option 1 — SOF QEMU fork (recommended for SOF/Zephyr work)**
+
+```
+git clone https://github.com/thesofproject/qemu.git
+```
+
+| File | Path inside the repo |
+|------|---------------------|
+| `xtensa-isa.c` | `target/xtensa/xtensa-isa.c` |
+| `xtensa-isa-internal.h` | `target/xtensa/xtensa-isa-internal.h` |
+| `xtensa-isa.h` | `include/hw/xtensa/xtensa-isa.h` |
+
+Note that `xtensa-isa.h` is in a **different subtree** from the other two.
+The generator needs all three in the same directory; copy or symlink them
+together before pointing `XTENSA_LIBISA_DIR` at the result.
+
+**Option 2 — Zephyr SDK `sdk-ng` sources**
+
+```
+git clone https://github.com/zephyrproject-rtos/sdk-ng.git
+```
+
+All three files appear under any core's binutils overlay (they are shared
+source; the copy for any core will do):
+
+```
+sdk-ng/overlays/xtensa_intel_ace15_mtpm/binutils/bfd/xtensa-isa.c
+sdk-ng/overlays/xtensa_intel_ace15_mtpm/binutils/bfd/xtensa-isa.h
+sdk-ng/overlays/xtensa_intel_ace15_mtpm/binutils/bfd/xtensa-isa-internal.h
+```
+
+**Option 3 — Tensilica / Cadence SDK**
+
+Found under `XtensaTools/xtensa-elf/src/binutils/bfd/` in a full Tensilica
+installation.
 
 ### Per-core data module (one file, core-specific)
 
-| File | Typical location |
-|------|-----------------|
-| `xtensa-modules.c` | `overlays/xtensa_<core>/binutils/bfd/xtensa-modules.c` |
+`xtensa-modules.c` defines the `xtensa_modules` global that describes the
+instruction set, formats, and operand encodings for one specific core
+configuration.  It is the **data** half of libisa; the generic half above is
+the algorithm.  They must match: both must come from tools built for the same
+core.
 
-For Intel SOF targets the Zephyr SDK installs overlays under
-`<sdk-root>/overlays/`.  For example:
+**From the Zephyr SDK `sdk-ng` sources** (most accessible for Zephyr targets):
 
 ```
-<sdk-root>/overlays/xtensa_intel_tgl_adsp/binutils/bfd/xtensa-modules.c
-<sdk-root>/overlays/xtensa_intel_ace15_mtpm_zephyr/binutils/bfd/xtensa-modules.c
+sdk-ng/overlays/xtensa_<overlay-name>/binutils/bfd/xtensa-modules.c
 ```
+
+The overlay name follows the pattern `xtensa_<vendor>_<core>` (optionally with
+a `_zephyr` suffix).  Known Intel SOF targets:
+
+| Target CPU string | `sdk-ng` overlay directory |
+|-------------------|---------------------------|
+| `intel_tgl_adsp` (Tiger Lake / cavs2.5 / HiFi3) | `xtensa_intel_tgl_adsp` |
+| `intel_ace15_adsp` / `intel_ace15_mtpm` (ACE 1.5 / HiFi4) | `xtensa_intel_ace15_mtpm` |
+| `intel_ace30_adsp` / `intel_ace30_ptl` (ACE 3.0 / HiFi4) | `xtensa_intel_ace30_ptl` |
+| `intel_ace40_adsp` / `intel_ace40_nvl` (ACE 4.0 / HiFi5) | `xtensa_intel_ace40` |
+
+To discover the overlay name for any other core, list the overlays directory:
+
+```sh
+ls sdk-ng/overlays/ | grep <keyword>
+```
+
+**From a Tensilica / Cadence SDK:**
+
+```
+XtensaTools/xtensa-elf/src/binutils/bfd/xtensa-modules.c
+```
+
+Note: this path contains the modules for whichever core the SDK was configured
+for.  A multi-core Tensilica installation will have separate SDK trees per core.
+
+**Quick sanity check** — confirm the data module matches the GNU assembler you
+will use as the oracle in Step 4.  The assembler binary and `xtensa-modules.c`
+must come from the same toolchain release; mismatched versions will produce
+encoding differences that are impossible to resolve by inspection alone.
+
+The oracle assembler binary for Intel SOF targets ships with the prebuilt Zephyr
+SDK (even though the SDK does not include `xtensa-modules.c` source):
+
+```
+<sdk-root>/gnu/xtensa-intel_ace15_mtpm_zephyr-elf/bin/xtensa-intel_ace15_mtpm_zephyr-elf-as
+<sdk-root>/gnu/xtensa-intel_tgl_adsp_zephyr-elf/bin/xtensa-intel_tgl_adsp_zephyr-elf-as
+```
+
+The `xtensa-modules.c` in `sdk-ng` was built from the same upstream data that
+produced those assembler binaries, so the two are always in sync.
 
 ---
 
