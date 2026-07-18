@@ -2494,10 +2494,12 @@ class AE_MOVState_Inst<bits<4> op2, bits<4> op1, bits<4> r_val, bits<4> s_val, b
   let Inst{3-0} = d;
 }
 
+let Predicates = [HasHIFI4], DecoderNamespace = "XtensaHIFI4" in {
 def AE_MOVFCRFSRV : AE_MOVState_Inst<1, 7, 15, 7, 0, (outs), (ins AEDR:$d),
                                      "ae_movfcrfsrv\t$d", []>;
 def AE_MOVVFCRFSR : AE_MOVState_Inst<1, 7, 15, 7, 1, (outs AEDR:$d), (ins),
                                      "ae_movvfcrfsr\t$d", []>;
+} // HasHIFI4
 
 // --- ae_zalign64: initialize alignment register to zero ---
 class AE_ZALIGN64_Inst<bits<4> op0, bits<4> op1, bits<4> op2, bits<4> r_val, bits<4> s_val,
