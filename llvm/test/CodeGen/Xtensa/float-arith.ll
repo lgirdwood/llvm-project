@@ -52,15 +52,16 @@ define float @fmul_s(float %a, float %b) nounwind {
 define float @fdiv_s(float %a, float %b) nounwind {
 ; XTENSA-LABEL: fdiv_s:
 ; XTENSA:       # %bb.0:
-; XTENSA-NEXT:    addi a8, a1, -16
-; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    s32i a0, a1, 12 # 4-byte Folded Spill
-; XTENSA-NEXT:    l32r a8, .LCPI3_0
-; XTENSA-NEXT:    callx0 a8
-; XTENSA-NEXT:    l32i a0, a1, 12 # 4-byte Folded Reload
-; XTENSA-NEXT:    addi a8, a1, 16
-; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    ret
+; XTENSA-NEXT:    entry a1, 40
+; XTENSA-NEXT:    wfr f3, a3
+; XTENSA-NEXT:    nexp01.s f2, f3
+; XTENSA-NEXT:    recip0.s f3, f3
+; XTENSA-NEXT:    madd.s f3, f2, f3
+; XTENSA-NEXT:    madd.s f3, f2, f3
+; XTENSA-NEXT:    wfr f2, a2
+; XTENSA-NEXT:    divn.s f3, f2, f3
+; XTENSA-NEXT:    rfr a2, f3
+; XTENSA-NEXT:    retw.n
   %res = fdiv float %a, %b
   ret float %res
 }
@@ -70,15 +71,15 @@ declare float @llvm.sqrt.f32(float)
 define float @fsqrt_s(float %a) nounwind {
 ; XTENSA-LABEL: fsqrt_s:
 ; XTENSA:       # %bb.0:
-; XTENSA-NEXT:    addi a8, a1, -16
-; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    s32i a0, a1, 12 # 4-byte Folded Spill
-; XTENSA-NEXT:    l32r a8, .LCPI4_0
-; XTENSA-NEXT:    callx0 a8
-; XTENSA-NEXT:    l32i a0, a1, 12 # 4-byte Folded Reload
-; XTENSA-NEXT:    addi a8, a1, 16
-; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    ret
+; XTENSA-NEXT:    entry a1, 40
+; XTENSA-NEXT:    wfr f3, a2
+; XTENSA-NEXT:    rsqrt0.s f2, f3
+; XTENSA-NEXT:    sqrt0.s f1, f3
+; XTENSA-NEXT:    madd.s f1, f2, f1
+; XTENSA-NEXT:    madd.s f2, f1, f2
+; XTENSA-NEXT:    mul.s f3, f3, f2
+; XTENSA-NEXT:    rfr a2, f3
+; XTENSA-NEXT:    retw.n
   %res = call float @llvm.sqrt.f32(float %a)
   ret float %res
 }
