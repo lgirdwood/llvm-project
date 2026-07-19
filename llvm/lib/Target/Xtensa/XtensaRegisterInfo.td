@@ -334,6 +334,7 @@ def AE_CEND1   : URReg<249, "ae_cend1", ["AE_CEND1"]>;
 def AE_CBEGIN2 : URReg<250, "ae_cbegin2", ["AE_CBEGIN2"]>;
 def AE_CEND2   : URReg<251, "ae_cend2", ["AE_CEND2"]>;
 
+def UR :  RegisterClass<"Xtensa", [i32], 32, (add
   GPIO_OUT_S2, THREADPTR, XNNE_RERR, FCR, FSR, F64R_LO, F64R_HI, F64S,
   AE_OVF_SAR, AE_BITHEAD, AE_TS_FTS_BU_BP, AE_CW_SD_NO,
   AE_CBEGIN0, AE_CEND0, AE_CBEGIN1, AE_CEND1,
