@@ -14,12 +14,7 @@
 class Proc<string Name, list<SubtargetFeature> Features>
     : Processor<Name, NoItineraries, Features>;
 
-def : Proc<"generic", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
-                               FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I, FeatureSingleFloat,
-                               FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
-                               FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
-                               FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
-                               FeatureCLAMPS, FeatureHIFI4, FeatureHIFI5]>;
+def : Proc<"generic", []>;
 
 //===----------------------------------------------------------------------===//
 // Cadence/Tensilica reference cores
