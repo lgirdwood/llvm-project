@@ -42,7 +42,7 @@ extern cl::opt<bool> AbsoluteLiterals;
 cl::opt<bool> Longcalls(
     "longcalls",
     cl::desc("Enable longcall relaxation"),
-    cl::init(true));
+    cl::init(false));
 
 cl::opt<bool> TargetAlign(
     "target-align",
