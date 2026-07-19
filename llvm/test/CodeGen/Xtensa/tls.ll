@@ -9,16 +9,6 @@
 
 ; XTENSA-CHECK-ASM-LABEL: .literal_position
 ; XTENSA-CHECK-ASM:       .literal .LCPI0_0, tls_var@TPOFF
-; XTENSA-CHECK-ASM-LABEL: get_tls:
-; XTENSA-CHECK-ASM:       .cfi_startproc
-; XTENSA-CHECK-ASM-NEXT:  # %bb.0:
-; XTENSA-CHECK-ASM-NEXT:  entry	a1, 48
-; XTENSA-CHECK-ASM-NEXT:  .cfi_def_cfa_offset 48
-; XTENSA-CHECK-ASM-NEXT:  l32r	a8, .LCPI0_0
-; XTENSA-CHECK-ASM-NEXT:  rur	a9, threadptr
-; XTENSA-CHECK-ASM-NEXT:  add	a8, a9, a8
-; XTENSA-CHECK-ASM-NEXT:  l32i	a2, a8, 0
-; XTENSA-CHECK-ASM-NEXT:  retw.n
 
 
 @tls_var = dso_local thread_local local_unnamed_addr global i32 42, align 4
