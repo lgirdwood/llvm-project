@@ -674,7 +674,7 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
     // would decode as an illegal instruction if executed. A residual 1-byte
     // gap (not fillable with a NOP) is absorbed by the instruction-widening
     // pass in XtensaAsmBackend::finishLayout().
-    Out.emitCodeAlignment(Align(4), STI);
+    Out.emitCodeAlignment(Align(4), *STI);
     break;
   }
   default:
