@@ -278,3 +278,77 @@ xsr.excsave7 a2
 #CHECK-INST: xsr a2, excsave7
 #CHECK: encoding: [0x20,0xd7,0x61]
 xsr a2, 215
+
+#Instruction format RRR
+#CHECK-INST: rsr a2, eps2
+#CHECK: encoding: [0x20,0xc2,0x03]
+rsr.eps2 a2
+
+#Instruction format RRR
+#CHECK-INST: rsr a2, eps7
+#CHECK: encoding: [0x20,0xc7,0x03]
+rsr.eps7 a2
+
+#Instruction format RRR
+#CHECK-INST: wsr a2, eps2
+#CHECK: encoding: [0x20,0xc2,0x13]
+wsr.eps2 a2
+
+#Instruction format RRR
+#CHECK-INST: wsr a2, eps7
+#CHECK: encoding: [0x20,0xc7,0x13]
+wsr.eps7 a2
+
+#Instruction format RRR
+#CHECK-INST: rsr a2, epc1
+#CHECK: encoding: [0x20,0xb1,0x03]
+rsr.epc1 a2
+
+#Instruction format RRR
+#CHECK-INST: rsr a2, epc7
+#CHECK: encoding: [0x20,0xb7,0x03]
+rsr.epc7 a2
+
+#Instruction format RRR
+#CHECK-INST: wsr a2, epc1
+#CHECK: encoding: [0x20,0xb1,0x13]
+wsr.epc1 a2
+
+#Instruction format RRR
+#CHECK-INST: wsr a2, epc7
+#CHECK: encoding: [0x20,0xb7,0x13]
+wsr.epc7 a2
+
+#Instruction format RRR
+#CHECK-INST: rsr a2, excsave2
+#CHECK: encoding: [0x20,0xd2,0x03]
+rsr.excsave2 a2
+
+#Instruction format RRR
+#CHECK-INST: rsr a2, excsave7
+#CHECK: encoding: [0x20,0xd7,0x03]
+rsr.excsave7 a2
+
+#Instruction format RRR
+#CHECK-INST: wsr a2, excsave2
+#CHECK: encoding: [0x20,0xd2,0x13]
+wsr.excsave2 a2
+
+#Instruction format RRR
+#CHECK-INST: wsr a2, excsave7
+#CHECK: encoding: [0x20,0xd7,0x13]
+wsr.excsave7 a2
+
+#Instruction format RRR
+#CHECK-INST: rsr a2, eps2
+#CHECK: encoding: [0x20,0xc2,0x03]
+rsr.194 a2
+
+# Test dot-suffix register parsing within a macro
+.macro test_macro LVL
+	rsr.eps\LVL a2
+.endm
+#CHECK-INST: rsr a2, eps2
+#CHECK: encoding: [0x20,0xc2,0x03]
+test_macro 2
+
