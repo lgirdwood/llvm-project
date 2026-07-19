@@ -310,8 +310,6 @@ void XtensaTargetELFStreamer::startLiteralSection(MCSection *BaseSection) {
       SectionName, ELF::SHT_PROGBITS, Flags);
 
   ConstSection->setAlignment(Align(4));
-  MCStreamer &OutStreamer = getStreamer();
-  OutStreamer.switchSection(ConstSection);
 }
 
 void XtensaTargetELFStreamer::emitLiteralPrefix(StringRef Prefix) {
