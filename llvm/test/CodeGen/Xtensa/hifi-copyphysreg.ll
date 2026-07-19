@@ -12,10 +12,10 @@ declare void @use_ae_reg()
 define void @test_hifi_copyphysreg() {
 ; CHECK-LABEL: test_hifi_copyphysreg:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    entry a1, 40
+; CHECK-NEXT:    entry a1, 48
 ; CHECK-NEXT:    l32r a8, .LCPI0_0
 ; CHECK-NEXT:    callx8 a8
-; CHECK-NEXT:    retw.n
+; CHECK-NEXT:    retw
 entry:
   call void @use_ae_reg()
   ret void

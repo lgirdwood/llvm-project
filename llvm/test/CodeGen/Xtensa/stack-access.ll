@@ -7,7 +7,6 @@ define i8 @loadi8(i8 %a) {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    # kill: def $a8 killed $a2
 ; XTENSA-NEXT:    s8i a2, a1, 15
 ; XTENSA-NEXT:    l8ui a2, a1, 15
 ; XTENSA-NEXT:    addi a8, a1, 16
@@ -24,7 +23,6 @@ define i16 @loadi16(i16 %a) {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    # kill: def $a8 killed $a2
 ; XTENSA-NEXT:    s16i a2, a1, 14
 ; XTENSA-NEXT:    l16ui a2, a1, 14
 ; XTENSA-NEXT:    addi a8, a1, 16
