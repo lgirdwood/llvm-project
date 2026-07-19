@@ -462,6 +462,32 @@ bool XtensaAsmBackend::fixupNeedsRelaxationAdvanced(const MCFragment &F,
     }
     return true;
   }
+  // fixup_xtensa_branch_8: used by all 2-register conditional branches
+  // (BEQ, BNE, BLT, BGE, BLTU, BGEU, BEQI, BNEI, BLTI, BGEI, BLTUI, BGEUI,
+  //  BANY, BNONE, BALL, BNALL, BBC, BBS, BBCI, BBSI, BT, BF).
+  // These instructions have an 8-bit signed PC-relative offset field giving a
+  // hardware range of -128..+127 bytes relative to the instruction end (i.e.
+  // RelOffset = Value - 4 must fit in int8_t).
+  // When out of range, return true so the MC relaxation engine triggers a
+  // re-layout, which causes finishLayout()'s branch trampoline pass to insert
+  // an inverted-branch + unconditional J trampoline, exactly as GAS does.
+  if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_branch_8) {
+    if (!Resolved)
+      return true;
+    int64_t SVal = (int64_t)Value;
+    int64_t RelOffset = SVal - 4;
+    return !isInt<8>(RelOffset);
+  }
+  // fixup_xtensa_branch_12: used by BEQZ, BNEZ, BGEZ, BLTZ.
+  // These have a 12-bit signed offset giving a range of -2048..+2047 bytes
+  // relative to the instruction end.
+  if (Fixup.getKind() == (MCFixupKind)Xtensa::fixup_xtensa_branch_12) {
+    if (!Resolved)
+      return true;
+    int64_t SVal = (int64_t)Value;
+    int64_t RelOffset = SVal - 4;
+    return !isInt<12>(RelOffset);
+  }
   return false;
 }
 
@@ -494,6 +520,14 @@ void XtensaAsmBackend::relaxInstruction(MCInst &Inst,
              Opcode == Xtensa::CALLX0 || Opcode == Xtensa::CALLX4 ||
              Opcode == Xtensa::CALLX8 || Opcode == Xtensa::CALLX12) {
     // CALL instructions don't actually change opcode when relaxing, they just trigger the widening pass
+  } else if (getInvertedBranchOpcode(Opcode) != 0) {
+    // Conditional branches with fixup_xtensa_branch_8 or fixup_xtensa_branch_12
+    // that are out of their encoding range are handled by finishLayout()'s branch
+    // trampoline pass, which inserts an inverted-condition branch over an
+    // unconditional J to the original target. This relaxInstruction call is a
+    // deliberate no-op: we leave the opcode unchanged so the fragment's fixup
+    // survives to the next layout iteration, at which point finishLayout() will
+    // detect the out-of-range condition and insert the trampoline.
   } else {
     llvm_unreachable("Unexpected instruction to relax");
   }
