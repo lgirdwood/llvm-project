@@ -717,6 +717,8 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
                                                 ArrayRef<uint8_t> Bytes,
                                                 uint64_t Address,
                                                 raw_ostream &CS) const {
+  // Commented out to allow decoding of instructions starting with 0x00 (such as FP and HiFi instructions)
+  /*
   if (Bytes.size() >= 1 && Bytes[0] == 0x00) {
     bool IsSpecialRegA0 = false;
     if (Bytes.size() >= 3) {
@@ -729,6 +731,7 @@ DecodeStatus XtensaDisassembler::getInstruction(MCInst &MI, uint64_t &Size,
       return MCDisassembler::Fail;
     }
   }
+  */
   static thread_local bool IsScanning = false;
   static thread_local std::vector<std::pair<uint64_t, uint64_t>> ScannedRanges;
   bool AlreadyScanned = false;
