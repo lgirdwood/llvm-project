@@ -5,7 +5,6 @@
 ; RUN: | FileCheck -check-prefix=XTENSA-NO-THREADPTR %s
 
 ; XTENSA-PIC: error: <unknown>:0:0: in function f i32 (): only local-exec and initial-exec TLS mode supported
-; XTENSA-PIC: error: <unknown>:0:0: in function f i32 (): PIC relocations are not supported
 
 ; XTENSA-NO-THREADPTR: error: <unknown>:0:0: in function f i32 (): only emulated TLS supported
 

@@ -52,16 +52,19 @@ define float @fmul_s(float %a, float %b) nounwind {
 define float @fdiv_s(float %a, float %b) nounwind {
 ; XTENSA-LABEL: fdiv_s:
 ; XTENSA:       # %bb.0:
-; XTENSA-NEXT:    entry a1, 40
-; XTENSA-NEXT:    wfr f3, a3
-; XTENSA-NEXT:    nexp01.s f2, f3
-; XTENSA-NEXT:    recip0.s f3, f3
-; XTENSA-NEXT:    madd.s f3, f2, f3
-; XTENSA-NEXT:    madd.s f3, f2, f3
-; XTENSA-NEXT:    wfr f2, a2
-; XTENSA-NEXT:    divn.s f3, f2, f3
-; XTENSA-NEXT:    rfr a2, f3
-; XTENSA-NEXT:    retw.n
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    wfr f8, a3
+; XTENSA-NEXT:    nexp01.s f9, f8
+; XTENSA-NEXT:    recip0.s f8, f8
+; XTENSA-NEXT:    madd.s f8, f9, f8
+; XTENSA-NEXT:    madd.s f8, f9, f8
+; XTENSA-NEXT:    wfr f9, a2
+; XTENSA-NEXT:    divn.s f8, f9, f8
+; XTENSA-NEXT:    rfr a2, f8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ret
   %res = fdiv float %a, %b
   ret float %res
 }
@@ -71,15 +74,18 @@ declare float @llvm.sqrt.f32(float)
 define float @fsqrt_s(float %a) nounwind {
 ; XTENSA-LABEL: fsqrt_s:
 ; XTENSA:       # %bb.0:
-; XTENSA-NEXT:    entry a1, 40
-; XTENSA-NEXT:    wfr f3, a2
-; XTENSA-NEXT:    rsqrt0.s f2, f3
-; XTENSA-NEXT:    sqrt0.s f1, f3
-; XTENSA-NEXT:    madd.s f1, f2, f1
-; XTENSA-NEXT:    madd.s f2, f1, f2
-; XTENSA-NEXT:    mul.s f3, f3, f2
-; XTENSA-NEXT:    rfr a2, f3
-; XTENSA-NEXT:    retw.n
+; XTENSA-NEXT:    addi a8, a1, -16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    wfr f8, a2
+; XTENSA-NEXT:    rsqrt0.s f9, f8
+; XTENSA-NEXT:    sqrt0.s f10, f8
+; XTENSA-NEXT:    madd.s f10, f9, f10
+; XTENSA-NEXT:    madd.s f9, f10, f9
+; XTENSA-NEXT:    mul.s f8, f8, f9
+; XTENSA-NEXT:    rfr a2, f8
+; XTENSA-NEXT:    addi a8, a1, 16
+; XTENSA-NEXT:    or a1, a8, a8
+; XTENSA-NEXT:    ret
   %res = call float @llvm.sqrt.f32(float %a)
   ret float %res
 }
@@ -166,10 +172,9 @@ define float @fmsub_s(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI9_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a4
-; XTENSA-NEXT:    add.s f8, f9, f8
+; XTENSA-NEXT:    wfr f8, a4
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    neg.s f8, f8
 ; XTENSA-NEXT:    wfr f9, a3
 ; XTENSA-NEXT:    wfr f10, a2
@@ -189,17 +194,16 @@ define float @fnmadd_s(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI10_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a2
-; XTENSA-NEXT:    add.s f9, f9, f8
-; XTENSA-NEXT:    neg.s f9, f9
-; XTENSA-NEXT:    wfr f10, a4
-; XTENSA-NEXT:    add.s f8, f10, f8
+; XTENSA-NEXT:    wfr f8, a2
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    neg.s f8, f8
+; XTENSA-NEXT:    wfr f10, a4
+; XTENSA-NEXT:    add.s f9, f10, f9
+; XTENSA-NEXT:    neg.s f9, f9
 ; XTENSA-NEXT:    wfr f10, a3
-; XTENSA-NEXT:    madd.s f8, f9, f10
-; XTENSA-NEXT:    rfr a2, f8
+; XTENSA-NEXT:    madd.s f9, f8, f10
+; XTENSA-NEXT:    rfr a2, f9
 ; XTENSA-NEXT:    addi a8, a1, 16
 ; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
@@ -216,17 +220,16 @@ define float @fnmadd_s_2(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI11_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a3
-; XTENSA-NEXT:    add.s f9, f9, f8
-; XTENSA-NEXT:    neg.s f9, f9
-; XTENSA-NEXT:    wfr f10, a4
-; XTENSA-NEXT:    add.s f8, f10, f8
+; XTENSA-NEXT:    wfr f8, a3
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    neg.s f8, f8
+; XTENSA-NEXT:    wfr f10, a4
+; XTENSA-NEXT:    add.s f9, f10, f9
+; XTENSA-NEXT:    neg.s f9, f9
 ; XTENSA-NEXT:    wfr f10, a2
-; XTENSA-NEXT:    madd.s f8, f10, f9
-; XTENSA-NEXT:    rfr a2, f8
+; XTENSA-NEXT:    madd.s f9, f10, f8
+; XTENSA-NEXT:    rfr a2, f9
 ; XTENSA-NEXT:    addi a8, a1, 16
 ; XTENSA-NEXT:    or a1, a8, a8
 ; XTENSA-NEXT:    ret
@@ -283,10 +286,9 @@ define float @fnmsub_s(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI14_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a2
-; XTENSA-NEXT:    add.s f8, f9, f8
+; XTENSA-NEXT:    wfr f8, a2
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    neg.s f8, f8
 ; XTENSA-NEXT:    wfr f9, a3
 ; XTENSA-NEXT:    wfr f10, a4
@@ -306,10 +308,9 @@ define float @fnmsub_s_2(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI15_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a3
-; XTENSA-NEXT:    add.s f8, f9, f8
+; XTENSA-NEXT:    wfr f8, a3
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    neg.s f8, f8
 ; XTENSA-NEXT:    wfr f9, a2
 ; XTENSA-NEXT:    wfr f10, a4
@@ -348,10 +349,9 @@ define float @fmsub_s_contract(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI17_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a4
-; XTENSA-NEXT:    add.s f8, f9, f8
+; XTENSA-NEXT:    wfr f8, a4
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    wfr f9, a3
 ; XTENSA-NEXT:    wfr f10, a2
 ; XTENSA-NEXT:    mul.s f9, f10, f9
@@ -371,17 +371,16 @@ define float @fnmadd_s_contract(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI18_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a3
-; XTENSA-NEXT:    add.s f9, f9, f8
+; XTENSA-NEXT:    wfr f8, a3
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    wfr f10, a2
-; XTENSA-NEXT:    add.s f10, f10, f8
-; XTENSA-NEXT:    mul.s f9, f10, f9
-; XTENSA-NEXT:    neg.s f9, f9
+; XTENSA-NEXT:    add.s f10, f10, f9
+; XTENSA-NEXT:    mul.s f8, f10, f8
+; XTENSA-NEXT:    neg.s f8, f8
 ; XTENSA-NEXT:    wfr f10, a4
-; XTENSA-NEXT:    add.s f8, f10, f8
-; XTENSA-NEXT:    sub.s f8, f9, f8
+; XTENSA-NEXT:    add.s f9, f10, f9
+; XTENSA-NEXT:    sub.s f8, f8, f9
 ; XTENSA-NEXT:    rfr a2, f8
 ; XTENSA-NEXT:    addi a8, a1, 16
 ; XTENSA-NEXT:    or a1, a8, a8
@@ -400,13 +399,12 @@ define float @fnmsub_s_contract(float %a, float %b, float %c) nounwind {
 ; XTENSA:       # %bb.0:
 ; XTENSA-NEXT:    addi a8, a1, -16
 ; XTENSA-NEXT:    or a1, a8, a8
-; XTENSA-NEXT:    l32r a8, .LCPI19_0
-; XTENSA-NEXT:    wfr f8, a8
-; XTENSA-NEXT:    wfr f9, a3
-; XTENSA-NEXT:    add.s f9, f9, f8
+; XTENSA-NEXT:    wfr f8, a3
+; XTENSA-NEXT:    const.s f9, 0
+; XTENSA-NEXT:    add.s f8, f8, f9
 ; XTENSA-NEXT:    wfr f10, a2
-; XTENSA-NEXT:    add.s f8, f10, f8
-; XTENSA-NEXT:    mul.s f8, f8, f9
+; XTENSA-NEXT:    add.s f9, f10, f9
+; XTENSA-NEXT:    mul.s f8, f9, f8
 ; XTENSA-NEXT:    wfr f9, a4
 ; XTENSA-NEXT:    sub.s f8, f9, f8
 ; XTENSA-NEXT:    rfr a2, f8

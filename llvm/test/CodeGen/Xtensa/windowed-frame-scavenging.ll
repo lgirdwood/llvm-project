@@ -15,13 +15,13 @@ declare void @ext(i32)
 define void @test_large_frame(i32 %n) {
 ; CHECK-LABEL: test_large_frame:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    entry a1, 1064
-; CHECK-NEXT:    addi a8, a1, 4
+; CHECK-NEXT:    entry a1, 1072
+; CHECK-NEXT:    addi a8, a1, 16
 ; CHECK-NEXT:    addx4 a8, a2, a8
-; CHECK-NEXT:    l32i.n a10, a8, 0
+; CHECK-NEXT:    l32i a10, a8, 0
 ; CHECK-NEXT:    l32r a8, .LCPI0_0
 ; CHECK-NEXT:    callx8 a8
-; CHECK-NEXT:    retw.n
+; CHECK-NEXT:    retw
 entry:
   ; Allocate a large fixed array to force a large frame index offset
   %buf = alloca [256 x i32], align 4
@@ -35,9 +35,9 @@ entry:
 define i32 @test_leaf(i32 %a, i32 %b) {
 ; CHECK-LABEL: test_leaf:
 ; CHECK:       # %bb.0: # %entry
-; CHECK-NEXT:    entry a1, 40
-; CHECK-NEXT:    add.n a2, a2, a3
-; CHECK-NEXT:    retw.n
+; CHECK-NEXT:    entry a1, 48
+; CHECK-NEXT:    add a2, a2, a3
+; CHECK-NEXT:    retw
 entry:
   %sum = add i32 %a, %b
   ret i32 %sum
