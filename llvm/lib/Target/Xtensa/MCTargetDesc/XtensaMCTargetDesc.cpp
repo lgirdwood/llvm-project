@@ -492,8 +492,14 @@ createXtensaObjectTargetStreamer(MCStreamer &S, const MCSubtargetInfo &STI) {
   return new XtensaTargetELFStreamer(S, STI);
 }
 
+class XtensaTargetNullStreamer : public XtensaTargetStreamer {
+public:
+  XtensaTargetNullStreamer(MCStreamer &S) : XtensaTargetStreamer(S) {}
+  void startLiteralSection(MCSection *BaseSection) override {}
+};
+
 static MCTargetStreamer *createXtensaNullTargetStreamer(MCStreamer &S) {
-  return new XtensaTargetStreamer(S);
+  return new XtensaTargetNullStreamer(S);
 }
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeXtensaTargetMC() {
