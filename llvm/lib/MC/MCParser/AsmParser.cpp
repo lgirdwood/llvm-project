@@ -2511,6 +2511,32 @@ bool AsmParser::expandMacro(raw_svector_ostream &OS, MCAsmMacro &Macro,
         I += 3;
         continue;
       }
+      // GAS compatibility: \& is a paste/separator operator equivalent to \().
+      // When \& precedes a known parameter name it expands the argument (like
+      // \argname); when it precedes a non-parameter it acts as a pure separator
+      // (\& is discarded and the following text is processed normally).
+      if (Body[I + 1] == '&') {
+        size_t TmpI = I + 2;
+        size_t Pos2 = TmpI;
+        while (TmpI != End && isIdentifierChar(Body[TmpI]))
+          ++TmpI;
+        StringRef Arg2(Body.data() + Pos2, TmpI - Pos2);
+        unsigned Idx2 = 0;
+        for (; Idx2 < NParameters; ++Idx2)
+          if (Parameters[Idx2].Name == Arg2)
+            break;
+        if (Idx2 < NParameters) {
+          // \&argname — expand the parameter, then skip optional trailing &.
+          I = TmpI;
+          expandArg(Idx2);
+          if (I != End && Body[I] == '&')
+            ++I;
+        } else {
+          // \& not before a parameter name — pure separator, skip \& only.
+          I += 2;
+        }
+        continue;
+      }
 
       size_t Pos = ++I;
       while (I != End && isIdentifierChar(Body[I]))
@@ -2559,6 +2585,34 @@ bool AsmParser::expandMacro(raw_svector_ostream &OS, MCAsmMacro &Macro,
       }
     }
 
+    // GAS compatibility: bare &argname& in a macro body is a text-paste
+    // (concatenation) operator. When & is immediately followed by a known
+    // parameter name, substitute the argument value and skip the surrounding
+    // & delimiters. This allows constructs like r&tlb&1 (where tlb is a
+    // parameter) to expand into mnemonics such as rdtlb1 or ritlb1 without
+    // requiring altmacro mode or \argname syntax.
+    if (Body[I] == '&' && I + 1 != End && isIdentifierChar(Body[I + 1])) {
+      size_t Pos2 = I + 1;
+      size_t J = Pos2;
+      while (J != End && isIdentifierChar(Body[J]))
+        ++J;
+      StringRef Arg2(Body.data() + Pos2, J - Pos2);
+      unsigned Idx2 = 0;
+      for (; Idx2 < NParameters; ++Idx2)
+        if (Parameters[Idx2].Name == Arg2)
+          break;
+      if (Idx2 < NParameters) {
+        // & followed by a known parameter: skip leading &, expand argument,
+        // skip trailing & delimiter (if present).
+        I = J;
+        if (I != End && Body[I] == '&')
+          ++I;
+        expandArg(Idx2);
+        continue;
+      }
+      // & not followed by a parameter name: treat as a normal character
+      // (e.g., bitwise-AND operator in an expression).
+    }
     if (!isIdentifierChar(Body[I]) || IsDarwin) {
       OS << Body[I++];
       continue;
