@@ -111,6 +111,7 @@ class XtensaAsmParser : public MCTargetAsmParser {
   }
 
   ParseStatus parseDirective(AsmToken DirectiveID) override;
+  bool parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) override;
   bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override;
   bool parseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
@@ -1220,6 +1221,27 @@ ParseStatus XtensaAsmParser::parsePCRelTarget(OperandVector &Operands) {
 
   Operands.push_back(XtensaOperand::createImm(Expr, S, getLexer().getLoc()));
   return ParseStatus::Success;
+}
+
+bool XtensaAsmParser::parsePrimaryExpr(const MCExpr *&Res, SMLoc &EndLoc) {
+  const AsmToken &Tok = getLexer().getTok();
+  if (Tok.is(AsmToken::Identifier)) {
+    StringRef Name = Tok.getIdentifier();
+    int RegNo = -1;
+    if (Name == "sp") {
+      RegNo = 1;
+    } else if (Name.consume_front("a")) {
+      if (Name.getAsInteger(10, RegNo) || RegNo < 0 || RegNo > 15)
+        RegNo = -1;
+    }
+    if (RegNo >= 0 && RegNo <= 15) {
+      EndLoc = Tok.getEndLoc();
+      Res = MCConstantExpr::create(RegNo, getContext());
+      getLexer().Lex(); // Eat identifier token.
+      return false;
+    }
+  }
+  return getParser().parsePrimaryExpr(Res, EndLoc, nullptr);
 }
 
 bool XtensaAsmParser::parseRegister(MCRegister &Reg, SMLoc &StartLoc,
