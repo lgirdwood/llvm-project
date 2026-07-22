@@ -74,6 +74,17 @@ Ensure your SOF workspace is initialized. Pull the required development branches
   cd ..
   ```
 
+- **Xtensa HAL Repository (`modules/hal/xtensa`)**:
+  Pull the [llvm-stable](https://github.com/lgirdwood/hal_xtensa/tree/llvm-stable) branch from the [hal_xtensa fork](https://github.com/lgirdwood/hal_xtensa.git):
+  ```bash
+  cd modules/hal/xtensa
+  git remote add lgirdwood https://github.com/lgirdwood/hal_xtensa.git
+  git fetch lgirdwood llvm-stable
+  git checkout -b my-working-branch # or checkout your current working branch
+  git pull lgirdwood llvm-stable
+  cd ../../..
+  ```
+
 ### 2. Activate the Environment
 Activate your Zephyr/SOF Python virtual environment:
 ```bash
