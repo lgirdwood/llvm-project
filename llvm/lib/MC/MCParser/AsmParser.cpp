@@ -2870,6 +2870,28 @@ bool AsmParser::parseMacroArguments(const MCAsmMacro *M,
     }
 
     parseOptionalToken(AsmToken::Comma);
+    // GAS compatibility: a trailing comma immediately before end-of-statement
+    // is silently accepted.  Without this check the loop iterates once more,
+    // finds no argument text, and either hits "too many positional arguments"
+    // (when all named parameters are already filled) or inserts an empty
+    // argument for a vararg parameter.
+    if (Lexer.is(AsmToken::EndOfStatement)) {
+      bool Failure = false;
+      for (unsigned FAI = 0; FAI < NParameters; ++FAI) {
+        if (A[FAI].empty()) {
+          if (M && M->Parameters[FAI].Required) {
+            Error(FALocs[FAI].isValid() ? FALocs[FAI] : Lexer.getLoc(),
+                  "missing value for required parameter '" +
+                      M->Parameters[FAI].Name + "' in macro '" +
+                      M->Name + "'");
+            Failure = true;
+          }
+          if (M && !M->Parameters[FAI].Value.empty())
+            A[FAI] = M->Parameters[FAI].Value;
+        }
+      }
+      return Failure;
+    }
   }
 
   return TokError("too many positional arguments");
