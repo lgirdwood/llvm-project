@@ -1011,6 +1011,46 @@ bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
     }
   }
 
+  // Handle j.l target, scratch_reg pseudo-instruction.
+  // parseInstruction strips the ".l" suffix (line ~1433), turning "j.l" into
+  // "j".  When we see "j" with 3 operands [token, target_expr, scratch_reg]
+  // that is the j.l pseudo: load target via the literal pool into scratch_reg,
+  // then jx scratch_reg.  This accepts any relocation-valid expression as the
+  // target (including symbol+constant), unlike plain "j" which is limited to
+  // an 18-bit PC-relative offset encoded at link time.
+  if (FirstOperand.isToken() && FirstOperand.getToken() == "j" &&
+      Operands.size() == 3) {
+    XtensaOperand &TargetOp = static_cast<XtensaOperand &>(*Operands[1]);
+    XtensaOperand &ScratchOp = static_cast<XtensaOperand &>(*Operands[2]);
+    if (TargetOp.isImm() && ScratchOp.isReg()) {
+      XtensaTargetStreamer &TS = this->getTargetStreamer();
+      const MCExpr *Value = TargetOp.getImm();
+      MCSymbol *Sym = getContext().createTempSymbol();
+      const MCExpr *Expr = MCSymbolRefExpr::create(Sym, getContext());
+
+      MCInst L32RInst;
+      L32RInst.setLoc(IDLoc);
+      L32RInst.setOpcode(Xtensa::L32R);
+      if (AutoLitpoolsEnabled)
+        L32RInst.setFlags(L32RInst.getFlags() |
+                          Xtensa::XtensaL32RAutoLitpoolsEnabled);
+      else
+        L32RInst.setFlags(L32RInst.getFlags() |
+                          Xtensa::XtensaL32RAutoLitpoolsDisabled);
+      L32RInst.addOperand(MCOperand::createReg(ScratchOp.getReg()));
+      L32RInst.addOperand(MCOperand::createExpr(Expr));
+      Out.emitInstruction(L32RInst, *STI);
+      TS.emitLiteral(Sym, Value, true, IDLoc);
+
+      MCInst JXInst;
+      JXInst.setLoc(IDLoc);
+      JXInst.setOpcode(Xtensa::JX);
+      JXInst.addOperand(MCOperand::createReg(ScratchOp.getReg()));
+      Out.emitInstruction(JXInst, *STI);
+      return false;
+    }
+  }
+
   MCInst Inst;
   llvm::dbgs() << "Mnemonic token: '" << static_cast<XtensaOperand &>(*Operands[0]).getToken() << "'\n";
   auto Result =
