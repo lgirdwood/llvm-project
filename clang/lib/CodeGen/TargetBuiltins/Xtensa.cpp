@@ -35,6 +35,8 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
 
   switch (BuiltinID) {
   // MAC and Arithmetic Operations
+  case Xtensa::BI__builtin_xtensa_float_sx2:
+    ID = Intrinsic::xtensa_float_sx2; break;
   case Xtensa::BI__builtin_xtensa_ae_mul32_ll:
     ID = Intrinsic::xtensa_ae_mul32_ll; break;
 
