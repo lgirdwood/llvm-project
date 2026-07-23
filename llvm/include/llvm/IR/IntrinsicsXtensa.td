@@ -131,6 +131,12 @@ let TargetPrefix = "xtensa" in {
   // MAC and Arithmetic Operations
   def int_xtensa_float_sx2 :
     Intrinsic<[llvm_v2f32_ty], [llvm_v2i32_ty, llvm_i32_ty], [IntrNoMem]>;
+  def int_xtensa_ufloat_sx2 :
+    Intrinsic<[llvm_v2f32_ty], [llvm_v2i32_ty, llvm_i32_ty], [IntrNoMem]>;
+  def int_xtensa_trunc_sx2 :
+    Intrinsic<[llvm_v2i32_ty], [llvm_v2f32_ty, llvm_i32_ty], [IntrNoMem]>;
+  def int_xtensa_utrunc_sx2 :
+    Intrinsic<[llvm_v2i32_ty], [llvm_v2f32_ty, llvm_i32_ty], [IntrNoMem]>;
 
 def int_xtensa_ae_mul16 : Intrinsic<[llvm_v4i16_ty], [llvm_v4i16_ty, llvm_v4i16_ty], [IntrNoMem]>;
   def int_xtensa_ae_mula2q32x16_fir_h : Intrinsic<[llvm_v2i32_ty], [llvm_v2i32_ty, llvm_v2i32_ty, llvm_v4i16_ty], [IntrNoMem]>;

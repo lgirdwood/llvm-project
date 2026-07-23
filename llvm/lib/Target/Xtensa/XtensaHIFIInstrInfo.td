@@ -3464,4 +3464,25 @@ let Predicates = [HasHIFI4VFPU] in {
                                   (int_xtensa_float_sx2 (v2i32 AEDR:$vr), uimm5:$imm))]> {
     let isCodeGenOnly = 0;
   }
+  // ufloat.sx2 vt, vr, imm : vt[i] = (float)(u32)vr[i] * 2^-imm  (packed x2)
+  def AE_UFLOAT_SX2 : Pseudo<(outs AEDR:$vt), (ins AEDR:$vr, uimm5:$imm),
+                             "ufloat.sx2\t$vt, $vr, $imm",
+                             [(set (v2f32 AEDR:$vt),
+                                   (int_xtensa_ufloat_sx2 (v2i32 AEDR:$vr), uimm5:$imm))]> {
+    let isCodeGenOnly = 0;
+  }
+  // trunc.sx2 vt, vr, imm : vt[i] = (i32)(vr[i] * 2^imm)  (packed x2, signed)
+  def AE_TRUNC_SX2 : Pseudo<(outs AEDR:$vt), (ins AEDR:$vr, uimm5:$imm),
+                            "trunc.sx2\t$vt, $vr, $imm",
+                            [(set (v2i32 AEDR:$vt),
+                                  (int_xtensa_trunc_sx2 (v2f32 AEDR:$vr), uimm5:$imm))]> {
+    let isCodeGenOnly = 0;
+  }
+  // utrunc.sx2 vt, vr, imm : vt[i] = (u32)(vr[i] * 2^imm)  (packed x2, unsigned)
+  def AE_UTRUNC_SX2 : Pseudo<(outs AEDR:$vt), (ins AEDR:$vr, uimm5:$imm),
+                             "utrunc.sx2\t$vt, $vr, $imm",
+                             [(set (v2i32 AEDR:$vt),
+                                   (int_xtensa_utrunc_sx2 (v2f32 AEDR:$vr), uimm5:$imm))]> {
+    let isCodeGenOnly = 0;
+  }
 }
