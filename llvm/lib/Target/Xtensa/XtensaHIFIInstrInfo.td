@@ -2031,6 +2031,12 @@ def : Pat<(v2i32 (bitconvert (v8i8 AEDR:$src))), (v2i32 AEDR:$src)>;
 def : Pat<(v8i8 (bitconvert (v2i32 AEDR:$src))), (v8i8 AEDR:$src)>;
 def : Pat<(v4i16 (bitconvert (v8i8 AEDR:$src))), (v4i16 AEDR:$src)>;
 def : Pat<(v8i8 (bitconvert (v4i16 AEDR:$src))), (v8i8 AEDR:$src)>;
+def : Pat<(v2i32 (bitconvert (v2f32 AEDR:$src))), (v2i32 AEDR:$src)>;
+def : Pat<(v2f32 (bitconvert (v2i32 AEDR:$src))), (v2f32 AEDR:$src)>;
+def : Pat<(v2f32 (bitconvert (v4i16 AEDR:$src))), (v2f32 AEDR:$src)>;
+def : Pat<(v4i16 (bitconvert (v2f32 AEDR:$src))), (v4i16 AEDR:$src)>;
+def : Pat<(v2f32 (bitconvert (v8i8 AEDR:$src))), (v2f32 AEDR:$src)>;
+def : Pat<(v8i8 (bitconvert (v2f32 AEDR:$src))), (v8i8 AEDR:$src)>;
 
 // extract_vector_elt from v2i32 → use AE_MOVAD32_L/H
 def : Pat<(i32 (extractelt (v2i32 AEDR:$src), (i32 0))),
@@ -3448,3 +3454,14 @@ def : Pat<(int_xtensa_ae_mul16x4 AEDR:$q0, AEDR:$q1, AEDR:$r, AEDR:$s), (AE_MUL1
 def : InstAlias<"ae_cvt32x2f16.32\t$t, $s", (AE_SEXT32X2D16_32 AEDR:$t, AEDR:$s)>;
 def : InstAlias<"ae_cvt32x2f16.10\t$t, $s", (AE_SEXT32X2D16_10 AEDR:$t, AEDR:$s)>;
 
+
+// ---- HiFi4 VFPU packed single-precision float (bundle-only; enc via *_enc.inc) ----
+let Predicates = [HasHIFI4VFPU] in {
+  // float.sx2 vt, vr, imm : vt[i] = (float)(i32)vr[i] * 2^-imm  (packed x2)
+  def AE_FLOAT_SX2 : Pseudo<(outs AEDR:$vt), (ins AEDR:$vr, uimm5:$imm),
+                            "float.sx2\t$vt, $vr, $imm",
+                            [(set (v2f32 AEDR:$vt),
+                                  (int_xtensa_float_sx2 (v2i32 AEDR:$vr), uimm5:$imm))]> {
+    let isCodeGenOnly = 0;
+  }
+}

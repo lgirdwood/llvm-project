@@ -73,10 +73,12 @@ XtensaTargetLowering::XtensaTargetLowering(const TargetMachine &TM,
     // types are legal. The Clang codegen bitcasts i64 builtins to/from these.
     addRegisterClass(MVT::v2i32, &Xtensa::AEDRRegClass);
     addRegisterClass(MVT::v4i16, &Xtensa::AEDRRegClass);
+    if (Subtarget.hasHIFI4VFPU())
+      addRegisterClass(MVT::v2f32, &Xtensa::AEDRRegClass);
     // Expand all operations on vector types except those with explicit patterns
     // (bitcast, extractelt, intrinsics). The AEDR register class is used only
     // for HiFi intrinsics, not general vector arithmetic.
-    for (auto VT : {MVT::v2i32, MVT::v4i16}) {
+    for (auto VT : {MVT::v2i32, MVT::v4i16, MVT::v2f32}) {
       setOperationAction(ISD::ADD, VT, Expand);
       setOperationAction(ISD::SUB, VT, Expand);
       setOperationAction(ISD::MUL, VT, Expand);

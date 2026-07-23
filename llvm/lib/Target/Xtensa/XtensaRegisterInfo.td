@@ -271,7 +271,7 @@ foreach i = 0-31 in {
   def AED#i : AEDRReg<i, "aed"#i>;
 }
 
-def AEDR : RegisterClass<"Xtensa", [v2i32, v4i16, v8i8, i64, f64], 64, (add
+def AEDR : RegisterClass<"Xtensa", [v2i32, v4i16, v8i8, i64, f64, v2f32], 64, (add
   AED0, AED1, AED2, AED3, AED4, AED5, AED6, AED7,
   AED8, AED9, AED10, AED11, AED12, AED13, AED14, AED15,
   AED16, AED17, AED18, AED19, AED20, AED21, AED22, AED23,
