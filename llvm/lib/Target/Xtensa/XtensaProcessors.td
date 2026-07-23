@@ -105,7 +105,7 @@ def : Proc<"intel_ace15_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean,
                                 FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                 FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                 FeatureRelocatableVector, FeatureTimers1, FeaturePRID,
-                                FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4]>;
+                                FeatureRegionProtection, FeatureMINMAX, FeatureCLAMPS, FeatureHIFI4, FeatureHIFI4VFPU]>;
 
 def : Proc<"intel_ace15_mtpm", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                 FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I,
@@ -120,14 +120,14 @@ def : Proc<"intel_ace30_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean,
                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                FeatureHighPriInterruptsLevel5, FeatureHighPriInterruptsLevel6, FeatureHighPriInterruptsLevel7, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                FeatureRelocatableVector, FeatureTimers3, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
-                               FeatureCLAMPS, FeatureHIFI4]>;
+                               FeatureCLAMPS, FeatureHIFI4, FeatureHIFI4VFPU]>;
 
 def : Proc<"intel_ace30_ptl", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                                FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I, FeatureSingleFloat,
                                FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                                FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                                FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
-                               FeatureCLAMPS, FeatureHIFI4]>;
+                               FeatureCLAMPS, FeatureHIFI4, FeatureHIFI4VFPU]>;
 
 // intel_ace40_adsp - ACE 4.0 Audio DSP (HiFi5)
 def : Proc<"intel_ace40_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
