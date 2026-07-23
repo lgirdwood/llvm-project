@@ -3486,3 +3486,52 @@ let Predicates = [HasHIFI4VFPU] in {
     let isCodeGenOnly = 0;
   }
 }
+
+// ---- HiFi5 VFPU packed single-precision float arithmetic (bundle-only; enc via ace40_enc.inc) ----
+let Predicates = [HasHIFI5VFPU] in {
+  // add.sx2x2 a, b, c, d, e, f : (a,b) = (c,d) + (e,f)  (4-wide packed float, dual-output)
+  def AE_ADD_SX2X2 : Pseudo<(outs AEDR:$a, AEDR:$b),
+                            (ins AEDR:$c, AEDR:$d, AEDR:$e, AEDR:$f),
+                            "add.sx2x2\t$a, $b, $c, $d, $e, $f",
+                            [(set (v2f32 AEDR:$a), (v2f32 AEDR:$b),
+                                  (int_xtensa_add_sx2x2 (v2f32 AEDR:$c), (v2f32 AEDR:$d),
+                                                        (v2f32 AEDR:$e), (v2f32 AEDR:$f)))]> {
+    let isCodeGenOnly = 0;
+  }
+  def AE_SUB_SX2X2 : Pseudo<(outs AEDR:$a, AEDR:$b),
+                            (ins AEDR:$c, AEDR:$d, AEDR:$e, AEDR:$f),
+                            "sub.sx2x2\t$a, $b, $c, $d, $e, $f",
+                            [(set (v2f32 AEDR:$a), (v2f32 AEDR:$b),
+                                  (int_xtensa_sub_sx2x2 (v2f32 AEDR:$c), (v2f32 AEDR:$d),
+                                                        (v2f32 AEDR:$e), (v2f32 AEDR:$f)))]> {
+    let isCodeGenOnly = 0;
+  }
+  def AE_MUL_SX2X2 : Pseudo<(outs AEDR:$a, AEDR:$b),
+                            (ins AEDR:$c, AEDR:$d, AEDR:$e, AEDR:$f),
+                            "mul.sx2x2\t$a, $b, $c, $d, $e, $f",
+                            [(set (v2f32 AEDR:$a), (v2f32 AEDR:$b),
+                                  (int_xtensa_mul_sx2x2 (v2f32 AEDR:$c), (v2f32 AEDR:$d),
+                                                        (v2f32 AEDR:$e), (v2f32 AEDR:$f)))]> {
+    let isCodeGenOnly = 0;
+  }
+  def AE_MADD_SX2X2 : Pseudo<(outs AEDR:$a, AEDR:$b),
+                            (ins AEDR:$ai, AEDR:$bi, AEDR:$c, AEDR:$d, AEDR:$e, AEDR:$f),
+                            "madd.sx2x2\t$a, $b, $c, $d, $e, $f",
+                            [(set (v2f32 AEDR:$a), (v2f32 AEDR:$b),
+                                  (int_xtensa_madd_sx2x2 (v2f32 AEDR:$ai), (v2f32 AEDR:$bi),
+                                                        (v2f32 AEDR:$c), (v2f32 AEDR:$d),
+                                                        (v2f32 AEDR:$e), (v2f32 AEDR:$f)))]> {
+    let Constraints = "$a = $ai, $b = $bi";
+    let isCodeGenOnly = 0;
+  }
+  def AE_MSUB_SX2X2 : Pseudo<(outs AEDR:$a, AEDR:$b),
+                            (ins AEDR:$ai, AEDR:$bi, AEDR:$c, AEDR:$d, AEDR:$e, AEDR:$f),
+                            "msub.sx2x2\t$a, $b, $c, $d, $e, $f",
+                            [(set (v2f32 AEDR:$a), (v2f32 AEDR:$b),
+                                  (int_xtensa_msub_sx2x2 (v2f32 AEDR:$ai), (v2f32 AEDR:$bi),
+                                                        (v2f32 AEDR:$c), (v2f32 AEDR:$d),
+                                                        (v2f32 AEDR:$e), (v2f32 AEDR:$f)))]> {
+    let Constraints = "$a = $ai, $b = $bi";
+    let isCodeGenOnly = 0;
+  }
+}
