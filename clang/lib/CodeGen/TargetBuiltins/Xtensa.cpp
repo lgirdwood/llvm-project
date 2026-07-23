@@ -598,6 +598,90 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     return llvm::UndefValue::get(CGM.VoidTy);
   }
 
+  case Xtensa::BI__builtin_xtensa_add_sx2x2: {
+    Address Out0Addr = EmitPointerWithAlignment(E->getArg(0));
+    Address Out1Addr = EmitPointerWithAlignment(E->getArg(1));
+    llvm::Type *V2F32 = llvm::FixedVectorType::get(Builder.getFloatTy(), 2);
+    Value *C = Builder.CreateBitCast(Ops[2], V2F32);
+    Value *D = Builder.CreateBitCast(Ops[3], V2F32);
+    Value *Ei = Builder.CreateBitCast(Ops[4], V2F32);
+    Value *Fi = Builder.CreateBitCast(Ops[5], V2F32);
+    Function *F = CGM.getIntrinsic(Intrinsic::xtensa_add_sx2x2);
+    Value *Call = Builder.CreateCall(F, {C, D, Ei, Fi});
+    Value *A = Builder.CreateExtractValue(Call, 0);
+    Value *B = Builder.CreateExtractValue(Call, 1);
+    Builder.CreateStore(Builder.CreateBitCast(A, Builder.getInt64Ty()), Out0Addr);
+    Builder.CreateStore(Builder.CreateBitCast(B, Builder.getInt64Ty()), Out1Addr);
+    return llvm::UndefValue::get(CGM.VoidTy);
+  }
+  case Xtensa::BI__builtin_xtensa_sub_sx2x2: {
+    Address Out0Addr = EmitPointerWithAlignment(E->getArg(0));
+    Address Out1Addr = EmitPointerWithAlignment(E->getArg(1));
+    llvm::Type *V2F32 = llvm::FixedVectorType::get(Builder.getFloatTy(), 2);
+    Value *C = Builder.CreateBitCast(Ops[2], V2F32);
+    Value *D = Builder.CreateBitCast(Ops[3], V2F32);
+    Value *Ei = Builder.CreateBitCast(Ops[4], V2F32);
+    Value *Fi = Builder.CreateBitCast(Ops[5], V2F32);
+    Function *F = CGM.getIntrinsic(Intrinsic::xtensa_sub_sx2x2);
+    Value *Call = Builder.CreateCall(F, {C, D, Ei, Fi});
+    Value *A = Builder.CreateExtractValue(Call, 0);
+    Value *B = Builder.CreateExtractValue(Call, 1);
+    Builder.CreateStore(Builder.CreateBitCast(A, Builder.getInt64Ty()), Out0Addr);
+    Builder.CreateStore(Builder.CreateBitCast(B, Builder.getInt64Ty()), Out1Addr);
+    return llvm::UndefValue::get(CGM.VoidTy);
+  }
+  case Xtensa::BI__builtin_xtensa_mul_sx2x2: {
+    Address Out0Addr = EmitPointerWithAlignment(E->getArg(0));
+    Address Out1Addr = EmitPointerWithAlignment(E->getArg(1));
+    llvm::Type *V2F32 = llvm::FixedVectorType::get(Builder.getFloatTy(), 2);
+    Value *C = Builder.CreateBitCast(Ops[2], V2F32);
+    Value *D = Builder.CreateBitCast(Ops[3], V2F32);
+    Value *Ei = Builder.CreateBitCast(Ops[4], V2F32);
+    Value *Fi = Builder.CreateBitCast(Ops[5], V2F32);
+    Function *F = CGM.getIntrinsic(Intrinsic::xtensa_mul_sx2x2);
+    Value *Call = Builder.CreateCall(F, {C, D, Ei, Fi});
+    Value *A = Builder.CreateExtractValue(Call, 0);
+    Value *B = Builder.CreateExtractValue(Call, 1);
+    Builder.CreateStore(Builder.CreateBitCast(A, Builder.getInt64Ty()), Out0Addr);
+    Builder.CreateStore(Builder.CreateBitCast(B, Builder.getInt64Ty()), Out1Addr);
+    return llvm::UndefValue::get(CGM.VoidTy);
+  }
+  case Xtensa::BI__builtin_xtensa_madd_sx2x2: {
+    Address Out0Addr = EmitPointerWithAlignment(E->getArg(0));
+    Address Out1Addr = EmitPointerWithAlignment(E->getArg(1));
+    llvm::Type *V2F32 = llvm::FixedVectorType::get(Builder.getFloatTy(), 2);
+    Value *A0 = Builder.CreateBitCast(Builder.CreateLoad(Out0Addr), V2F32);
+    Value *B0 = Builder.CreateBitCast(Builder.CreateLoad(Out1Addr), V2F32);
+    Value *C = Builder.CreateBitCast(Ops[2], V2F32);
+    Value *D = Builder.CreateBitCast(Ops[3], V2F32);
+    Value *Ei = Builder.CreateBitCast(Ops[4], V2F32);
+    Value *Fi = Builder.CreateBitCast(Ops[5], V2F32);
+    Function *F = CGM.getIntrinsic(Intrinsic::xtensa_madd_sx2x2);
+    Value *Call = Builder.CreateCall(F, {A0, B0, C, D, Ei, Fi});
+    Value *A = Builder.CreateExtractValue(Call, 0);
+    Value *B = Builder.CreateExtractValue(Call, 1);
+    Builder.CreateStore(Builder.CreateBitCast(A, Builder.getInt64Ty()), Out0Addr);
+    Builder.CreateStore(Builder.CreateBitCast(B, Builder.getInt64Ty()), Out1Addr);
+    return llvm::UndefValue::get(CGM.VoidTy);
+  }
+  case Xtensa::BI__builtin_xtensa_msub_sx2x2: {
+    Address Out0Addr = EmitPointerWithAlignment(E->getArg(0));
+    Address Out1Addr = EmitPointerWithAlignment(E->getArg(1));
+    llvm::Type *V2F32 = llvm::FixedVectorType::get(Builder.getFloatTy(), 2);
+    Value *A0 = Builder.CreateBitCast(Builder.CreateLoad(Out0Addr), V2F32);
+    Value *B0 = Builder.CreateBitCast(Builder.CreateLoad(Out1Addr), V2F32);
+    Value *C = Builder.CreateBitCast(Ops[2], V2F32);
+    Value *D = Builder.CreateBitCast(Ops[3], V2F32);
+    Value *Ei = Builder.CreateBitCast(Ops[4], V2F32);
+    Value *Fi = Builder.CreateBitCast(Ops[5], V2F32);
+    Function *F = CGM.getIntrinsic(Intrinsic::xtensa_msub_sx2x2);
+    Value *Call = Builder.CreateCall(F, {A0, B0, C, D, Ei, Fi});
+    Value *A = Builder.CreateExtractValue(Call, 0);
+    Value *B = Builder.CreateExtractValue(Call, 1);
+    Builder.CreateStore(Builder.CreateBitCast(A, Builder.getInt64Ty()), Out0Addr);
+    Builder.CreateStore(Builder.CreateBitCast(B, Builder.getInt64Ty()), Out1Addr);
+    return llvm::UndefValue::get(CGM.VoidTy);
+  }
   case Xtensa::BI__builtin_xtensa_ae_l32x2x2_xc:
   case Xtensa::BI__builtin_xtensa_ae_l32x2x2_xc1: {
     unsigned IntrinsicID;

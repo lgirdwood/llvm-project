@@ -39,6 +39,27 @@ typedef int64_t ae_xtfloatx2 __attribute__((aligned(8))); /* 2x IEEE-754 single-
     ((ae_int32x2)__builtin_xtensa_trunc_sx2((ae_xtfloatx2)(v), (imm)))
 #define XT_UTRUNC_SX2(v, imm) \
     ((ae_int32x2)__builtin_xtensa_utrunc_sx2((ae_xtfloatx2)(v), (imm)))
+/* add.sx2x2: (a,b) = (c,d) + (e,f), 4-wide packed single-float; a,b are outputs. */
+#define XT_ADD_SX2X2(a, b, c, d, e, f) \
+    __builtin_xtensa_add_sx2x2((ae_xtfloatx2 *)&(a), (ae_xtfloatx2 *)&(b), \
+                               (ae_xtfloatx2)(c), (ae_xtfloatx2)(d), \
+                               (ae_xtfloatx2)(e), (ae_xtfloatx2)(f))
+#define XT_SUB_SX2X2(a, b, c, d, e, f) \
+    __builtin_xtensa_sub_sx2x2((ae_xtfloatx2 *)&(a), (ae_xtfloatx2 *)&(b), \
+                               (ae_xtfloatx2)(c), (ae_xtfloatx2)(d), \
+                               (ae_xtfloatx2)(e), (ae_xtfloatx2)(f))
+#define XT_MUL_SX2X2(a, b, c, d, e, f) \
+    __builtin_xtensa_mul_sx2x2((ae_xtfloatx2 *)&(a), (ae_xtfloatx2 *)&(b), \
+                               (ae_xtfloatx2)(c), (ae_xtfloatx2)(d), \
+                               (ae_xtfloatx2)(e), (ae_xtfloatx2)(f))
+#define XT_MADD_SX2X2(a, b, c, d, e, f) \
+    __builtin_xtensa_madd_sx2x2((ae_xtfloatx2 *)&(a), (ae_xtfloatx2 *)&(b), \
+                               (ae_xtfloatx2)(c), (ae_xtfloatx2)(d), \
+                               (ae_xtfloatx2)(e), (ae_xtfloatx2)(f))
+#define XT_MSUB_SX2X2(a, b, c, d, e, f) \
+    __builtin_xtensa_msub_sx2x2((ae_xtfloatx2 *)&(a), (ae_xtfloatx2 *)&(b), \
+                               (ae_xtfloatx2)(c), (ae_xtfloatx2)(d), \
+                               (ae_xtfloatx2)(e), (ae_xtfloatx2)(f))
 typedef int64_t ae_int16x4 __attribute__((aligned(8)));
 typedef int64_t ae_f64      __attribute__((aligned(8)));
 typedef int32_t ae_int32;

@@ -101,6 +101,11 @@ TARGET_BUILTIN(__builtin_xtensa_float_sx2, "LLiLLiIi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ufloat_sx2, "LLiLLiIi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_trunc_sx2, "LLiLLiIi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_utrunc_sx2, "LLiLLiIi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_add_sx2x2, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_sub_sx2x2, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_mul_sx2x2, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_madd_sx2x2, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_msub_sx2x2, "vLLi*LLi*LLiLLiLLiLLi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mul32_ll, "LLiLLiLLi", "n", "")
 
 
