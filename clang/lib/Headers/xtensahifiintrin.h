@@ -33,6 +33,12 @@ typedef int64_t ae_int32x2 __attribute__((aligned(8)));
 typedef int64_t ae_xtfloatx2 __attribute__((aligned(8))); /* 2x IEEE-754 single-float packed */
 #define XT_FLOAT_SX2(v, imm) \
     ((ae_xtfloatx2)__builtin_xtensa_float_sx2((ae_int32x2)(v), (imm)))
+#define XT_UFLOAT_SX2(v, imm) \
+    ((ae_xtfloatx2)__builtin_xtensa_ufloat_sx2((ae_int32x2)(v), (imm)))
+#define XT_TRUNC_SX2(v, imm) \
+    ((ae_int32x2)__builtin_xtensa_trunc_sx2((ae_xtfloatx2)(v), (imm)))
+#define XT_UTRUNC_SX2(v, imm) \
+    ((ae_int32x2)__builtin_xtensa_utrunc_sx2((ae_xtfloatx2)(v), (imm)))
 typedef int64_t ae_int16x4 __attribute__((aligned(8)));
 typedef int64_t ae_f64      __attribute__((aligned(8)));
 typedef int32_t ae_int32;

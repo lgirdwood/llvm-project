@@ -98,6 +98,9 @@ TARGET_BUILTIN(__builtin_xtensa_ae_sa24x2_ip, "LLiLLiLLiv**", "n", "")
 
 // MAC and Arithmetic Operations
 TARGET_BUILTIN(__builtin_xtensa_float_sx2, "LLiLLiIi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_ufloat_sx2, "LLiLLiIi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_trunc_sx2, "LLiLLiIi", "n", "")
+TARGET_BUILTIN(__builtin_xtensa_utrunc_sx2, "LLiLLiIi", "n", "")
 TARGET_BUILTIN(__builtin_xtensa_ae_mul32_ll, "LLiLLiLLi", "n", "")
 
 
