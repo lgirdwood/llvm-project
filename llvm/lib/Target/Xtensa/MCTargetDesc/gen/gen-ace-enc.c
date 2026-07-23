@@ -24,7 +24,7 @@ static int build(xtensa_isa isa,xtensa_opcode opc,int f,int s,uint32_t*ov,int no
 int main(void){xtensa_isa_status e;char*m=0;xtensa_isa isa=xtensa_isa_init(&xtensa_modules,&e,&m);
   ibw=((xtensa_isa_internal*)isa)->insnbuf_size;
   for(int op=0;op<xtensa_isa_num_opcodes(isa);op++){const char*nm=xtensa_opcode_name(isa,op);
-    if(!nm||strncmp(nm,"ae_",3))continue; int f,s,len=pick(isa,op,&f,&s); if(len<0)continue;
+    if(!nm||(strncmp(nm,"ae_",3) && !strstr(nm,".sx2")))continue; int f,s,len=pick(isa,op,&f,&s); if(len<0)continue;
     unsigned char tm[32];uint32_t z[8]={0};build(isa,op,f,s,z,0,tm);
     int no=xtensa_opcode_num_operands(isa,op);
     printf("%s\t%d\t",nm,len); for(int i=0;i<len;i++)printf("%02x",tm[i]);
