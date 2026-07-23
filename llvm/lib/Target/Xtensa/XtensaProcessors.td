@@ -135,14 +135,14 @@ def : Proc<"intel_ace40_adsp", [FeatureDensity, FeatureWindowed, FeatureBoolean,
                            FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                            FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                            FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
-                           FeatureCLAMPS, FeatureHIFI5]>;
+                           FeatureCLAMPS, FeatureHIFI5, FeatureHIFI5VFPU]>;
 
 def : Proc<"intel_ace40", [FeatureDensity, FeatureWindowed, FeatureBoolean, FeatureLoop, FeatureSEXT,
                            FeatureNSA, FeatureMul16, FeatureMul32, FeatureMul32High, FeatureDiv32, FeatureS32C1I, FeatureSingleFloat,
                            FeatureTHREADPTR, FeatureDebug, FeatureException, FeatureHighPriInterrupts,
                            FeatureHighPriInterruptsLevel5, FeatureCoprocessor, FeatureInterrupt, FeatureDataCache,
                            FeatureRelocatableVector, FeatureTimers2, FeaturePRID, FeatureRegionProtection, FeatureMiscSR, FeatureMINMAX,
-                           FeatureCLAMPS, FeatureHIFI5]>;
+                           FeatureCLAMPS, FeatureHIFI5, FeatureHIFI5VFPU]>;
 
 
 //===----------------------------------------------------------------------===//

@@ -196,6 +196,11 @@ def FeatureHIFI4VFPU : SubtargetFeature<"hifi4-vfpu", "HasHIFI4VFPU", "true",
 def HasHIFI4VFPU : Predicate<"Subtarget->hasHIFI4VFPU()">,
                AssemblerPredicate<(all_of FeatureHIFI4VFPU)>;
 
+def FeatureHIFI5VFPU : SubtargetFeature<"hifi5-vfpu", "HasHIFI5VFPU", "true",
+                                    "Enable Xtensa HiFi5 VFPU packed single-precision float instructions", [FeatureHIFI5]>;
+def HasHIFI5VFPU : Predicate<"Subtarget->hasHIFI5VFPU()">,
+               AssemblerPredicate<(all_of FeatureHIFI5VFPU)>;
+
 def FeatureFLIX : SubtargetFeature<"flix", "HasFLIX", "true",
                                    "Enable Xtensa FLIX VLIW instruction bundling", [FeatureHIFI3]>;
 def HasFLIX : Predicate<"Subtarget->hasFLIX()">,

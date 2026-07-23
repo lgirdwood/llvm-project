@@ -806,7 +806,7 @@ void XtensaMCCodeEmitter::encodeInstruction(const MCInst &MI,
       }
       if (!Usable)
         break;
-      uint8_t Bytes[11];
+      uint8_t Bytes[16]; // max FLIX bundle length; tmpl is uint8_t[16]
       memcpy(Bytes, E.tmpl, E.len);
       for (unsigned O = 0; O < E.nops; ++O) {
         const XtBundleOp &Op = E.ops[O];
