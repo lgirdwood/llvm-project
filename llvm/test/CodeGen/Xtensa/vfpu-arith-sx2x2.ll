@@ -1,4 +1,12 @@
 ; RUN: llc -mtriple=xtensa -mcpu=intel_ace40_adsp < %s | FileCheck %s
+; Object emission must succeed too: these are FLIX bundle-only ops whose bytes
+; come from the per-core enc table (ace40_enc.inc), not a TableGen encoding.
+; Without a table entry the MC emitter aborts with "Unsupported instruction",
+; so a bare -filetype=obj run is the regression guard the asm check above misses.
+; Cover both the bare core name and the _adsp spelling (they must route to the
+; same ACE40 bundle table).
+; RUN: llc -mtriple=xtensa -mcpu=intel_ace40 -filetype=obj < %s -o /dev/null
+; RUN: llc -mtriple=xtensa -mcpu=intel_ace40_adsp -filetype=obj < %s -o /dev/null
 ; HiFi5 VFPU 4-wide packed single-float arithmetic (dual-output register pair).
 ; (a,b) = op((c,d),(e,f)); values live in the 64-bit AEDR class, moved as i64.
 ; madd/msub read-modify-write the (a,b) accumulator pair (tied operands).

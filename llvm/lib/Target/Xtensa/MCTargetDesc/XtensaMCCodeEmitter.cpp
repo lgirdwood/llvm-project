@@ -762,7 +762,8 @@ static XtBundleTableRef selectBundleTable(StringRef CPU) {
   if (CPU == "intel_ace30_adsp" || CPU == "intel_ace30_ptl")
     return {XtBundleTableAce30,
             sizeof(XtBundleTableAce30) / sizeof(XtBundleEnc)};
-  if (CPU == "intel_ace40_adsp" || CPU == "intel_ace40_nvl")
+  if (CPU == "intel_ace40" || CPU == "intel_ace40_adsp" ||
+      CPU == "intel_ace40_nvl")
     return {XtBundleTableAce40,
             sizeof(XtBundleTableAce40) / sizeof(XtBundleEnc)};
   // Default: ACE15/HiFi4 table (intel_ace15_adsp, intel_ace15_mtpm).
