@@ -33,6 +33,30 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   // data pointer to be 8-byte aligned (AE hardware constraint).
   bool NeedsAlignedPtr8 = false;
 
+  // The circular / post-update AE loads and stores take a `void **ptr` operand
+  // and write the advanced pointer back through it.  The Cadence/SOF intrinsic
+  // headers expand e.g. AE_L32_XC(v, (ae_f32 *)dp, off) to
+  //   __builtin_xtensa_ae_l32_xc((void **)&((ae_f32 *)dp), off)
+  // i.e. the address of a *cast* of the caller's pointer variable.  In C a cast
+  // yields a prvalue, so `&(cast)` materialises a throwaway temporary; storing
+  // the advanced pointer into that temporary leaves the caller's variable (dp)
+  // unchanged.  In a circular FIR that means the pointer never advances/realigns
+  // to the 8-byte boundary the following 64-bit paired load requires, causing a
+  // load/store alignment fault at run time.  xt-clang writes back through the
+  // underlying object; match that by peeling the `&` and any pointer casts to
+  // recover the real lvalue, falling back to the plain address (original
+  // behaviour) when the operand is not the address of an lvalue.
+  auto EmitPtrUpdateAddress = [&](const Expr *Arg) -> Address {
+    const Expr *Inner = Arg->IgnoreParenCasts();
+    if (const auto *UO = dyn_cast<UnaryOperator>(Inner))
+      if (UO->getOpcode() == UO_AddrOf) {
+        const Expr *Obj = UO->getSubExpr()->IgnoreParenCasts();
+        if (Obj->isLValue())
+          return EmitLValue(Obj).getAddress();
+      }
+    return EmitPointerWithAlignment(Arg);
+  };
+
   switch (BuiltinID) {
   // MAC and Arithmetic Operations
   case Xtensa::BI__builtin_xtensa_float_sx2:
@@ -582,7 +606,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     Address Out0Addr = EmitPointerWithAlignment(E->getArg(0));
     Address Out1Addr = EmitPointerWithAlignment(E->getArg(1));
     // Ops[2] = align (ignored at IR level), Ops[3] = ptr*
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(3));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(3));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F = CGM.getIntrinsic(IntrinsicID);
@@ -692,7 +716,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
 
     Address Out0Addr = EmitPointerWithAlignment(E->getArg(0));
     Address Out1Addr = EmitPointerWithAlignment(E->getArg(1));
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(2));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(2));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F = CGM.getIntrinsic(IntrinsicID);
@@ -725,7 +749,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     Value *In0 = Builder.CreateBitCast(Ops[0], VecTy);
     Value *In1 = Builder.CreateBitCast(Ops[1], VecTy);
     // Ops[2] = align (ignored), Ops[3] = ptr*
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(3));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(3));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F = CGM.getIntrinsic(IntrinsicID);
@@ -739,7 +763,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
     llvm::Type *V2I32Ty = llvm::FixedVectorType::get(Builder.getInt32Ty(), 2);
     Value *In0 = Builder.CreateBitCast(Ops[0], V2I32Ty);
     Value *In1 = Builder.CreateBitCast(Ops[1], V2I32Ty);
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(2));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(2));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F = CGM.getIntrinsic(Intrinsic::xtensa_ae_s32x2x2_xc1);
@@ -867,7 +891,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   // C ae_valign is long long (i64); bridge with zext i32->i64.
   case Xtensa::BI__builtin_xtensa_ae_la64_pp:
   case Xtensa::BI__builtin_xtensa_ae_la128_pp: {
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(0));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(0));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F;
@@ -932,7 +956,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
 
     // Ops[0] = i64 alignment token (C long long ae_valign) -> trunc to i32
     Value *AlignI32 = Builder.CreateTrunc(Ops[0], Builder.getInt32Ty(), "align.i32");
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(1));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(1));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F = CGM.getIntrinsic(IntrinsicID);
@@ -972,7 +996,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
 
     // Ops[0]=LLi data, Ops[1]=LLi align_in (ae_valign), Ops[2]=void** ptr
     Value *AlignI32 = Builder.CreateTrunc(Ops[1], Builder.getInt32Ty(), "align.i32");
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(2));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(2));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
 
     Function *F = CGM.getIntrinsic(IntrinsicID);
@@ -1108,7 +1132,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   };
 
   if (IsPostUpdateLoad) {
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(0));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(0));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
     // 64-bit pair loads (ae_l32x2_*, ae_l16x4_*) require the data pointer to
     // be 8-byte aligned.  Emit an assumption so LLVM promotes any stack
@@ -1129,7 +1153,7 @@ Value *CodeGenFunction::EmitXtensaBuiltinExpr(unsigned BuiltinID,
   }
 
   if (IsPostUpdateStore) {
-    Address PtrAddr = EmitPointerWithAlignment(E->getArg(1));
+    Address PtrAddr = EmitPtrUpdateAddress(E->getArg(1));
     Value *Ptr = Builder.CreateLoad(PtrAddr);
     Ops[1] = Ptr;
 
