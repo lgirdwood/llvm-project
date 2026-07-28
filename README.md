@@ -32,15 +32,15 @@ ninja -C build
 ### 2. Build compiler-rt Builtins
 Intel ADSP targets require specific builtins to be compiled with correct target features (e.g., windowed ABI, HiFi coprocessor disabled to prevent boot-time exceptions).
 
-Run the pre-configured scripts in the repository root to compile and install `compiler-rt` builtins for the Xtensa targets:
+Run the pre-configured scripts in `scripts/` to compile and install `compiler-rt` builtins for the Xtensa targets:
 
 - For the Windowed ABI (Standard for Intel ADSP targets):
   ```bash
-  ./build_windowed_rt.sh
+  ./scripts/build_windowed_rt.sh
   ```
 - For the Call0 ABI (if needed):
   ```bash
-  ./build_call0_rt.sh
+  ./scripts/build_call0_rt.sh
   ```
 
 ---
